@@ -274,7 +274,7 @@ class ReviewPane(wx.Frame):
         self.timer.Stop()
         self.Destroy()
 
-    def task(self, operation, complete, label='Working…', *, foreground=False, on_error=None):
+    def task(self, operation, complete, label='Working…', *, foreground=False, on_error=None, authorization=None):
         if self.busy or self.closed:
             return False
         self.busy = True
@@ -285,6 +285,10 @@ class ReviewPane(wx.Frame):
         self.status.SetLabel(label)
         def worker():
             try:
+                if self.closed or generation != self.generation:
+                    return
+                if authorization:
+                    authorization()
                 result, error = operation(), None
             except Exception as exc:
                 result, error = None, str(exc)
@@ -296,13 +300,22 @@ class ReviewPane(wx.Frame):
             if hasattr(self, 'activity'):
                 self.activity.Stop()
                 self.activity.Hide()
+            if authorization:
+                try:
+                    authorization()
+                except RuntimeError as failure:
+                    checker = getattr(self, 'check_authorization', None)
+                    if checker:
+                        checker()
+                    self.status.SetLabel(str(failure) + ' Your draft is retained; check any in-flight publication before retrying.')
+                    return
             if error:
                 self.status.SetLabel(error)
                 self.status.Wrap(max(350, self.GetClientSize().width - 25))
                 if on_error:
                     on_error(error)
-            elif foreground and (not self.IsShown() or self.IsIconized() or not self.IsActive()):
-                self.status.SetLabel('Paused; provider response will display when this pane becomes active.')
+            elif foreground and (not self.IsShown() or self.IsIconized()):
+                self.status.SetLabel('Paused; provider response will display when this pane becomes visible.')
             else:
                 complete(result)
             if self.session:
@@ -350,12 +363,23 @@ class ReviewPane(wx.Frame):
     def refresh(self, event=None):
         if not self.session or self.busy or self.closed:
             return
-        if self.IsIconized() or not self.IsShown() or not self.IsActive():
-            self.status.SetLabel('Paused while review pane is inactive; last sync: ' + (self.session.synced_at or 'none'))
+        if self.IsIconized() or not self.IsShown():
+            self.status.SetLabel('Paused while review pane is hidden; last sync: ' + (self.session.synced_at or 'none'))
             self.timer.StartOnce(8000)
             return
-        self.task(self.session.refresh, lambda result: self.populate(), 'Updating provider comments…', foreground=True,
-                  on_error=getattr(self, 'refresh_failed', None))
+        session = self.session
+        def complete(result):
+            if self.session is session:
+                self.populate()
+                if hasattr(self, 'send') and hasattr(self, 'compose') and session.status == 'synced':
+                    self.send.Enable(self.compose.IsEnabled())
+        def failed(error):
+            if self.session is session:
+                handler = getattr(self, 'refresh_failed', None)
+                if handler:
+                    handler(error)
+        self.task(session.refresh, complete, 'Updating provider comments…', foreground=True,
+                  on_error=failed, authorization=getattr(session, 'require_authorization', None))
 
     def activation(self, event):
         event.Skip()

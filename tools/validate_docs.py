@@ -160,6 +160,8 @@ def validate(root=ROOT, packages=True):
         folder = metadata_path.parent; metadata = json.loads(metadata_path.read_text(encoding='utf-8-sig'))
         readmes = [p for p in folder.iterdir() if p.name.lower() == 'readme.md']
         docs = readmes + [folder/'help.html']
+        if (folder/'USER_GUIDE.html').is_file():
+            docs.append(folder/'USER_GUIDE.html')
         if len(readmes) != 1:errors.append(f'{folder}: expected one README.md')
         if len(readmes)==1:
             for catalog in (root/'README.md',root/'docs/USER_GUIDE.md'):

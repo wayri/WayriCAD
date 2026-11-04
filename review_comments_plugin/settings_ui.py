@@ -29,7 +29,7 @@ class ReviewSetup(Settings):
         main.Add(self.steps, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 18)
         self.book = wx.Simplebook(self)
         groups = [
-            ('Connect uses the existing CLI session. If GitLab explicitly rejects a stored CLI credential, Connect replaces only that host’s rejected CLI connection. Phone and browser sessions stay separate.',
+            ('Sign in once in your browser. Review signs out after at most eight hours and keeps unpublished drafts. No terminal commands or token pasting are needed.',
              [('provider', 'Provider', 'github'), ('host', 'GitLab HTTPS origin', 'https://gitlab.com')]),
             ('Choose a saved design matching an immutable Git commit. Unsaved editor changes stay outside this review.',
              [('root', 'Local Git worktree', ''), ('file', 'Design path inside repository', ''),
@@ -56,10 +56,7 @@ class ReviewSetup(Settings):
                 self.fields[key] = control
                 layout.Add(control, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 16)
             if index == 0:
-                layout.Add(ActionButton(page, 'Check existing login', self.check_existing), 0, wx.LEFT | wx.RIGHT | wx.TOP, 16)
-                layout.Add(ActionButton(page, 'Connect with browser', self.login), 0, wx.ALL, 16)
-                layout.Add(ActionButton(page, 'Cancel sign-in', lambda event: self.cancel_login(), compact=True), 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
-                layout.Add(ActionButton(page, 'Copy terminal sign-in command', self.copy_login, compact=True), 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
+                layout.Add(ActionButton(page, 'Sign in', self.login, primary=True), 0, wx.ALL, 16)
             elif index == 1:
                 layout.Add(ActionButton(page, 'Choose saved PCB or schematic…', self.choose_design), 0, wx.ALL, 16)
             else:
@@ -82,6 +79,18 @@ class ReviewSetup(Settings):
         self.SetSizer(main)
         self.Bind(wx.EVT_WINDOW_DESTROY, self.destroyed)
         self.go(0)
+        from .theme import apply_theme, theme_of
+        apply_theme(self, theme_of(parent))
+
+    def login(self, event=None):
+        from .desktop_auth_ui import SignInDialog
+        from .desktop_auth import AUTH
+        provider = self.fields['provider'].GetValue()
+        origin = 'https://github.com' if provider == 'github' else self.fields['host'].GetValue().strip()
+        with SignInDialog(self, provider=provider, origin=origin) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                state = AUTH.status(provider, origin)
+                self.login_status.SetValue('Signed in as ' + state['account'] + '. Session ends within eight hours.')
 
     def destroyed(self, event):
         if event.GetEventObject() is self:

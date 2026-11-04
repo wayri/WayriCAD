@@ -289,7 +289,7 @@ def _cells(line):
     return [value.strip() for value in values]
 
 
-def preview_html(text):
+def preview_html(text, *, theme='light'):
     """Render a small Markdown subset as inert HTML: no href/src or raw HTML."""
     _text(text)
     lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
@@ -334,4 +334,7 @@ def preview_html(text):
         elif line:
             output.append('<p>' + _inline(line) + '</p>')
         index += 1
-    return '<html><body>' + ''.join(output) + '</body></html>'
+    from .theme import PALETTES
+    colors = PALETTES[theme]
+    return ('<html><body bgcolor="' + colors['surface'] + '" text="' + colors['text'] + '">'
+            + ''.join(output) + '</body></html>')

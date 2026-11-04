@@ -65,7 +65,8 @@ class MessageBody(wx.html.HtmlWindow):
         # text available in the provider, rather than rendering unbounded HTML.
         if len(text) > MAX_TEXT:
             text = text[:MAX_TEXT-100] + '\n\n[Long message: open the provider to read the complete text.]'
-        self.SetPage(preview_html(text))
+        from .theme import theme_of
+        self.SetPage(preview_html(text, theme=theme_of(self)))
 
     def GetLabel(self):
         return self.text
@@ -147,7 +148,7 @@ class MessageCard(wx.Panel):
             location = ActionButton(self, '⌖ ' + label[:40], compact=True)
             location.SetBackgroundColour('#edf6f7')
             location.SetForegroundColour(ACCENT)
-            location.SetToolTip('Locate this provider-anchored item in the originating PCB Editor')
+            location.SetToolTip('Focus this comment in the design view; object-only anchors can also navigate PCB Editor')
             location.Bind(wx.EVT_BUTTON, lambda event: owner.locate_row(row))
             actions.Add(location, 0, wx.RIGHT | wx.BOTTOM, 8)
         provider = ActionButton(self, 'Open ↗', compact=True)
@@ -167,11 +168,13 @@ class MessageCard(wx.Panel):
         self.highlighted = row['author'] in owner.highlighted_authors
 
     def paint(self, event):
+        from .theme import palette
+        colors = palette(self)
         dc = wx.AutoBufferedPaintDC(self)
-        dc.SetBackground(wx.Brush(BACKGROUND))
+        dc.SetBackground(wx.Brush(colors['background']))
         dc.Clear()
-        dc.SetPen(wx.Pen(ACCENT if self.highlighted else LINE, 2 if self.highlighted else 1))
-        dc.SetBrush(wx.Brush('#ffffff'))
+        dc.SetPen(wx.Pen(colors['accent'] if self.highlighted else colors['border'], 2 if self.highlighted else 1))
+        dc.SetBrush(wx.Brush(colors['surface']))
         width, height = self.GetClientSize()
         dc.DrawRoundedRectangle(1, 1, max(1, width - 2), max(1, height - 2), 10)
 
@@ -187,11 +190,12 @@ class MessageCard(wx.Panel):
 class ConversationPane(ReviewPane):
     """Cards replace the table/detail split; source and publication guards are shared."""
     def __init__(self, board_path=None, settings=None):
-        wx.Frame.__init__(self, None, title='WayriCAD Review', size=(1080, 880))
+        wx.Frame.__init__(self, None, title='WayriCAD Review', size=(1440, 900))
         self.SetMinSize((640, 660))
         self.SetIcon(wx.Icon(str(Path(__file__).parent / 'icon.png'), wx.BITMAP_TYPE_PNG))
         self.board_path = Path(board_path).resolve() if board_path else None
         self.values = settings if settings is not None else initial_settings(board_path)
+        self.review_theme = self.values.get('theme', 'light') if self.values.get('theme') in ('light', 'dark') else 'light'
         self.session = None
         self.busy = self.closed = False
         self.target = None
@@ -203,7 +207,7 @@ class ConversationPane(ReviewPane):
         self.thread_root = None
         self.reply_counts = {}
         self._author_names = []
-        self._workflow_manual = False
+        self._workflow_manual = True
         self.active_tab = 0
         self.cards = []
         self.window_start = None
@@ -216,12 +220,12 @@ class ConversationPane(ReviewPane):
         header_panel = wx.Panel(root)
         header_panel.SetBackgroundColour('#ffffff')
         header = wx.BoxSizer(wx.HORIZONTAL)
-        icon = wx.StaticBitmap(header_panel, bitmap=wx.Bitmap(str(Path(__file__).parent / 'resources/icon-48.png')))
-        header.Add(icon, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 12)
+        icon = wx.StaticBitmap(header_panel, bitmap=wx.Bitmap(str(Path(__file__).parent / 'resources/icon-24.png')))
+        header.Add(icon, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 8)
         titles = wx.BoxSizer(wx.VERTICAL)
-        title = wx.StaticText(header_panel, label='Review workspace')
+        title = wx.StaticText(header_panel, label='Review')
         title.SetForegroundColour(INK)
-        font(title, 18, bold=True)
+        font(title, 13, bold=True)
         titles.Add(title)
         self.context = wx.StaticText(header_panel, label='Connect a saved design to its review conversation.', style=wx.ST_ELLIPSIZE_END)
         self.context.SetForegroundColour(MUTED)
@@ -231,9 +235,11 @@ class ConversationPane(ReviewPane):
         self.activity = wx.ActivityIndicator(header_panel)
         self.activity.Hide()
         header.Add(self.activity, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 10)
-        self.workflow_button = ActionButton(header_panel, 'Workflow', self.toggle_workflow, compact=True)
-        header.Add(self.workflow_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
-        header.Add(ActionButton(header_panel, 'Settings', self.settings, compact=True), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
+        self.theme_button = ActionButton(header_panel, 'Dark mode', self.toggle_theme, compact=True)
+        header.Add(self.theme_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        self.account_button = ActionButton(header_panel, 'Sign in', self.sign_in, compact=True)
+        header.Add(self.account_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        header.Add(ActionButton(header_panel, 'More', self.workspace_menu, compact=True), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         header_panel.SetSizer(header)
         outer.Add(header_panel, 0, wx.EXPAND | wx.BOTTOM, 12)
         body = wx.BoxSizer(wx.HORIZONTAL)
@@ -262,31 +268,39 @@ class ConversationPane(ReviewPane):
         help_button = ActionButton(self.sidebar, 'Help & shortcuts', lambda event: webbrowser.open((Path(__file__).parent / 'help.html').as_uri()), compact=True)
         steps.Add(help_button, 0, wx.EXPAND | wx.ALL, 12)
         self.sidebar.SetSizer(steps)
+        self.sidebar.Hide()
         body.Add(self.sidebar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
-        panel = wx.Panel(root)
+        from .widgets import ReviewSplitter
+        self.design_splitter = ReviewSplitter(root)
+        self.design_splitter.SetMinimumPaneSize(280)
+        panel = wx.Panel(self.design_splitter)
+        self.conversation_panel = panel
         panel.SetBackgroundColour(BACKGROUND)
         main = wx.BoxSizer(wx.VERTICAL)
         utility = wx.BoxSizer(wx.HORIZONTAL)
-        self.search = wx.SearchCtrl(panel, style=wx.TE_PROCESS_ENTER)
+        from .search_ui import ReviewSearch
+        self.search = ReviewSearch(panel)
         self.search.SetDescriptiveText('Search people, references, nets and messages')
         self.search.Bind(wx.EVT_TEXT, lambda event: self.populate())
         utility.Add(self.search, 1, wx.RIGHT | wx.EXPAND, 8)
-        utility.Add(ActionButton(panel, 'People', self.highlight_people, compact=True), 0, wx.RIGHT, 6)
-        utility.Add(ActionButton(panel, 'Refresh', self.refresh, compact=True), 0)
+        utility.Add(ActionButton(panel, 'Filters', self.toggle_filters, compact=True), 0)
         main.Add(utility, 0, wx.EXPAND | wx.BOTTOM, 10)
+        self.filter_panel = wx.Panel(panel)
         filters = wx.WrapSizer(wx.HORIZONTAL)
-        self.anchored_filter = wx.CheckBox(panel, label='With design context')
+        self.anchored_filter = wx.CheckBox(self.filter_panel, label='With design context')
         self.anchored_filter.Bind(wx.EVT_CHECKBOX, self.filters_changed)
         filters.Add(self.anchored_filter, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT | wx.BOTTOM, 10)
-        self.author_filter = wx.Choice(panel, choices=['All people'])
+        self.author_filter = wx.Choice(self.filter_panel, choices=['All people'])
         self.author_filter.SetMinSize((150, -1))
         self.author_filter.SetSelection(0)
         self.author_filter.SetToolTip('Filter by the author of a provider message')
         self.author_filter.Bind(wx.EVT_CHOICE, self.filters_changed)
         filters.Add(self.author_filter, 0, wx.RIGHT | wx.BOTTOM, 8)
-        self.clear_filter_button = ActionButton(panel, 'Clear filters', self.clear_filters, compact=True)
+        self.clear_filter_button = ActionButton(self.filter_panel, 'Clear filters', self.clear_filters, compact=True)
         filters.Add(self.clear_filter_button, 0, wx.BOTTOM, 8)
-        main.Add(filters, 0, wx.EXPAND)
+        self.filter_panel.SetSizer(filters)
+        self.filter_panel.Hide()
+        main.Add(self.filter_panel, 0, wx.EXPAND)
         self.thread_banner = wx.Panel(panel)
         self.thread_banner.SetBackgroundColour('#e7f2f4')
         thread_layout = wx.BoxSizer(wx.HORIZONTAL)
@@ -302,25 +316,41 @@ class ConversationPane(ReviewPane):
         self.status.SetForegroundColour(MUTED)
         font(self.status, 9)
         main.Add(self.status, 0, wx.EXPAND | wx.BOTTOM, 8)
-        self.splitter = wx.SplitterWindow(panel, style=wx.SP_LIVE_UPDATE | wx.SP_3D)
+        self.splitter = ReviewSplitter(panel)
         self.splitter.SetMinimumPaneSize(250)
-        self.tabs = wx.Notebook(self.splitter)
+        feed_panel = wx.Panel(self.splitter)
+        feed_layout = wx.BoxSizer(wx.VERTICAL)
+        tab_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.tab_buttons = []
+        for index, label in enumerate(('Comments', 'Discussions')):
+            button = ActionButton(feed_panel, label, lambda event, index=index: self.choose_conversation(index), compact=True)
+            self.tab_buttons.append(button)
+            tab_row.Add(button, 0, wx.RIGHT, 4)
+        self.tab_buttons[0].set_active(True)
+        feed_layout.Add(tab_row, 0, wx.BOTTOM, 6)
+        self.tabs = wx.Simplebook(feed_panel, style=wx.BORDER_NONE)
+        feed_layout.Add(self.tabs, 1, wx.EXPAND)
+        feed_panel.SetSizer(feed_layout)
         self.feeds = []
+        self.feed_rails = []
         for name in ('Comments', 'Discussions'):
             page = wx.Panel(self.tabs)
             page.SetBackgroundColour(BACKGROUND)
-            box = wx.BoxSizer(wx.VERTICAL)
-            feed = wx.ScrolledWindow(page, style=wx.VSCROLL)
+            box = wx.BoxSizer(wx.HORIZONTAL)
+            feed = wx.ScrolledWindow(page, style=wx.VSCROLL | wx.BORDER_NONE)
+            feed.ShowScrollbars(wx.SHOW_SB_NEVER, wx.SHOW_SB_NEVER)
             feed.SetBackgroundColour(BACKGROUND)
             feed.SetScrollRate(0, 8)
             feed.SetSizer(wx.BoxSizer(wx.VERTICAL))
             feed.Bind(wx.EVT_SIZE, self.resize_cards)
             box.Add(feed, 1, wx.EXPAND)
+            from .scroll_ui import ScrollRail
+            rail = ScrollRail(page, feed)
+            box.Add(rail, 0, wx.EXPAND)
+            self.feed_rails.append(rail)
             page.SetSizer(box)
             self.tabs.AddPage(page, name)
             self.feeds.append(feed)
-        self.tabs.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.tab_changing)
-        self.tabs.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.tab_changed)
         compose_panel = wx.Panel(self.splitter)
         compose_panel.SetBackgroundColour('#ffffff')
         compose_layout = wx.BoxSizer(wx.VERTICAL)
@@ -345,38 +375,167 @@ class ConversationPane(ReviewPane):
         self.send = self.composer.send
         compose_layout.Add(self.composer, 1, wx.EXPAND)
         compose_panel.SetSizer(compose_layout)
-        self.splitter.SplitHorizontally(self.tabs, compose_panel, 410)
+        self.splitter.SplitHorizontally(feed_panel, compose_panel, 410)
         self.splitter.SetSashGravity(1.0)
         main.Add(self.splitter, 1, wx.EXPAND)
         panel.SetSizer(main)
-        body.Add(panel, 1, wx.EXPAND | wx.RIGHT, 12)
+        from .web_canvas import WebDesignCanvas
+        self.design_canvas = WebDesignCanvas(self.design_splitter, self)
+        self.design_splitter.SplitVertically(self.design_canvas, panel, 550)
+        self.design_splitter.SetSashGravity(.55)
+        body.Add(self.design_splitter, 1, wx.EXPAND | wx.RIGHT, 12)
         outer.Add(body, 1, wx.EXPAND | wx.BOTTOM, 12)
         root.SetSizer(outer)
         frame_layout = wx.BoxSizer(wx.VERTICAL)
         frame_layout.Add(root, 1, wx.EXPAND)
         self.SetSizer(frame_layout)
+        display_area = wx.GetClientDisplayRect()
+        self.SetSize((min(1440, max(640, display_area.width-40)),
+                      min(900, max(660, display_area.height-40))))
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.refresh, self.timer)
+        self.auth_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.check_authorization, self.auth_timer)
+        self.auth_timer.Start(1000)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.auth_destroyed)
         self.Bind(wx.EVT_CLOSE, self.close)
         self.Bind(wx.EVT_ACTIVATE, self.activation)
         self.Bind(wx.EVT_CHAR_HOOK, self.shortcuts)
         self.Bind(wx.EVT_SIZE, self.workspace_size)
         wx.CallAfter(self.initial_composer_size)
+        wx.CallAfter(self.initial_canvas_size)
+        wx.CallAfter(self.apply_theme)
         self.show_empty('Start a design review', 'Connect your saved design, select an issue or discussion, then add a message or a PCB location.')
         if self.values.get('repository'):
             wx.CallAfter(self.connect, dict(self.values))
+        elif self.board_path:
+            wx.CallAfter(self.design_canvas.load, self.board_path)
 
     def toggle_workflow(self, event=None):
         self._workflow_manual = True
         self.sidebar.Show(not self.sidebar.IsShown())
-        self.workflow_button.set_active(self.sidebar.IsShown())
         self.Layout()
+
+    def toggle_filters(self, event=None):
+        self.filter_panel.Show(not self.filter_panel.IsShown())
+        self.Layout()
+
+    def workspace_menu(self, event=None):
+        with wx.Menu() as menu:
+            for title, handler in [('Review settings…', self.settings), ('Refresh comments', self.refresh),
+                                   ('Highlight reviewers…', self.highlight_people), ('Workflow guide', self.toggle_workflow),
+                                   ('User guide', lambda event: webbrowser.open((Path(__file__).parent / 'USER_GUIDE.html').as_uri())),
+                                   ('Show / hide design', self.toggle_design), ('Sign out', self.sign_out)]:
+                item = menu.Append(wx.ID_ANY, title)
+                menu.Bind(wx.EVT_MENU, handler, item)
+            self.PopupMenu(menu)
+
+    def toggle_theme(self, event=None):
+        self.review_theme = 'dark' if self.review_theme == 'light' else 'light'
+        self.values['theme'] = self.review_theme
+        self.apply_theme()
+        try:
+            atomic_json(data_home() / 'settings.json', self.values)
+        except OSError:
+            self.status.SetLabel('Theme changed for this window; preference could not be saved.')
+
+    def apply_theme(self):
+        if self.closed:
+            return
+        from .theme import apply_theme
+        apply_theme(self, self.review_theme)
+        self.theme_button.SetLabel('Light mode' if self.review_theme == 'dark' else 'Dark mode')
+        self.design_canvas.set_theme(self.review_theme)
+        for card in self.cards:
+            card.body.SetLabel(card.body.GetLabel())
+        self.composer.render_preview()
+        self.composer.update_state()
+        self.Layout()
+
+    def sign_in(self, event=None):
+        from .desktop_auth_ui import SignInDialog
+        provider, origin = self.auth_identity()
+        with SignInDialog(self, provider=provider, origin=origin) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                if self.values.get('repository'):
+                    self.connect(dict(self.values))
+                else:
+                    self.settings()
+
+    def sign_out(self, event=None):
+        from .desktop_auth import AUTH
+        AUTH.sign_out(*self.auth_identity())
+        self.signed_out('Signed out. Sign in to reconnect; your draft is retained.')
+
+    def auth_identity(self):
+        provider = self.values.get('provider', 'github')
+        return provider, 'https://github.com' if provider == 'github' else self.values.get('host', 'https://gitlab.com')
+
+    def signed_out(self, message):
+        if self.session:
+            try:
+                self.session.draft(self.compose.GetValue(), self.target or self.session.scope, self.pending_attachments)
+            except (ValueError, OSError):
+                message += ' Draft remains in this window; its local save failed.'
+            self.session.status = 'signed out'
+        self._signed_out_session = self.session
+        self.generation += 1
+        self.busy = False
+        self.activity.Stop()
+        self.activity.Hide()
+        self.timer.Stop()
+        self.send.Disable()
+        self.compose.Enable()
+        self.design_canvas.sync_review()
+        self.account_button.SetLabel('Sign in')
+        self._image_queue = []
+        self.status.SetLabel(message)
+
+    def check_authorization(self, event=None):
+        if self.closed:
+            return False
+        checker = getattr(self.session, 'require_authorization', None)
+        if checker and self.session.status != 'signed out':
+            try:
+                checker()
+            except RuntimeError:
+                self.signed_out('Session expired or signed out. Sign in again; your draft is retained.')
+                return False
+        if self.session and self.session.status == 'signed out':
+            if getattr(self, '_signed_out_session', None) is not self.session:
+                self.signed_out('Session expired or signed out. Sign in again; your draft is retained.')
+            return False
+        from .desktop_auth import AUTH
+        receipt = AUTH.status(*self.auth_identity())
+        self.account_button.SetLabel('Account' if receipt['authenticated'] else 'Sign in')
+        return True
+
+    def refresh(self, event=None):
+        if self.check_authorization():
+            super().refresh(event)
+
+    def auth_destroyed(self, event):
+        if event.GetEventObject() is self:
+            self.auth_timer.Stop()
+        event.Skip()
+
+    def toggle_design(self, event=None):
+        if self.design_splitter.IsSplit():
+            self.design_splitter.Unsplit(self.design_canvas)
+        else:
+            self.design_canvas.Show()
+            self.design_splitter.SplitVertically(self.design_canvas, self.conversation_panel,
+                                                max(280, self.design_splitter.GetClientSize().width // 2))
+        self.Layout()
+
+    def initial_canvas_size(self):
+        if not self.closed and self.design_splitter.IsSplit():
+            self.design_splitter.SetSashPosition(max(280, int(self.design_splitter.GetClientSize().width*.55)))
 
     def workspace_size(self, event):
         event.Skip()
         if hasattr(self, 'sidebar') and not self._workflow_manual:
             self.sidebar.Show(self.GetClientSize().width >= 920)
-            self.workflow_button.set_active(self.sidebar.IsShown())
 
     def shortcuts(self, event):
         code = event.GetKeyCode()
@@ -466,15 +625,27 @@ class ConversationPane(ReviewPane):
         else:
             event.Skip()
 
+    def choose_conversation(self, index):
+        if self.busy:
+            self.status.SetLabel('Finishing the current operation before changing conversations…')
+            return
+        self.tabs.ChangeSelection(index)
+        for position, button in enumerate(self.tab_buttons):
+            button.set_active(position == index)
+        self.render_signature, self.window_start = None, None
+        if self.values.get('repository'):
+            self.connect(dict(self.values))
+
     def tab_changed(self, event):
         event.Skip()
         self.render_signature, self.window_start = None, None
         if self.values.get('repository'):
             self.connect(dict(self.values))
 
-    def connect(self, values):
+    def connect(self, values, *, canvas_path=None):
         if self.busy or self.closed:
             return
+        values = dict(values, theme=self.review_theme)
         self.timer.Stop()
         outgoing, text, target = self.session, self.compose.GetValue(), self.target
         images = list(self.pending_attachments)
@@ -500,15 +671,24 @@ class ConversationPane(ReviewPane):
         def operation():
             if outgoing:
                 outgoing.draft(text, target or outgoing.scope, images)
-            session = ReviewSession(active)
-            if self.board_path and session.path != self.board_path:
+            session = ReviewSession(active, desktop=True)
+            if self.board_path and session.path != self.board_path and session.path != canvas_path:
                 raise ValueError('The review design differs from the launching editor. Reopen Review from the intended PCB.')
             atomic_json(data_home() / 'settings.json', values)
             session.cached()
             return session
         def ready(session):
+            if hasattr(session, 'require_authorization'):
+                try:
+                    session.require_authorization()
+                except RuntimeError as error:
+                    self.compose.Enable()
+                    self.signed_out(str(error) + ' Sign in again; your draft is retained.')
+                    return
             self.values, self.session = values, session
             self.active_tab = requested_tab
+            for index, button in enumerate(self.tab_buttons):
+                button.set_active(index == requested_tab)
             self.reply_to = None
             self.thread_root = None
             self.thread_banner.Hide()
@@ -522,17 +702,22 @@ class ConversationPane(ReviewPane):
             if draft:
                 self.target = draft['anchor']
             self.target_label.Hide()
-            if self.target and (self.target.get('uuid') or self.target.get('area')):
+            if self.target and (self.target.get('uuid') or self.target.get('area') or self.target.get('position')):
                 self.set_target(self.target)
             self.update_attachments()
             self.context.SetLabel(session.scope['repository'] + '  ·  ' + ('Discussion' if session.provider.kind == 'discussion' else 'Review')
                                   + ' #' + str(session.provider.number) + '  ·  saved ' + session.scope['ref'][:8])
             self.render_signature, self.window_start = None, None
             self.populate(force=True)
+            self.apply_theme()
+            if self.design_canvas.path is None and getattr(session, 'path', None):
+                self.design_canvas.load(session.path)
             self.refresh()
         def failed(error):
             self.session = outgoing
             self.tabs.ChangeSelection(previous_tab)
+            for index, button in enumerate(self.tab_buttons):
+                button.set_active(index == previous_tab)
             self.compose.Enable()
             self.send.Enable()
             if outgoing:
@@ -561,10 +746,13 @@ class ConversationPane(ReviewPane):
                               action_handler or (self.open_provider if self.session else self.settings))
         self.feed.GetSizer().Add(action, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 24)
         self.feed.FitInside()
+        for rail in self.feed_rails:
+            rail.Refresh()
 
     def populate(self, force=False):
         if not self.session:
             return
+        self.design_canvas.sync_review()
         all_rows = self.session.rows
         rows = self.thread_rows(all_rows)
         self.reply_counts = {}
@@ -627,11 +815,15 @@ class ConversationPane(ReviewPane):
             self.wrap_cards()
             self.render_signature = signature
             if near_bottom and self.window_start is None:
-                self.feed.Scroll(-1, self.feed.GetScrollRange(wx.VERTICAL))
+                unit = max(1, self.feed.GetScrollPixelsPerUnit()[1])
+                extent = max(0, self.feed.GetVirtualSize().height - self.feed.GetClientSize().height)
+                self.feed.Scroll(-1, (extent + unit - 1) // unit)
             else:
                 self.feed.Scroll(*previous)
         finally:
             self.feed.Thaw()
+        from .theme import apply_theme
+        apply_theme(self.feed, self.review_theme)
 
     def page_messages(self, start):
         self.window_start = start
@@ -652,10 +844,14 @@ class ConversationPane(ReviewPane):
         for card in self.cards:
             card.wrap(width - 30)
             card.SetMinSize((-1, card.GetSizer().CalcMin().height))
-        self.feed.GetSizer().Layout()
+        self.feed.FitInside()
+        # Hidden native scrollbars report no native range on MSW. Lay the sizer
+        # out across the complete content extent, preserving the scroll origin.
+        height = max(self.feed.GetClientSize().height, self.feed.GetSizer().CalcMin().height)
+        offset = self.feed.GetViewStart()[1] * self.feed.GetScrollPixelsPerUnit()[1]
+        self.feed.GetSizer().SetDimension(0, -offset, width, height)
         for card in self.cards:
             card.Layout()
-        self.feed.FitInside()
 
     def begin_reply(self, row):
         self.reply_to = row['id']
@@ -694,6 +890,9 @@ class ConversationPane(ReviewPane):
                 self.status.SetLabel('Choose the repository and conversation in Settings first.')
 
     def refresh_failed(self, error):
+        self.design_canvas.sync_review()
+        self.send.Disable()
+        self.composer.update_state()
         if self.session and self.session.provider.kind == 'discussion' and not self.session.rows:
             self.show_empty('Choose a GitHub Discussion', error + '\n\nOpen the provider to choose or create an engineering topic, then enter its Discussion number in Settings.')
 
@@ -713,7 +912,17 @@ class ConversationPane(ReviewPane):
 
     def locate_row(self, row):
         if self.session:
-            self.task(lambda: self.session.locate(row['id']), lambda result: self.status.SetLabel('Selected in PCB Editor · focus ' + result.get('focus', 'unknown')), 'Locating design item…')
+            if self.design_canvas.focus_comment(row['id']):
+                if not self.design_splitter.IsSplit():
+                    self.toggle_design()
+                self.status.SetLabel('Focused comment marker in the saved design view.')
+                return
+            if any(target.get('position') or target.get('area') for target in row.get('anchors', [])):
+                self.status.SetLabel('Load the matching saved design and refresh its conversation to focus this marker.')
+                return
+            session = self.session
+            self.task(lambda: session.locate(row['id']), lambda result: self.status.SetLabel('Selected in PCB Editor · focus ' + result.get('focus', 'unknown')),
+                      'Locating design item…', authorization=getattr(session, 'require_authorization', None))
 
     def context_menu(self, event):
         with wx.Menu() as menu:
@@ -725,16 +934,21 @@ class ConversationPane(ReviewPane):
     def clear_target(self, event=None):
         self.target = None
         self.target_label.Hide()
+        self.design_canvas.sync_draft()
         self.Layout()
 
     def set_target(self, target):
         self.target = target
-        if target.get('uuid') or target.get('area'):
-            value = target.get('reference') or target.get('netName') or ('Region · ' + str(target['area']) if target.get('area') else 'Selected PCB object')
+        if target.get('uuid') or target.get('area') or target.get('position'):
+            area, point = target.get('area'), target.get('position')
+            location = (f"Region · {area['x']:.3f}, {area['y']:.3f} mm · {area['width']:.3f} × {area['height']:.3f} mm" if area else
+                        f"Point · {point['x']:.3f}, {point['y']:.3f} mm" if point else 'Selected PCB object')
+            value = target.get('reference') or target.get('netName') or location
             self.target_label.SetLabel('⌖ ' + value)
             self.target_label.Wrap(max(330, self.GetClientSize().width - 32))
             self.target_label.Show()
             self.Layout()
+        self.design_canvas.sync_draft()
 
     def choose_image(self, event=None):
         if not self.session or self.busy:
@@ -785,6 +999,7 @@ class ConversationPane(ReviewPane):
         if not self.session or self.busy:
             self.status.SetLabel('Connect a conversation and finish the current operation before adding images.')
             return
+        session = self.session
         if not queued:
             self._image_queue = []
         if self.session.provider.provider == 'github':
@@ -831,8 +1046,9 @@ class ConversationPane(ReviewPane):
             wx.CallAfter(self.next_image)
         def failed(error):
             self._image_queue = []
-        self.task(lambda: self.session.provider.upload_png(stream.getvalue()), attached,
-                  'Uploading approved image to GitLab…', on_error=failed)
+        self.task(lambda: session.provider.upload_png(stream.getvalue()), attached,
+                  'Uploading approved image to GitLab…', on_error=failed,
+                  authorization=getattr(session, 'require_authorization', None))
 
     def compose_key(self, event):
         if event.GetKeyCode() in (wx.WXK_RETURN, wx.WXK_NUMPAD_ENTER) and event.ControlDown():
@@ -879,8 +1095,11 @@ class ConversationPane(ReviewPane):
             self.update_attachments()
 
     def post(self, event=None):
+        if not self.check_authorization():
+            return
         if not self.session or self.busy:
             return
+        session = self.session
         if self.session.status != 'synced':
             self.status.SetLabel('Refresh the provider before sending. Cached comments are unverified; your draft remains local.')
             return
@@ -919,4 +1138,5 @@ class ConversationPane(ReviewPane):
                 return
             self.status.SetLabel('Message sent. Updating conversation…')
             self.refresh()
-        self.task(lambda: self.session.publish(text, target, reply_to=row['id'] if row else None, attachments=images), complete, 'Sending message…')
+        self.task(lambda: session.publish(text, target, reply_to=row['id'] if row else None, attachments=images), complete, 'Sending message…',
+                  authorization=getattr(session, 'require_authorization', None))

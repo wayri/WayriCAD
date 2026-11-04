@@ -5,6 +5,7 @@ import pytest
 wx = pytest.importorskip('wx')
 
 from review_comments_plugin.tests.test_conversation_ui import app, pane, fake_session, message
+from review_comments_plugin.ui import ReviewPane
 
 
 def test_focusing_nested_reply_keeps_whole_thread_and_retains_pending_reply(pane):
@@ -62,6 +63,39 @@ def test_deleted_thread_root_returns_to_feed_without_discarding_draft(pane):
     assert pane.thread_root is None and not pane.thread_banner.IsShown()
     assert [card.row['id'] for card in pane.cards]==['4']
     assert pane.compose.GetValue()=='Draft remains'
+
+
+def test_provider_snapshot_edit_and_delete_replaces_feed_without_losing_draft(pane):
+    pane.Show()
+    pane.populate()
+    pane.compose.SetValue('Unpublished note remains')
+    original = pane.session.rows[0]
+    def snapshot():
+        pane.session.rows = [dict(original, body='Remote edit to J2')]
+        pane.session.status = 'synced'
+        return pane.session.rows
+    pane.session.refresh = Mock(side_effect=snapshot)
+    pane.task = lambda operation, complete, *args, **kwargs: complete(operation()) or True
+    ReviewPane.refresh(pane)
+    assert [card.row['id'] for card in pane.cards] == [original['id']]
+    assert pane.cards[0].row['body'] == 'Remote edit to J2'
+    assert pane.compose.GetValue() == 'Unpublished note remains'
+    pane.session.refresh.assert_called_once()
+
+
+def test_failed_refresh_clears_marker_authority_and_disables_send_until_success(pane):
+    pane.Show()
+    pane.compose.SetValue('Keep this unpublished draft')
+    pane.design_canvas.markers = [object()]
+    pane.session.status = 'offline / stale'
+    pane.refresh_failed('Provider unavailable')
+    assert pane.design_canvas.markers == []
+    assert not pane.send.IsEnabled()
+    assert pane.compose.GetValue() == 'Keep this unpublished draft'
+    pane.session.refresh = Mock(side_effect=lambda: setattr(pane.session, 'status', 'synced') or pane.session.rows)
+    pane.task = lambda operation, complete, *args, **kwargs: complete(operation()) or True
+    ReviewPane.refresh(pane)
+    assert pane.send.IsEnabled()
 
 
 def test_person_filter_survives_refresh_and_resets_if_author_is_removed(pane):

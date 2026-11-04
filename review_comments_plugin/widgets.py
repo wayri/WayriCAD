@@ -1,6 +1,7 @@
 """Small native, keyboard-accessible controls for the Review workspace."""
 import wx
 from wx.lib.buttons import GenButton
+from .theme import palette
 
 INK = '#253047'
 ACCENT = '#087f8c'
@@ -13,8 +14,8 @@ class ActionButton(GenButton):
         self.compact = compact
         self.primary = primary
         self.active = False
-        self.SetBackgroundColour('#ffffff')
-        self.SetForegroundColour('#ffffff' if primary else INK)
+        self.SetBackgroundColour(palette(self)['surface'])
+        self.SetForegroundColour('#ffffff' if primary else palette(self)['text'])
         font = self.GetFont()
         font.SetPointSize(9)
         font.SetWeight(wx.FONTWEIGHT_BOLD if primary else wx.FONTWEIGHT_NORMAL)
@@ -33,14 +34,22 @@ class ActionButton(GenButton):
 
     def DrawBezel(self, dc, x1, y1, x2, y2):
         selected = self.primary or self.active
-        color = ACCENT if selected else ('#e4eef1' if not self.up else '#ffffff')
+        colors = palette(self)
+        color = colors['accent'] if selected else (colors['hover'] if not self.up else colors['surface'])
         if not self.IsEnabled():
-            color = '#dce3e8'
-        dc.SetPen(wx.Pen(color if selected else '#d7e0e8'))
+            color = colors['disabled']
+        dc.SetPen(wx.Pen(color if selected else colors['border']))
         dc.SetBrush(wx.Brush(color))
         dc.DrawRoundedRectangle(x1, y1, max(1, x2-x1), max(1, y2-y1), 6)
 
     def set_active(self, active):
         self.active = active
-        self.SetForegroundColour('#ffffff' if active or self.primary else INK)
+        self.SetForegroundColour('#ffffff' if active or self.primary else palette(self)['text'])
         self.Refresh()
+
+
+class ReviewSplitter(wx.SplitterWindow):
+    """Keep native split interaction while painting the sash in our palette."""
+    def __init__(self, parent):
+        super().__init__(parent, style=wx.SP_LIVE_UPDATE | wx.SP_NO_XP_THEME | wx.BORDER_NONE)
+        self.SetBackgroundColour(palette(self)['background'])

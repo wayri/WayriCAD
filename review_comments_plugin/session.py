@@ -41,20 +41,40 @@ def data_home():
 
 
 class ReviewSession:
-    def __init__(self, settings, *, provider=None, cache_dir=None):
+    def __init__(self, settings, *, provider=None, cache_dir=None, desktop=False):
         if not isinstance(settings, dict):
             raise ValueError('Review settings must be a JSON object.')
         self.settings = dict(settings)
         self.scope = scope(settings)
+        self._desktop_auth = None
+        provider_options = {}
+        if desktop:
+            from .desktop_auth import AUTH
+            from .providers import request
+            identity = self.scope.get('provider', 'github'), self.scope.get('host', 'https://github.com')
+            epoch = AUTH.ticket(*identity)
+            self._desktop_auth = identity, epoch
+
+            def tokens(provider_name, origin):
+                AUTH.assert_ticket(*identity, epoch)
+                return AUTH.credential(provider_name, origin)
+
+            def transport(method, url, headers, data=None):
+                AUTH.assert_ticket(*identity, epoch)
+                result = request(method, url, headers, data)
+                AUTH.assert_ticket(*identity, epoch)
+                return result
+
+            provider_options = dict(tokens=tokens, transport=transport)
         if provider is not None:
             self.provider = provider
         elif settings.get('kind') == 'discussion':
             # The UI's host field configures GitLab only; GitHub is fixed to
             # github.com and must never inherit the GitLab field's default.
             github_settings = {key: value for key, value in settings.items() if key != 'host'}
-            self.provider = DiscussionProvider(github_settings)
+            self.provider = DiscussionProvider(github_settings, **provider_options)
         else:
-            self.provider = Provider(settings)
+            self.provider = Provider(settings, **provider_options)
         self.path, self.digest = saved_context(settings['root'], self.scope)
         key = hashlib.sha256(json.dumps([self.scope, self.provider.kind, self.provider.number], sort_keys=True).encode()).hexdigest()
         self.cache_path = Path(cache_dir or data_home()) / (key + '.json')
@@ -63,6 +83,16 @@ class ReviewSession:
         self.synced_at = None
         self.failures = 0
         self.cache_warning = None
+
+    def require_authorization(self):
+        if self._desktop_auth is not None:
+            from .desktop_auth import AUTH
+            identity, epoch = self._desktop_auth
+            try:
+                AUTH.assert_ticket(*identity, epoch)
+            except RuntimeError:
+                self.status = 'signed out'
+                raise
 
     def cached(self):
         """Offline cache is visibly stale and cannot authorize publishing or navigation."""
@@ -122,8 +152,10 @@ class ReviewSession:
 
     def refresh(self):
         try:
+            self.require_authorization()
             unchanged(self.path, self.digest)
             rows = self.provider.snapshot()
+            self.require_authorization()
             unchanged(self.path, self.digest)
             for row in rows:
                 # Local remoteRefs cannot invent publication: only provider readback
@@ -146,7 +178,8 @@ class ReviewSession:
             self.rows, self.synced_at, self.status, self.failures = rows, timestamp, 'synced', 0
             return rows
         except Exception:
-            self.status = 'offline / stale'
+            if self.status != 'signed out':
+                self.status = 'offline / stale'
             self.failures = min(6, self.failures + 1)
             raise
 
@@ -159,6 +192,7 @@ class ReviewSession:
         return sorted({r.get('author', 'unknown') for r in self.rows}, key=str.casefold)
 
     def publish(self, text, target, *, reply_to=None, attachments=()):
+        self.require_authorization()
         if self.status != 'synced':
             raise ValueError('Refresh successfully before publishing; cached anchors are unverified.')
         unchanged(self.path, self.digest)
@@ -187,6 +221,7 @@ class ReviewSession:
 
     def locate(self, identifier, *, selector=None):
         """Resolve current provider anchors only; native selection never writes geometry."""
+        self.require_authorization()
         if self.status != 'synced':
             raise ValueError('Refresh before locating a comment; the cache is not authoritative.')
         self.refresh()

@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Review",
-  "description": "Message-style KiCad reviews with GitHub/GitLab comments and threaded GitHub Discussions.",
-  "description_full": "Read individual engineering message cards, reply inline, search and highlight authors, and attach saved-revision PCB object/region context. Comments uses GitHub/GitLab general issue/PR/MR conversations; Discussions uses real GitHub GraphQL discussion threads. Confirmed GitLab screenshots share KiView attachment metadata; GitHub attachments use its browser editor. Published comments and anchors remain provider-owned. Local storage is an optional cache and separate drafts. Native schematic selection, overlays and inline diff reviews are unsupported. Testing package; see the native validation scope and remaining platform limits.",
+  "description": "Saved-design reviews with PCB/schematic views, comment markers and GitHub/GitLab conversations.",
+  "description_full": "Navigate saved PCB, schematic and PCB 3D views with a separately supplied KiView renderer. Add point/region drafts and inspect published comment markers in matching saved revisions. Includes a visual user guide, compact light/dark workspace, browser device-code sign-in and absolute eight-hour desktop sign-out. Comments uses GitHub/GitLab general issue/PR/MR conversations; Discussions uses real GitHub GraphQL discussion threads. Provider comments remain authoritative; drafts stay local until explicitly sent. The renderer has separate licensing and is not bundled. Native schematic selection, native overlays and inline diff reviews are unsupported. Testing package; direct OAuth live approval, connected KiCad 11 and Linux/macOS GUI acceptance remain unverified.",
   "identifier": "com.github.wayri.wayricad.review-comments",
   "type": "plugin",
   "author": {
@@ -24,7 +24,7 @@
   },
   "versions": [
     {
-      "version": "4.3.0",
+      "version": "4.4.0",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

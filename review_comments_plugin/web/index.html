@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Review design</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <nav aria-label="Design navigation">
+    <select id="documents" aria-label="Design file"></select>
+    <div class="view-buttons" role="group" aria-label="Design view"><button id="view-pcb">PCB</button><button id="view-schematic">Schematic</button><button id="view-3d">3D</button></div>
+    <button id="fit">Fit</button><button id="layers-toggle" aria-expanded="false" aria-controls="layers" disabled>Layers</button>
+    <details id="comment-menu"><summary id="comment-label">Add comment</summary><div class="comment-options" role="group" aria-label="Comment location">
+      <button id="mode-pin">Pin</button><button id="mode-region">Region</button><button id="mode-pan">Navigate</button>
+    </div></details>
+  </nav>
+  <div id="status" role="status">Loading interactive KiView renderer…</div>
+  <main><aside id="layers" aria-label="PCB layers" hidden></aside><section id="drawing"><div id="viewer"></div><svg id="review-overlay" aria-label="Review comment markers"></svg></section></main>
+  <script src="vendor/extension/repo-models.js"></script>
+  <script src="vendor/extension/embedded-models.js"></script>
+  <script type="module" src="bridge.mjs"></script>
+</body></html>
