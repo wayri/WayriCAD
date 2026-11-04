@@ -40,8 +40,38 @@ This native synthetic six-part example reduces projected crossings from two to z
 | Routing space | Effective native net-class track width plus clearance reserves space around selected courtyards. Native DRC evaluates the final materialized candidate; custom rules may reject a proposal. This does not prove pin escape or return-path continuity. |
 | Side | Movable SMD parts may flip when allowed. Through-hole parts keep their original side and obstruct both sides. Anchor, locks and parts contacting existing copper stay fixed. |
 | Crossings | Intersections between different-net straight edges of actual pad/net minimum spanning trees, projected in XY across both sides. This is a ratsnest proxy, not a count of routed shorts. |
+| Pin attraction | Strength 0–10, default 1. Shorter saved schematic wire paths give stronger same-net pin attraction; 0 disables it. Preview and JSON show measured spring costs. |
 
-The search prioritizes capacitor order, then fewer projected crossings, requested density tolerance, and shorter net/capacitor distances. Zero crossings and more than 90% reduction are goals, **not guarantees**. Pin mappings and geometry can force crossovers. Results report measured counts, including zero-baseline cases, instead of calling every proposal an improvement.
+The search prioritizes capacitor order, then fewer projected crossings, requested density tolerance, and the combined net/capacitor distance plus schematic pin-attraction cost. Zero crossings and more than 90% reduction are goals, **not guarantees**. Pin mappings and geometry can force crossovers. Results report measured counts, including zero-baseline cases, instead of calling every proposal an improvement.
+
+## Schematic pin attraction
+
+Saved drawn-wire shortest paths now also guide placement in every selection
+mode when a matching schematic is available. A shorter schematic pin-to-pin path
+gives that pair a stronger attraction. Candidate positions and rotations use
+the corresponding PCB pad positions, so parts gather near their respective pins
+rather than only around the anchor centre. Multi-unit mappings must identify
+one component occurrence; ambiguous references or mismatched PCB nets are omitted
+with a warning. Connections within one footprint do not create springs.
+
+**Schematic pin attraction** defaults to 1; set it to 0 to retain the original
+MST/capacitor objective, or increase it up to 10. The wire threshold limits the
+drawn paths considered. CLI uses `--attraction-strength` and `--wire-mm`.
+Label jumps, implicit power connections and graphical proximity do not create
+spring links. High-fanout pins have normalized weights so power nets do not
+dominate simply because they connect many parts.
+
+The soft score adds `0.5 × strength × weight × PCB_pin_distance² / 1 mm`, where
+`weight = 1 / (1 + schematic_wire_length / 1 mm) / maximum_endpoint_degree`.
+This is a placement preference, not a physical spring or routed-length estimate.
+Capacitor ordering, projected crossings, density priority and all existing
+legality checks remain in force. Without usable schematic metadata, the original
+PCB-net objective remains available. Bounded metadata omissions are reported.
+
+Preview reports show spring count and before/after cost; CLI JSON also retains
+pin numbers, nets, wire lengths, weights and schematic hashes. Root/child sheet
+changes invalidate validation and Apply. Native DRC, reviewed Apply, exact
+rollback and the fixed-anchor contract remain required.
 
 ## Bypass and decoupling capacitors
 
@@ -87,7 +117,7 @@ materialization/validation in [native.py](native.py).
 |---|---|---|---|
 | Pose transform and legality screen | Footprint-local courtyard vertices are mirrored in local X for bottom-side placement, rotated, then translated in millimetres. Segment intersection, ray-crossing point-in-polygon and point-to-segment distance reject overlap, containment, edge contact and inadequate routing margin against the requested rectangle, board outline/cutouts, keepouts and fixed footprints. | Courtyards and 2D routing reservations are proxies; no 3D collision, pin-escape or field solution is performed. Multipart/concave polygons are supported, but malformed or self-intersecting input is rejected. | [geometry and transform tests](tests/test_engine.py), including rotated polygons, concave boundaries, holes and both sides |
 | Electrical proxy | For each net, transformed pad centres plus retained external endpoints form a complete Euclidean graph. A deterministic O(pads²) Prim minimum spanning tree supplies total straight-edge length; intersections between different-net tree edges supply the projected-crossing count. This is the algorithm described by [Prim (1957)](https://doi.org/10.1002/j.1538-7305.1957.tb01515.x). | It is an XY ratsnest proxy across both sides, not routed length, short detection or proof of routability. | [`test_mst_known_length_and_crossings`](tests/test_engine.py) and external-endpoint/crossing-priority cases in the same file |
-| Bounded placement search | Movable parts are ordered by package/courtyard difficulty. Each pass evaluates legal side/angle/grid poses, retaining deterministic target-adjacent and original poses. Large regions coarsen the grid so allocations stay within `max_candidates`; lexicographic scoring minimizes capacitor-order violations, crossings, density error beyond ±5 percentage points, then MST plus capacitor distance. | This is project-specific greedy coordinate search with finite passes, not simulated annealing, analytical placement or a global optimum. Failure preserves every original pose. Density is courtyard area divided by each side's occupied bounding rectangle. | deterministic, infeasible, density, crossing-priority and resource-limit cases in [test_engine.py](tests/test_engine.py) |
+| Bounded placement search | Movable parts are ordered by package/courtyard difficulty. Each pass evaluates legal side/angle/grid poses, retaining deterministic target-adjacent and original poses. Large regions coarsen the grid so allocations stay within `max_candidates`; lexicographic scoring minimizes capacitor-order violations, crossings, density error beyond ±5 percentage points, then MST plus capacitor distance and schematic pin-spring cost. | This is project-specific greedy coordinate search with finite passes, not simulated annealing, analytical placement or a global optimum. Failure preserves every original pose. Density is courtyard area divided by each side's occupied bounding rectangle. | deterministic, infeasible, density, crossing-priority and resource-limit cases in [test_engine.py](tests/test_engine.py) |
 | Capacitor policy | Explicit F/mF/µF/uF/nF/pF and embedded forms such as `4n7` are normalized to farads; three-digit EIA codes are accepted only from an explicitly identified code/marking field. Each capacitor is associated with an explicit or shared power-like anchor pad and scored by nearest same-net pad distance; smaller known values must not be farther away within the same anchor-pin group. | This is an explicit placement policy and pad-distance proxy, not a loop-inductance or PDN calculation. Ambiguous, contradictory and unitless ordinary values remain unknown. | capacitance parsing, target override and ordering cases in [test_engine.py](tests/test_engine.py) |
 | Schematic grouping | Saved wire segments are split at endpoints, explicit junctions, pins and labels. Dijkstra shortest paths along drawn wire length form thresholded edges; union-find produces stable connected clusters. The shortest-path basis is [Dijkstra (1959)](https://doi.org/10.1007/BF01386390); label joins remain separate opt-ins. | Crossings without a junction do not connect. Bus members, implicit power connectivity and parent/child hierarchical pin mapping are deliberately not inferred. Optional symbol-origin proximity is marked non-electrical. | [test_grouping.py](tests/test_grouping.py), including T-junctions, non-junction crossings, hierarchy, mirroring and label opt-in |
 | Native acceptance and custody | Preview is detached. Candidate copies undergo native connectivity and before/after DRC checks using matching saved project/rule inputs; source/rules/settings fingerprints reject stale Apply. Apply/Undo restore full footprint state with rollback and a backup. KiCad documents DRC as the board-rules and connectivity checker in the [PCB Editor manual](https://docs.kicad.org/10.0/en/pcbnew/pcbnew.html#design_rules_checking). | Passing the comparison establishes only the checks run; final refill, DRC, assembly and routing review remain required. | [test_native.py](tests/test_native.py), including real DRC, stale rules, exact restore and injected mutation failures |

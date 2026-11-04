@@ -136,6 +136,9 @@ class ArrangerFrame(wx.Frame):
         label('Allowed absolute rotations (degrees)');self.angles=wx.TextCtrl(left,value='0,90');controls.Add(self.angles,0,wx.EXPAND)
         self.angles.SetToolTip('Default 0,90. Example: 0,45,90,135,180,225,270,315. Locked parts and the anchor keep their original pose.')
         label('Requested envelope density (%)');self.density=wx.Slider(left,value=50,minValue=10,maxValue=90,style=wx.SL_HORIZONTAL|wx.SL_LABELS);controls.Add(self.density,0,wx.EXPAND)
+        label('Schematic pin attraction (0 disables)')
+        self.attraction=wx.SpinCtrlDouble(left,min=0,max=10,initial=1,inc=.25);controls.Add(self.attraction,0,wx.EXPAND)
+        self.attraction.SetToolTip('Shorter saved drawn-wire paths pull their matching PCB pins closer. Uses the wire threshold above. Label jumps do not create springs; clearance, locks and native validation still apply.')
         label('Area width × height (mm), centred on anchor')
         dims=wx.BoxSizer(wx.HORIZONTAL);self.area_w=wx.TextCtrl(left,value='20');self.area_h=wx.TextCtrl(left,value='20');dims.Add(self.area_w,1);dims.Add(self.area_h,1,wx.LEFT,5);controls.Add(dims,0,wx.EXPAND)
         label('4. Decoupling capacitor overrides')
@@ -175,6 +178,8 @@ class ArrangerFrame(wx.Frame):
         self.view_side.Bind(wx.EVT_CHOICE,self.change_view)
         for control,event in [(self.anchor,wx.EVT_CHOICE),(self.sides,wx.EVT_CHOICE),(self.angles,wx.EVT_TEXT),(self.density,wx.EVT_SLIDER),(self.area_w,wx.EVT_TEXT),(self.area_h,wx.EVT_TEXT),(self.caps,wx.EVT_TEXT)]:control.Bind(event,self.invalidate)
         self.threshold.Bind(wx.EVT_SLIDER,self.schedule_groups)
+        self.attraction.Bind(wx.EVT_SPINCTRLDOUBLE,self.invalidate)
+        self.attraction.Bind(wx.EVT_TEXT,self.invalidate)
         self.labels.Bind(wx.EVT_CHECKBOX,self.confirm_links);self.globals.Bind(wx.EVT_CHECKBOX,self.confirm_links)
         self.Bind(wx.EVT_CLOSE,self.close)
         self.update_buttons();wx.CallAfter(self.find_groups,None)
@@ -294,7 +299,8 @@ class ArrangerFrame(wx.Frame):
                 key,value=row.split('=',1);targets[key.strip()]=value.strip()
         return dict(anchor=anchor,area=(x-w/2,y-h/2,x+w/2,y+h/2),allowed_angles=tuple(float(a.strip()) for a in self.angles.GetValue().split(',')),
                     allowed_sides=('top','bottom') if self.sides.GetSelection()==2 else (('bottom',) if self.sides.GetSelection()==1 else ('top',)),
-                    density=self.density.GetValue()/100,capacitor_targets=targets)
+                    density=self.density.GetValue()/100,capacitor_targets=targets,
+                    attraction_strength=self.attraction.GetValue(),schematic_wire_mm=self.threshold.GetValue())
 
     def solve(self,*args,**kwargs):
         with ThreadPoolExecutor(max_workers=1) as pool:
@@ -313,10 +319,12 @@ class ArrangerFrame(wx.Frame):
             self.canvas.before=tuple(native.model(fp,api) for fp in self.board.GetFootprints() if fp.GetReference() in self.checked)
             self.canvas.set_models(result.footprints,self.plan.external_pads);self.canvas.area=options['area'];self.canvas.focus=self.anchor.GetStringSelection();self.canvas.fit()
             before,after=result.before,result.after
+            spring_note=f'Pin springs: {after.springs}; spring cost {before.spring_energy_mm:.2f} → {after.spring_energy_mm:.2f} mm (placement proxy).\n'
             reduction=100*(before.crossings-after.crossings)/before.crossings if before.crossings else 0
             self.summary.SetValue(f'{"LEGAL PROPOSAL" if result.complete else "INCOMPLETE — ORIGINAL RETAINED"}\nCrossings: {before.crossings} → {after.crossings} ({reduction:.1f}% reduction); MST length: {before.length_mm:.2f} → {after.length_mm:.2f} mm\nCourtyard packing density: {result.achieved_density:.1%}; requested {result.target_density:.1%}; {result.evaluations} candidate evaluations.\n'+'\n'.join(result.warnings))
             caps=[f.reference+' = '+(f'{engine.capacitance(f):.6g} F' if engine.capacitance(f) is not None else 'unknown')
                   for f in result.footprints if f.reference.upper().startswith('C')]
+            self.summary.AppendText('\n'+spring_note)
             if caps:self.summary.AppendText('\nCapacitance review: '+', '.join(caps))
         except Exception as error:self.plan=None;self.error(error)
         finally:self.busy=False;self.update_buttons()

@@ -47,6 +47,8 @@ def build_series_power_tree(bundle):
         return None
     mesh = bundle.get('mesh') or {}
     geometry = bundle.get('geometry') or mesh.get('geometry') or {}
+    from .series_path_diagram import copper_lengths
+    path_geometry = geometry.get('path_geometry') or bundle.get('path_geometry') or {}
     terminals = geometry.get('terminals', [])
     lookup = {str(row['id']): row for row in terminals}
     label_counts = Counter(row.get('label') for row in terminals)
@@ -111,6 +113,8 @@ def build_series_power_tree(bundle):
                       voltage_V=_finite(result.get('sink_voltage_V')),
                       current_A=_sum(_finite(row.get('current_A')) for row in sinks)))
     copper = [node for node in nodes if node['kind'] == 'copper']
+    for node in copper:
+        node['wire_lengths'] = copper_lengths(node, path_geometry)
     nets = [node['net'] for node in copper if node['net'] is not None]
     repeated = len(nets) != len(set(nets))
     if repeated:
@@ -127,7 +131,9 @@ def build_series_power_tree(bundle):
                 notice='DC series-path accounting; copper voltages are current-weighted electrode values. '
                        'Each reviewed pad group is counted once; individual pad-current sharing is unknown. '
                        'Stage efficiency means transmitted DC power / incoming DC power, not converter efficiency. '
-                       'Return-path loss is excluded unless explicitly modeled. Infeasible results are diagnostics; efficiency is unavailable.' +
+                       'Return-path loss is excluded unless explicitly modeled. Infeasible results are diagnostics; efficiency is unavailable. '
+                       'Wire lengths use shortest planar saved track/arc endpoint chains only; via barrels and zone travel are excluded. '
+                       'Estimated straight distances are not routed copper lengths.' +
                        (' Repeated physical nets prevent per-occurrence copper accounting; those metrics are unavailable.' if repeated else ''))
 
 
@@ -161,6 +167,8 @@ def tree_text(tree):
             lines.append(node['accounting_notice'])
         if node.get('pins'):
             lines.append('Pins: ' + pins(node['pins']))
+        if node['kind'] == 'copper':
+            lines.extend(row['label'] for row in node.get('wire_lengths', []))
         for row in [node, *node.get('parts', [])]:
             if row is not node:
                 lines.append(str(row['reference']) + ': ' + metrics(row))

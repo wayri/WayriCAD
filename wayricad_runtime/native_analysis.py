@@ -10,11 +10,14 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import types
 import uuid
 
 
 sys.path.insert(0,str(Path(__file__).resolve().parent.parent))
+if not __package__:
+    __package__ = 'wayricad_runtime'
 
 FRAMES = {
     'trace_impedance_plugin': ('trace_impedance_plugin', 'TraceFrame'),
@@ -122,6 +125,8 @@ def launch(root, tool):
     launch_context = LaunchContext.capture()
     client = connect(launch_context=launch_context)
     source = saved_board(client)
+    from .saved_board import origin_environment
+    environment = origin_environment(client, launch_context.apply(child_environment()))
     # Selection is only a hint against the same editor's saved snapshot.
     selection = []
     try:
@@ -129,12 +134,14 @@ def launch(root, tool):
         selection = [str(uuid.UUID(uid(item))) for item in client.get_board().get_selection()][:200]
     except Exception:
         pass
-    process = subprocess.Popen([str(native_python(tool)), '-I', str(Path(__file__).resolve()),
-                                '--root', str(root), '--tool', tool, '--board', str(source),
-                                '--selection-ids', ','.join(selection)],
-                               env=launch_context.apply(child_environment()),
-                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    return process.wait()
+    with tempfile.TemporaryDirectory(prefix='wayricad-analysis-window-') as scratch:
+        environment['WAYRICAD_ANALYSIS_SCRATCH']=scratch
+        process = subprocess.Popen([str(native_python(tool)), '-I', str(Path(__file__).resolve()),
+                                    '--root', str(root), '--tool', tool, '--board', str(source),
+                                    '--selection-ids', ','.join(selection)],
+                                   env=environment,
+                                   creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        return process.wait()
 
 
 def restore_selection(board, identifiers):
@@ -174,13 +181,15 @@ def create_frame(root, tool, board_path, selection_ids=(), status=None, cancelle
         loaded.__version__ = version
     sys.modules[package] = loaded
     module = importlib.import_module('.' + module_name, package)
-    board = loaded_board if loaded_board is not None else pcbnew.LoadBoard(str(board_path))
+    from .saved_board import load_board, assert_current
+    board = loaded_board if loaded_board is not None else load_board(board_path, pcbnew=pcbnew)
     if status is not None:
         status('Preparing the analysis window…')
     if cancelled is not None and cancelled():
         raise LoadingCancelled()
     if board is None:
         raise ValueError('KiCad could not load the saved board.')
+    assert_current(board)
     restore_selection(board, selection_ids)
     from .loading import ensure_wx_app
     app = ensure_wx_app(wx)
@@ -203,7 +212,8 @@ def main(argv=None):
         import pcbnew
         board_path=args.board.expanduser().resolve()
         source_hash=hashlib.sha256(board_path.read_bytes()).digest()
-        board=pcbnew.LoadBoard(str(board_path))
+        from wayricad_runtime.saved_board import load_board, assert_current
+        board=load_board(board_path, pcbnew=pcbnew)
         if board is None:
             raise ValueError('KiCad could not load the saved board.')
         if hashlib.sha256(board_path.read_bytes()).digest()!=source_hash:
@@ -219,6 +229,7 @@ def main(argv=None):
                                   cancelled=lambda: loading.cancelled,
                                   loaded_board=board)
         try:
+            assert_current(board)
             if hashlib.sha256(board_path.read_bytes()).digest()!=source_hash:
                 raise ValueError('The saved PCB changed while preparing the window. Reload it before analysis.')
         except Exception:

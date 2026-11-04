@@ -123,6 +123,12 @@ def _board_assignments(dialog,study):
     for case in study['cases']:
         electrical=case['electrical'];net=electrical['net']
         if net not in nets:raise ValueError('Saved study net is unavailable: '+net)
+        if 'series' in electrical:
+            from .series_editor import parse_saved_path,draft_from_request
+            parsed=parse_saved_path(draft_from_request(electrical,dialog.inventory)['path'],dialog.inventory)
+            if names[parsed['source_terminal']]!=net:
+                raise ValueError('The saved series source pad no longer belongs to its rail.')
+            continue
         from .terminals import source_names
         pins=source_names(electrical)
         sinks=electrical.get('sinks',[dict(terminal=electrical.get('sink_terminal'))])

@@ -137,9 +137,11 @@ class NeighbourPanel(wx.Panel):
     def run(self,event=None):
         from .service import source_fingerprints,run_job
         from .neighbours import settings_checked
+        from wayricad_runtime.saved_board import assert_current
         self.invalidate();self.cancel=threading.Event();serial=self.serial
         try:
             if source_fingerprints(self.board.GetFileName())!=self.fingerprints:raise ValueError('Saved source changed; reopen Quick SI.')
+            assert_current(self.board)
             model={key:(control.GetValue() if key=='reference_layer' else float(control.GetValue())) for key,control in self.model_fields.items()} if self.model_enabled.GetValue() else None
             settings=settings_checked(dict(radius_mm=float(self.radius.GetValue()),nets=[self.net.GetValue().strip()] if self.net.GetValue().strip() else [],layers=[self.layer.GetStringSelection()] if self.layer.GetSelection()>0 else [],model=model))
             request=dict(mode='neighbours',board_path=self.board.GetFileName(),source_fingerprints=self.fingerprints,settings=settings)
@@ -161,6 +163,8 @@ class NeighbourPanel(wx.Panel):
         from .service import source_fingerprints
         try:
             if source_fingerprints(self.board.GetFileName())!=self.fingerprints or payload['source_fingerprints']!=self.fingerprints:raise ValueError('Source changed; reopen and rerun.')
+            from wayricad_runtime.saved_board import assert_current
+            assert_current(self.board)
             self.report=payload['neighbours'];self.filter();self.export_button.Enable();self.study_button.Enable(self.study_panel is not None)
             radius=self.report['settings']['radius_mm'];self.legend_labels[1].SetLabel(f'  {radius/2:.4g} mm gap  ');self.legend_labels[2].SetLabel(f'  {radius:.4g} mm radius  ');self.Layout()
             coverage=self.report['coverage'];self.status.SetLabel(f"{self.report['status']} · {coverage['pair_count']} pairs · {coverage['comparisons']} indexed comparisons · "+' '.join(self.report['warnings']))

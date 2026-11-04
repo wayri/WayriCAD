@@ -1,4 +1,6 @@
 include README.md
+include AGENTS.md
+recursive-include component_arranger_plugin/tests *.py
 recursive-include review_comments_plugin/tests *.py
 include docs/METHODS_AND_RESEARCH.md
 include docs/RELEASE_NOTES_3.6.25.md
@@ -159,6 +161,8 @@ include tests/browser_compact_report.cjs
 
 include docs/RELEASE_NOTES_4.2.0.md
 include docs/audits/RELEASE_4.2.0.md
+include docs/RELEASE_NOTES_4.3.0.md
+include docs/SAVED_BOARD_ANALYSIS.md
 recursive-include manufacturing_readiness_plugin/tests *.py
 recursive-include trace_impedance_plugin/tests *.py
 include tests/test_dfm_presentation.py

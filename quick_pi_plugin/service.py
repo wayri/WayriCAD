@@ -51,7 +51,8 @@ def _request_key(request):
             inputs.append((str(path),hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None))
         # Runtime overrides select different native installations. Never serve
         # an earlier result after the caller changes that explicit identity.
-        payload=[request,inputs,os.environ.get('WAYRICAD_KICAD_PYTHON')]
+        from wayricad_runtime.saved_board import cache_identity
+        payload=[request,inputs,os.environ.get('WAYRICAD_KICAD_PYTHON'),cache_identity(source)]
         return hashlib.sha256(json.dumps(payload,sort_keys=True,allow_nan=False).encode()).hexdigest()
     except OSError:
         return None  # Let the worker provide its normal saved-source diagnostic.
@@ -146,9 +147,12 @@ def run_job(request, cancelled=None, timeout=300):
         root=Path(temporary); source=root/'request.json';target=root/'response.json'
         source.write_text(json.dumps(request,allow_nan=False),encoding='utf-8')
         with (root/'worker.log').open('w+',encoding='utf-8') as log:
+            from wayricad_runtime.analysis_process import worker_options, stop_worker
+            environment=child_environment()
+            environment['WAYRICAD_ANALYSIS_SCRATCH']=str(root)
             command=[str(python),'-I',str(Path(__file__).with_name('quickmain.py')),'--worker',str(source),str(target)]
-            process=subprocess.Popen(command,env=child_environment(),stdin=subprocess.DEVNULL,
-                stdout=log,stderr=log,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+            process=subprocess.Popen(command,env=environment,stdin=subprocess.DEVNULL,
+                stdout=log,stderr=log,**worker_options())
             started=time.monotonic()
             try:
                 while process.poll() is None:
@@ -157,9 +161,7 @@ def run_job(request, cancelled=None, timeout=300):
                     time.sleep(.1)
             finally:
                 if process.poll() is None:
-                    process.terminate()
-                    try:process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:process.kill();process.wait(timeout=5)
+                    stop_worker(process)
             log.seek(0); details=log.read()[-4000:]
             if not target.is_file():raise RuntimeError('Quick PI worker did not produce a result. '+details)
             try:
@@ -180,7 +182,13 @@ def execute(request,*,_boards=None):
     """Capture the actual executing producer before creating numerical evidence."""
     from wayricad_runtime.pocket_report import producer_version
     version=producer_version(module_file=__file__,package=__package__)
-    output=_execute(request,_boards=_boards)
+    from wayricad_runtime.saved_board import assert_current, provenance
+    boards={} if _boards is None else _boards
+    output=_execute(request,_boards=boards)
+    for board in boards.values():
+        assert_current(board)
+        record=provenance(board)
+        if record is not None:output['saved_board_provenance']=record
     output['producer_version']=version
     return output
 
@@ -257,13 +265,15 @@ def _execute(request,*,_boards=None):
     before=hashlib.sha256(path.read_bytes()).hexdigest()
     if request.get('action')=='detect_returns' and request.get('source_sha256')!=before:
         raise ValueError('The saved board changed. Reload before detecting return candidates.')
-    identity=(str(path),before)
+    from wayricad_runtime.saved_board import load_board, cache_identity, assert_current
+    identity=(str(path),cache_identity(path))
     board=_boards.get(identity) if _boards is not None else None
     if board is None:
-        board=pcbnew.LoadBoard(str(path))
+        board=load_board(path,pcbnew=pcbnew)
         if board is not None and _boards is not None:
             _boards.clear();_boards[identity]=board
     if board is None:raise ValueError('KiCad could not load this PCB.')
+    assert_current(board)
     action=request.get('action','inspect')
     if action=='inspect':
         nets=sorted({str(p.GetNetname()) for fp in board.GetFootprints() for p in fp.Pads() if p.GetNetCode()>0})
@@ -282,6 +292,10 @@ def _execute(request,*,_boards=None):
             raise ValueError('The board changed during inspection. Reload and run again.')
         output={'nets':nets,'terminals':terminals,'layers':[{'id':layer,'name':board.GetLayerName(layer)}
                 for layer in board.GetEnabledLayers().CuStack()],'source_sha256':before}
+        from .series_path_diagram import saved_path_geometry
+        output['path_geometry']=saved_path_geometry(board)
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
+            raise ValueError('The board changed during path geometry inspection. Reload and run again.')
         return _display_output(output,request,board,path,before)
     if action=='detect_returns':
         from wayricad_runtime.return_candidates import suggest_return_candidates
@@ -624,6 +638,8 @@ def series_execute(board,path,request):
     geometry={**geometry,'net':' → '.join(nets),'nets':list(dict.fromkeys(nets)),
               'layers':list(merged_layers.values()),'terminals':all_terminals,'vias':all_vias,
               'counts':{'nets':len(set(nets))},'domain_counts':domain_counts,'warnings':sorted(set(warnings))}
+    from .series_path_diagram import saved_path_geometry
+    geometry['path_geometry']=saved_path_geometry(board)
     geometry['geometry_sha256']=hashlib.sha256(json.dumps(geometry,sort_keys=True).encode()).hexdigest()
     mesh['geometry']=geometry
     result=solve(mesh,source_nodes,

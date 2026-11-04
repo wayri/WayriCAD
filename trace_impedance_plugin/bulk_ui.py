@@ -10,6 +10,7 @@ import json
 import math
 from pathlib import Path
 import threading
+from wayricad_runtime.saved_board import assert_current, load_board, provenance
 
 
 def source_fingerprints(board_path):
@@ -38,7 +39,7 @@ def extract_saved(board_path, *, nets=None, bundles=None, frequency_mhz=100., in
     source = str(Path(board_path).resolve())
     if cancelled is not None and cancelled():
         raise ValueError('Bulk extraction cancelled before board loading.')
-    board = pcbnew.LoadBoard(source)
+    board = load_board(source, pcbnew=pcbnew)
     if board is None:
         raise ValueError('KiCad could not read the saved PCB.')
     verify_sources(fingerprints)
@@ -46,11 +47,15 @@ def extract_saved(board_path, *, nets=None, bundles=None, frequency_mhz=100., in
                           frequency_mhz=frequency_mhz, infer_references=infer_references,
                           max_sections=max_sections, cancelled=cancelled, progress=progress)
     verify_sources(fingerprints)
+    assert_current(board)
     document = {'schema': 'wayricad.rlc-bulk-study/v1', 'board_path': source,
                 'source_sha256': fingerprints[source], 'source_files': fingerprints,
                 'request': {'nets': nets, 'bundles': bundles, 'frequency_mhz': frequency_mhz,
                             'infer_references': infer_references, 'max_sections': max_sections},
                 'result': result}
+    evidence = provenance(board)
+    if evidence is not None:
+        document['saved_board_provenance'] = evidence
     return document, board
 
 
@@ -289,7 +294,9 @@ def create_bulk_frame(parent):
             if error:
                 self.summary.SetLabel(error); self._buttons(); return
             self.document, self.snapshot_board = value
-            try: verify_sources(self.document['source_files'])
+            try:
+                verify_sources(self.document['source_files'])
+                assert_current(self.snapshot_board)
             except Exception as exc:
                 self.invalidate(); self.summary.SetLabel(str(exc)); return
             self.source_stat = self._stat_sources()

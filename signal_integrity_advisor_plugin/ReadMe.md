@@ -14,6 +14,13 @@
 [Latest release](https://github.com/wayri/WayriCAD/releases/latest) ·
 [Complete SI guide](USER_GUIDE.md) · [Board RLC eye scope](BOARD_RLC_EYE.md)
 
+**Newer saved boards:** read-only analysis uses a strict private conversion for
+boards newer than KiCad 10. The launching editor supplies its matching CLI;
+standalone runs can select it with `KICAD_CLI`. Unsupported conversion stops the
+run. The original PCB, project and rules stay unchanged; converted results retain
+their source and converter provenance. This does not establish editing or DRC
+equivalence. Reopen and rerun after source, rules or converter changes.
+
 ## Viewport-first workspace
 
 Start with **Set up path… → Run SI → inspect the route**. The route uses the

@@ -373,6 +373,8 @@ class QuickSIPanel(wx.Panel):
                 self._show_study(report);return
             from .service import source_fingerprints,run_job
             fingerprints=source_fingerprints(self.board.GetFileName())
+            from wayricad_runtime.saved_board import assert_current
+            assert_current(self.board)
             if fingerprints!=self._source_fingerprints:raise ValueError('Saved PCB or rules changed. Reopen Quick SI before running.')
             request={'mode':'study','board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'study':config}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
@@ -396,6 +398,8 @@ class QuickSIPanel(wx.Panel):
         try:
             from .service import require_source
             require_source(request)
+            from wayricad_runtime.saved_board import assert_current
+            assert_current(self.board)
             if payload.get('source_fingerprints')!=request['source_fingerprints']:raise ValueError('Study result source does not match this request.')
             self._show_study(payload['study']);self._result_fingerprints=payload['source_fingerprints']
         except Exception as caught:self.changed(None);self.status.SetLabel(str(caught))
@@ -627,6 +631,8 @@ class QuickSIPanel(wx.Panel):
                 return
             from .service import source_fingerprints,run_job
             fingerprints=source_fingerprints(self.board.GetFileName())
+            from wayricad_runtime.saved_board import assert_current
+            assert_current(self.board)
             if fingerprints!=self._source_fingerprints:raise ValueError('The saved PCB or project rules changed. Reopen Quick SI before running.')
             request={'board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'net':self.fields['net'].GetValue(),
                      'start':self.fields['start'].GetValue(),'end':self.fields['end'].GetValue(),'reference':self.fields['reference'].GetValue(),'inputs':values}

@@ -55,7 +55,7 @@ class BatchStudyDialog(wx.Dialog):
         self.status=wx.StaticText(self,label='Select a rail and Set up ground / return. Advanced numerical and thermal settings remain in the JSON tab.')
         self.status.Wrap(930);root.Add(self.status,0,wx.EXPAND|wx.ALL,10)
         actions=wx.BoxSizer(wx.HORIZONTAL)
-        self.run=wx.Button(self,label='Run all cases');self.stop=wx.Button(self,label='Cancel');self.export=wx.Button(self,label='Export HTML / JSON…');close=wx.Button(self,wx.ID_CLOSE,'Close')
+        self.run=wx.Button(self,label='Run all cases');self.stop=wx.Button(self,label='Cancel');self.export=wx.Button(self,label='Export HTML / PDF…');close=wx.Button(self,wx.ID_CLOSE,'Close')
         self.insulation=wx.Button(self,label='Spacing screen…');self.insulation.Disable()
         self.insulation.SetToolTip('Post-solve multi-net planar clearance and reviewed surface-creepage screening')
         self.insulation.Bind(wx.EVT_BUTTON,self.show_insulation)
@@ -119,7 +119,8 @@ class BatchStudyDialog(wx.Dialog):
                 self.return_table.SetItem(row,1,definition.get('net','Unknown'));self.return_table.SetItem(row,2,case['name'])
                 self.return_table.SetItem(row,3,'Existing independent loop');self._return_rows.append(('independent',case['name']))
             row=self.case_table.InsertItem(self.case_table.GetItemCount(),case['name'])
-            self.case_table.SetItem(row,1,case['electrical']['net'])
+            electrical=case['electrical']
+            self.case_table.SetItem(row,1,electrical['net']+(' · '+str(len(electrical['series']))+' series stage(s)' if electrical.get('series') else ''))
             try:load_count=str(len(sink_requests(case['electrical'])))
             except ValueError:load_count='Review loads'
             self.case_table.SetItem(row,2,load_count)
@@ -148,7 +149,10 @@ class BatchStudyDialog(wx.Dialog):
                 case=study['cases'][dialog.GetSelection()]
             from .service import sink_requests
             from .terminals import pad_names,source_names
-            electrical=case['electrical'];sinks=sink_requests(electrical)
+            electrical=case['electrical']
+            if electrical.get('series'):
+                raise ValueError('Edit series pad groups and component models in the Series path editor batch setups, then update the case.')
+            sinks=sink_requests(electrical)
             labels=['Source unit']+['Load '+s.get('id',str(i+1)) for i,s in enumerate(sinks)]+['Add load unit']
             with wx.SingleChoiceDialog(self,'Select a unit to edit. Load current is the total across its selected pads.','Pad units',labels) as dialog:
                 if dialog.ShowModal()!=wx.ID_OK:return
@@ -316,7 +320,8 @@ class BatchStudyDialog(wx.Dialog):
         if not error and (not isinstance(result,dict) or 'batch' not in result):error='Worker returned no batch evidence.'
         if error:self.status.SetLabel(error);return
         self.result=result;rows=result['batch']['cases']
-        self.details.SetValue('\n\n'.join(row['name']+' · '+row['status']+('\n'+row['error'] if row.get('error') else '') for row in rows))
+        from .batch_result_text import case_result_text
+        self.details.SetValue('\n\n'.join(case_result_text(row) for row in rows))
         if result['batch'].get('shared_returns'):
             self.details.AppendText('\n\nShared-return coupling\n'+json.dumps([{k:v for k,v in group.items() if k not in ('return_conduction','physical_return_potential_V')} for group in result['batch']['shared_returns']],indent=2))
         self.book.SetSelection(1);self.export.Enable()

@@ -117,11 +117,15 @@ class SeriesEditorModelTests(unittest.TestCase):
         editor.values={'r':(None,Text('5m'))};editor.list=Choice('')
         editor.manual=Text('run pi J1.1 D1.1 1V D1.2 U1.1');editor._manual_pending=True
         editor.dialog=Dialog()
+        editor.inference=SimpleNamespace(snapshot=lambda:{'query':['J1.1','U1.1',False]})
+        editor.batch_setup=SimpleNamespace(snapshot=lambda:{'cases':[{'name':'Retained setup'}]})
         request,draft=editor.show_with_draft()
         self.assertIsNone(request)
         self.assertEqual(draft['path']['branches'][0]['reference'],'D1')
         self.assertEqual(draft['editor']['values']['r'],'5m')
         self.assertTrue(draft['editor']['manual_pending'])
+        self.assertEqual(draft['editor']['inference']['query'][0],'J1.1')
+        self.assertEqual(draft['editor']['batch']['cases'][0]['name'],'Retained setup')
         self.assertTrue(editor.dialog.destroyed)
 
 

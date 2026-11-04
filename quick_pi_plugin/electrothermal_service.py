@@ -63,7 +63,8 @@ def prepare_saved_study(path, study):
     boards = {}
     bundle = execute(electrical,_boards=boards)
     mesh, geometry = bundle['mesh'], bundle['geometry']
-    board = next(iter(boards.values())) if boards else pcbnew.LoadBoard(str(path))
+    from wayricad_runtime.saved_board import load_board, assert_current, provenance
+    board = next(iter(boards.values())) if boards else load_board(path, pcbnew=pcbnew)
     thermal = collect_thermal_geometry(board, path, geometry_helpers=board_geometry)
 
     from .terminals import resolve_units
@@ -98,6 +99,9 @@ def prepare_saved_study(path, study):
         thermal_view={'components': view_components}, via_heat_mappings=via_maps,
         source_sha256=sha, stackup_sha256=stackup_sha)
     prepared['terminal_units']=terminal_units
+    assert_current(board)
+    record=provenance(board)
+    if record is not None:prepared['saved_board_provenance']=record
     return prepared
 
 
@@ -144,8 +148,12 @@ def execute(request):
     study_sha = request.get('study_file_sha256')
     if study_path and study_sha and hashlib.sha256(Path(study_path).read_bytes()).hexdigest() != study_sha:
         raise ValueError('Input study changed during coupling. Discard the result and reload.')
+    from wayricad_runtime.saved_board import assert_record_current
+    evidence=resolved.get('saved_board_provenance')
+    assert_record_current(evidence)
     return {'electrothermal': result, 'mode': mode, 'study': copy.deepcopy(study),
             'study_sha256': _digest(study), 'source_sha256': before,
+            **({'saved_board_provenance':evidence} if evidence is not None else {}),
             'geometry_origin': 'saved_board' if mode == 'steady' and 'electrical' in study else 'explicit_model',
             'board_binding': ('extracted_geometry' if mode == 'steady' and 'electrical' in study else
                               'provenance_only') if source else None,

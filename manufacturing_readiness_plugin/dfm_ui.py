@@ -312,7 +312,8 @@ class DFMFrame(wx.Frame):
                 if self.cancel.is_set(): raise InterruptedError('Vendor checks cancelled.')
                 from wayricad_runtime.board_render import extract_board
                 import pcbnew
-                saved = pcbnew.LoadBoard(str(self.path))
+                from wayricad_runtime.saved_board import load_board, assert_current, provenance
+                saved = load_board(self.path, pcbnew=pcbnew)
                 if saved is None: raise ValueError('Could not load the current saved board for the preview.')
                 if saved.GetCopperLayerCount() != context['layers']:
                     raise ValueError('The saved PCB layer count does not match the selected manufacturing process.')
@@ -320,6 +321,9 @@ class DFMFrame(wx.Frame):
                 identifiers = {item['uuid'] for finding in result['findings'] for item in finding.get('items', []) if item.get('uuid')}
                 result['dimensions'] = track_width_dimensions(saved.GetTracks(), identifiers, pcbnew.ToMM)
                 scene = extract_board(saved)
+                assert_current(saved)
+                record = provenance(saved)
+                if record is not None: result['saved_board_provenance'] = record
             except Exception as exc: error = str(exc)
             wx.CallAfter(self.finished, result, scene, error, checklists.profile_digest(profile), context)
         threading.Thread(target=worker, daemon=True).start()

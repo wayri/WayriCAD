@@ -224,7 +224,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._build_return_page()
         from .decoupling.pdn_decoupling_plugin import PdnFrame
         import pcbnew
-        self.decoupling=PdnFrame(self.book,None,board_loader=lambda:pcbnew.LoadBoard(self.board_path));self.book.AddPage(self.decoupling,'Decoupling')
+        from wayricad_runtime.saved_board import load_board
+        self.decoupling=PdnFrame(self.book,None,board_loader=lambda:load_board(self.board_path,pcbnew=pcbnew));self.book.AddPage(self.decoupling,'Decoupling')
         self._build_inspector();self.splitter.Initialize(self.book);self.inspector.Hide()
         self.workspace_splitter.Initialize(self.splitter);self.setup_panel.Hide()
         body.Add(self.workspace_splitter,1,wx.EXPAND);root.Add(body,1,wx.EXPAND|wx.LEFT|wx.RIGHT,4)
@@ -1199,7 +1200,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         layout=wx.BoxSizer(wx.VERTICAL);view=GeometryPreview(dialog);layout.Add(view,1,wx.EXPAND|wx.ALL,8)
         layout.Add(wx.StaticText(dialog,label='Click a pad, via or track to choose its net. Drag to pan; wheel to zoom.'),0,wx.ALL,8)
         layout.Add(dialog.CreateButtonSizer(wx.CANCEL),0,wx.ALIGN_RIGHT|wx.ALL,8);dialog.SetSizer(layout)
-        view.set_board(self.decoupling.get_board() if self._snapshot_current() else pcbnew.LoadBoard(self.board_path),pcbnew)
+        from wayricad_runtime.saved_board import load_board, assert_current
+        board=self.decoupling.get_board() if self._snapshot_current() else load_board(self.board_path,pcbnew=pcbnew)
+        assert_current(board)
+        view.set_board(board,pcbnew)
         def selected(net,xy):
             self.net_search.ChangeValue('');self.net.Set(self.inventory.get('nets', []))
             self.net.SetValue(net);self._net_changed()
@@ -1579,7 +1583,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             draft=draft_from_request(self._series_request,self.inventory)
         parsed,self._series_draft=SeriesPathDialog(self,self.inventory,self.board_path,existing=draft).show_with_draft()
         if parsed:
-            try:self._start_parsed_path(parsed,'Solving selected series components and saved copper…')
+            try:
+                if 'batch_study' in parsed:self.on_batch(initial=parsed['batch_study'],autorun=True)
+                else:self._start_parsed_path(parsed,'Solving selected series components and saved copper…')
             except Exception as exc:self.status.SetLabel(str(exc))
 
     def on_material_defaults(self,event=None):
@@ -2036,7 +2042,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 self.status.SetLabel('Power tree reviewed. Energy-flow arrows do not short nets or change solver terminal models. Save it in the tree editor to retain it.')
         finally:editor.dialog.Destroy()
 
-    def on_batch(self,event=None):
+    def on_batch(self,event=None,*,initial=None,autorun=False):
         if self._busy:return
         if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload before running batch cases.');return
         try:
@@ -2044,13 +2050,15 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             from .batch import initial_study
             from .batch_ui import BatchStudyDialog
             from .service import run_job
-            selected=self._request('solve')
-            if selected.get('series'):raise ValueError('Batch cases use explicit per-net terminals; clear the series path first.')
+            if initial is None:
+                selected=self._request('solve')
+                initial=initial_study(selected)
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
-            dialog=BatchStudyDialog(self,initial_study(selected),self.inventory,
+            dialog=BatchStudyDialog(self,initial,self.inventory,
                 lambda payload,cancel:run_job(payload,cancelled=cancel,timeout=1800),self.board_path,sha)
             from wayricad_runtime.project_results_ui import add_study_results
             add_study_results(dialog,'quick-pi',self.board_path)
+            if autorun:wx.CallAfter(dialog.run_cases)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))

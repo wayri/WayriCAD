@@ -12,6 +12,13 @@ import time
 from . import engine
 
 
+def _file_hash(path):
+    digest=hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda:stream.read(1024*1024),b''):digest.update(block)
+    return digest.hexdigest()
+
+
 def uid(item):
     return item.m_Uuid.AsString()
 
@@ -133,10 +140,12 @@ class Preview:
     validated_digest: str = ''
     evidence: dict = None
     external_pads: tuple = ()
+    schematic_sources: dict = None
 
 
 def digest(plan):
     return hashlib.sha256(json.dumps(dict(options=plan.options, before=plan.before,
+            schematic_sources=plan.schematic_sources,
             placements=[(f.key, f.x, f.y, f.angle, f.side) for f in plan.result.footprints]),
             sort_keys=True, allow_nan=False).encode()).hexdigest()
 
@@ -158,6 +167,30 @@ def propose(board, api, references, solve=None, **options):
         models.append(model(fp, api, locked=connected))
         if connected:
             fixed.append(fp.GetReference())
+    from . import attraction, grouping
+    wire_mm=options.pop('schematic_wire_mm',25.0)
+    strength=options.get('attraction_strength',1.0)
+    schematic_sources={}
+    hints=[]
+    if 'pin_springs' in options:
+        raise ValueError('Native pin attraction is derived from the saved schematic, not caller-supplied springs.')
+    springs=()
+    if board.GetFileName() and strength:
+        schematic=Path(board.GetFileName()).resolve().with_suffix('.kicad_sch')
+        schematic_sources[str(schematic)]=_file_hash(schematic) if schematic.is_file() else None
+        if schematic.is_file():
+            data=grouping.infer_schematic_groups(schematic,max_wire_mm=wire_mm,
+                                                 metadata_only=True,references=set(references))
+            captured=data['source_fingerprints']
+            if str(schematic) in captured and captured[str(schematic)]!=schematic_sources[str(schematic)]:
+                raise ValueError('Schematic changed while reading placement metadata; preview again.')
+            schematic_sources.update(captured)
+            springs,notes=attraction.bind(tuple(models),data,
+                {uid(fp):fp.GetPath().AsString() if hasattr(fp,'GetPath') else '' for fp in selected})
+            hints.extend((*data['warnings'],*notes))
+        else:
+            hints.append('No matching saved schematic; pin attraction unavailable, using PCB net MST objective.')
+    options=dict(options,pin_springs=springs)
     anchor = options.get('anchor') or infer_anchor(models)
     if anchor in by_ref:
         anchor = uid(by_ref[anchor])
@@ -192,11 +225,13 @@ def propose(board, api, references, solve=None, **options):
     holes = tuple(tuple((api.ToMM(outline.CHole(0, h).CPoint(i).x), api.ToMM(outline.CHole(0, h).CPoint(i).y))
                         for i in range(outline.CHole(0, h).PointCount())) for h in range(outline.HoleCount(0)))
     result = (solve or engine.arrange)(models, settings, obstacles=obstacles, board_outline=outer, board_holes=holes)
+    check_schematic_sources(schematic_sources)
     if fingerprint(board, api) != source:
         raise ValueError('Board changed during planning; preview again.')
-    result = replace(result, warnings=result.warnings + tuple('Existing routed/contacted footprint held fixed: ' + r for r in fixed))
-    return Preview(source, identity(board), dict(options, anchor=anchor),
-                   {uid(fp): pose(fp, api) for fp in selected}, result, external_pads=tuple(external))
+    result = replace(result, warnings=result.warnings + tuple(hints) + tuple('Existing routed/contacted footprint held fixed: ' + r for r in fixed))
+    return Preview(source, identity(board), dict(options, anchor=anchor,schematic_wire_mm=wire_mm),
+                   {uid(fp): pose(fp, api) for fp in selected}, result, external_pads=tuple(external),
+                   schematic_sources=schematic_sources)
 
 
 def materialize(board, api, placements):
@@ -211,8 +246,16 @@ def placements(plan):
 
 
 def check(board, api, plan):
+    check_schematic_sources(plan.schematic_sources)
     if identity(board) != plan.board_id or fingerprint(board, api) != plan.source:
         raise ValueError('Board, selection or saved rules changed. Preview again.')
+
+
+def check_schematic_sources(sources):
+    for name,expected in (sources or {}).items():
+        path=Path(name)
+        if (_file_hash(path) if path.is_file() else None)!=expected:
+            raise ValueError('Saved schematic placement metadata changed; preview and validate again.')
 
 
 def validate(board, api, plan, progress=None):
@@ -296,6 +339,7 @@ class Transaction:
         self.board.BuildConnectivity()
 
     def exchange(self, forward):
+        if forward:check_schematic_sources(self.plan.schematic_sources)
         if fingerprint(self.board, self.api) != self.expected or digest(self.plan) != self.plan.validated_digest:
             raise ValueError('Board or proposal changed; operation blocked.')
         if self.applied == forward:

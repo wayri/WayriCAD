@@ -14,11 +14,11 @@ The current IPC path uses the official `kicad-python` package and local wxPython
 
 
 
-Source ActionPlugin launches use KiCad's bundled `pcbnew` and wxPython. Selected native checks were run against KiCad **10.0.5**. The standalone facade contract tests use real **kicad-python 0.8** value objects with a fake transport. They verify library/field identifiers, footprint attributes, pad/via/track construction, net names, layer spans, keepout flags, polygon conversion, update acknowledgements and launcher behavior. They do not connect to an editor.
+Source ActionPlugin launches use KiCad's bundled `pcbnew` and wxPython. Selected native checks were run against KiCad **10.0.5**; the 4.3 candidate Quick PI editor acceptance used **10.0.6**. The standalone facade contract tests use real **kicad-python 0.8** value objects with a fake transport. They verify library/field identifiers, footprint attributes, pad/via/track construction, net names, layer spans, keepout flags, polygon conversion, update acknowledgements and launcher behavior. They do not connect to an editor.
 
 
 
-**There has not yet been a complete live IPC transport integration run of all 16 active tools.** Two concurrently open disposable KiCad 10.0.5 editors passed exact socket/token and originating-board checks, including five reconnects per editor, when each used a separate temporary directory. The separate-directory check passed again on KiCad 10.0.6: both editors kept distinct sockets and board identities, rejected each other's tokens, and stopped without altering the fixtures. On Windows, two editors sharing the same temporary directory reproduced an upstream IPC endpoint collision. See [troubleshooting](TROUBLESHOOTING.md) for the isolated launch workaround. No per-tool live mutation acceptance is implied by that connection test.
+**There has not yet been a complete live IPC transport integration run of all 26 packages.** Two concurrently open disposable KiCad 10.0.5 editors passed exact socket/token and originating-board checks, including five reconnects per editor, when each used a separate temporary directory. The separate-directory check passed again on KiCad 10.0.6: both editors kept distinct sockets and board identities, rejected each other's tokens, and stopped without altering the fixtures. On Windows, two editors sharing the same temporary directory reproduced an upstream IPC endpoint collision. See [troubleshooting](TROUBLESHOOTING.md) for the isolated launch workaround. No per-tool live mutation acceptance is implied by that connection test.
 
 
 
@@ -30,11 +30,38 @@ KiCad 11 removes the legacy SWIG `pcbnew` bindings. WayriCAD's forward path is t
 
 
 
-**KiCad 11 is unverified.** Forward compatibility here means the IPC architecture and package manifests are prepared for that API; it is not a guarantee of full feature parity or a tested future release. Legacy source ActionPlugins that depend on SWIG cannot supply a KiCad 11 fallback. Changes in KiCad IPC capabilities, SDK dependencies or wxPython packaging can require updates.
+The development build **10.99.0.6258.gff9515f1e9** has limited native editor evidence for a KiCad 11-format saved board, described below. It is not released KiCad 11.0, and the full suite has not been verified on it. Forward compatibility here means the IPC architecture and package manifests are prepared for that API; it is not a guarantee of feature parity. Legacy source ActionPlugins that depend on SWIG cannot supply a KiCad 11 fallback. Changes in KiCad IPC capabilities, SDK dependencies or wxPython packaging can require updates.
+
+## 4.3 candidate editor evidence
+
+On Windows with KiCad **10.0.6**, Quick PI's actual PCB Editor completed the
+VIN → MID → OUT fixture with Q1∥Q2 and Q3∥Q4. Inference and the solved path
+retained three nets, two parallel banks and all **20 current-carrying pins**;
+the four control pins were excluded. The editor saved and reloaded the setup
+and simulation, exported HTML and PDF, and opened the compact diagram and SVG
+export. These checks apply to this fixture and tool, not every package or host.
+
+On Windows with development build **10.99.0.6258.gff9515f1e9** (PCB format
+`20261031`), the originating editor saved the newer-format fixture. Quick PI
+then displayed inline inferred candidates, accepted explicit component models,
+ran the complete series path, saved and reloaded its setup, and exported HTML.
+PDF, diagram and screenshot checks on that host are still pending after the
+desktop session was interrupted. KiCad 10 native Python and the originating
+development-build CLI were both required; this does not certify the full KiCad
+11 suite. See [saved-board adapter scope](SAVED_BOARD_ANALYSIS.md) and
+[4.3 candidate notes](RELEASE_NOTES_4.3.0.md).
 
 
 
 ## Known feature limits
+
+### Newer saved-board analysis
+
+The read-only analysis adapter supports strictly convertible newer saved boards
+while retaining the direct KiCad 10 load path. It still requires the KiCad 10
+native helper and the originating newer host's CLI. Unsupported features are
+refused. This is bounded saved-file support, not general KiCad 11 qualification.
+See [conversion, source binding and validation scope](SAVED_BOARD_ANALYSIS.md).
 
 
 

@@ -67,9 +67,14 @@ class SavedWorkerTests(unittest.TestCase):
    def terminate(self):self.terminated+=1;self.returncode=-1
    def wait(self,timeout):return self.returncode
   process=Process();calls=iter([False,False,True])
-  with patch('subprocess.Popen',return_value=process),patch('wayricad_runtime.runtime_setup.child_environment',return_value={}):
+  with patch('subprocess.Popen',return_value=process) as popen,patch('wayricad_runtime.runtime_setup.child_environment',return_value={}), \
+       patch('wayricad_runtime.analysis_process.stop_worker',side_effect=lambda child:(child.terminate(),child.wait(timeout=5))) as stop:
    with self.assertRaises(InterruptedError):service.run_job({},cancelled=lambda:next(calls),python='python')
   self.assertEqual(process.terminated,1)
+  stop.assert_called_once_with(process)
+  scratch=Path(popen.call_args.kwargs['env']['WAYRICAD_ANALYSIS_SCRATCH'])
+  self.assertEqual(scratch,Path(popen.call_args.args[0][-2]).parent)
+  self.assertFalse(scratch.exists())
 
 try:
  import wx

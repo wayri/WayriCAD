@@ -54,14 +54,20 @@ def resolve_model(filename, variables, project):
 
 def prepare(job):
     import pcbnew as p
+    from wayricad_runtime.saved_board import assert_current, load_board, provenance
     path, root = Path(job['board_path']), Path(job['root'])
     if hashlib.sha256(path.read_bytes()).hexdigest() != job['source_sha256']:
         raise ValueError('Saved board changed before geometry snapshot.')
-    board = p.LoadBoard(str(path))
+    board = load_board(str(path), pcbnew=p)
+    if board is None:
+        raise ValueError('KiCad could not load this saved PCB for model geometry.')
     variables = model_variables(path.parent)
     counts = Counter(fp.GetReference() for fp in board.GetFootprints())
     data = {'model_map':{}, 'model_files':[], 'missing':[],
             'thickness_mm':p.ToMM(board.GetDesignSettings().GetBoardThickness())}
+    evidence = provenance(board)
+    if evidence is not None:
+        data['saved_board_provenance'] = evidence
     (root/'models').mkdir()
     for index, fp in enumerate(board.GetFootprints()):
         ref = str(fp.GetReference())
@@ -102,8 +108,10 @@ def prepare(job):
             loaded += 1
         if not loaded and not any(row['reference']==ref for row in data['missing']):
             data['missing'].append({'reference':ref,'reason':'No enabled STEP model'})
+    assert_current(board)
     if not p.SaveBoard(str(root/'snapshot.kicad_pcb'),board):
         raise RuntimeError('KiCad could not create the private model snapshot.')
+    assert_current(board)
     (root/'prepared.json').write_text(json.dumps(data),encoding='utf-8')
 
 
@@ -166,5 +174,8 @@ def mesh(job):
 
 
 if __name__ == '__main__':
+    # Source checkout: shared runtime is beside this plugin; installed PCM:
+    # it is vendored inside the plugin, already on the script search path.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     job = json.loads(Path(sys.argv[2]).read_text(encoding='utf-8'))
     {'prepare':prepare,'mesh':mesh}[sys.argv[1]](job)

@@ -1,5 +1,10 @@
 # WayriCAD Manufacturing Readiness Manager
 
+DFM/DFA Studio previews newer saved boards through the
+[shared read-only analysis adapter](../docs/SAVED_BOARD_ANALYSIS.md). Native DRC
+uses the original saved board and originating newer host's CLI. Conversion does
+not qualify editing, DRC equivalence or the Manufacturing Manager release workflow.
+
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Manufacturing Readiness Manager icon">
 
 | Start here | Link |

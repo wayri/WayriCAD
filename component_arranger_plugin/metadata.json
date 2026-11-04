@@ -2,7 +2,7 @@
     "$schema": "https://go.kicad.org/pcm/schemas/v2",
     "name": "WayriCAD Component Arranger",
     "description": "Review compact component-group placement around a fixed anchor.",
-    "description_full": "Group PCB footprints by selection, native groups, schematic sheet or confirmed wire clusters. Preview bounded courtyard-aware placement with anchor, side, density and rotation controls, capacitor ordering and ratsnest metrics. Existing routed/locked parts stay fixed. Native detached DRC gates Apply. No guaranteed routing closure or crossover reduction.",
+    "description_full": "Group PCB footprints by selection, native groups, schematic sheet or confirmed wire clusters. Preview bounded courtyard-aware placement with anchor, side, density and rotation controls, capacitor ordering, schematic pin attraction and ratsnest metrics. Existing routed/locked parts stay fixed. Native detached DRC gates Apply. No guaranteed routing closure or crossover reduction.",
     "identifier": "com.github.wayri.wayricad.component-arranger",
     "type": "plugin",
     "author": {
@@ -24,7 +24,7 @@
     },
     "versions": [
         {
-            "version": "0.1.17",
+            "version": "0.1.18",
             "status": "testing",
             "kicad_version": "10.0",
             "kicad_version_max": "10.0",
