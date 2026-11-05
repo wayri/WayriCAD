@@ -80,7 +80,17 @@ class WebAssetsTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(name.encode('utf-8'))
         (modern / 'src/kicad-viewer.mjs').write_text(
-            "import '../engine/pcb-renderer.js'; import './viewer-chrome.mjs'; import('./three-runtime.mjs');", encoding='utf-8')
+            "import '../engine/pcb-renderer.js'; import './viewer-chrome.mjs'; "
+            "import './archive/zip.mjs'; import './manufacturing-input.mjs'; "
+            "import './manufacturing-canvas.mjs'; import './source-types.mjs'; "
+            "import './manufacturing/index.mjs'; import './inspector.mjs'; "
+            "import('./three-runtime.mjs');", encoding='utf-8')
+        (modern / 'src/manufacturing/index.mjs').write_text(
+            "import './gerber.mjs'; import './excellon.mjs';", encoding='utf-8')
+        (modern / 'src/manufacturing/gerber.mjs').write_text(
+            "import './geometry.mjs'; import './apertures.mjs';", encoding='utf-8')
+        (modern / 'src/manufacturing/excellon.mjs').write_text(
+            "import './geometry.mjs';", encoding='utf-8')
         (modern / 'src/three-runtime.mjs').write_text(
             "new URL('../engine/vendor/spike-board3d.bundle.js', import.meta.url);", encoding='utf-8')
         manifest = asset_manifest(modern, linked_models=True)
@@ -88,8 +98,17 @@ class WebAssetsTests(unittest.TestCase):
         self.assertEqual(set(served), set(required_paths(linked_models=True, layout='modern')))
         self.assertEqual(served['web-library/kicad-viewer.mjs'], modern / 'src/kicad-viewer.mjs')
         self.assertEqual(served['extension/repo-models.js'], modern / 'engine/repo-models.js')
+        self.assertEqual(served['web-library/archive/zip.mjs'], modern / 'src/archive/zip.mjs')
+        self.assertEqual(served['web-library/manufacturing/geometry.mjs'], modern / 'src/manufacturing/geometry.mjs')
+        self.assertEqual(served['web-library/inspector.mjs'], modern / 'src/inspector.mjs')
         self.assertIn('licenses/Pocket-KiView-Source-Available-1.0.txt', served)
         verify_assets(modern, manifest)
+        (modern / 'src/manufacturing/gerber.mjs').write_text(
+            "import './outside.mjs';", encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'outside the served subset'):
+            asset_manifest(modern, linked_models=True)
+        (modern / 'src/manufacturing/gerber.mjs').write_text(
+            "import './geometry.mjs'; import './apertures.mjs';", encoding='utf-8')
         (modern / 'src/kicad-viewer.mjs').write_text("import '../engine/unknown.js';", encoding='utf-8')
         with self.assertRaisesRegex(ValueError, 'outside the served subset'):
             asset_manifest(modern, linked_models=True)
@@ -102,6 +121,9 @@ class WebAssetsTests(unittest.TestCase):
         self.assertEqual(len(discover_assets(root)), len(manifest))
         self.assertIn('web-library/source-loader.mjs', {entry.path for entry in manifest})
         self.assertIn('web-library/three-runtime.mjs', {entry.path for entry in manifest})
+        self.assertIn('web-library/archive/zip.mjs', {entry.path for entry in manifest})
+        self.assertIn('web-library/manufacturing/apertures.mjs', {entry.path for entry in manifest})
+        self.assertIn('web-library/inspector.mjs', {entry.path for entry in manifest})
         from review_comments_plugin.web_host import _snapshot
         snapshot = _snapshot(root, Path(__file__).parents[1] / 'web')
         self.assertEqual(len(snapshot), len(manifest) + 3)

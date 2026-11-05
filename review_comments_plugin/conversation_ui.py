@@ -27,10 +27,24 @@ IMAGE = re.compile(r'!\[[^\]]*\]\(https://[^\s)]+\)')
 
 
 def message_text(row):
-    text = MARKER.sub('', row['body']).strip()
+    from .review_targets import visible_body
+    text = visible_body(row['body'])
     if row.get('parentId'):
         text = re.sub(r'^> Reply to [^\n]+\n\s*\n', '', text)
     return IMAGE.sub('Screenshot attached', text).strip() or '(No message text)'
+
+
+def reply_header(row, rows):
+    """Describe the immediate parent without guessing after deletion/ambiguity."""
+    identifier = row.get('parentId')
+    if not identifier:
+        return ''
+    parents = [parent for parent in rows if parent.get('id') == identifier]
+    sender = ' '.join(str(row.get('author', 'Unknown author')).split())
+    if len(parents) == 1 and parents[0].get('id') != row.get('id'):
+        recipient = ' '.join(str(parents[0].get('author', 'Unknown author')).split())
+        return f'{sender} → {recipient} · reply to #{identifier}'
+    return f'{sender} → unavailable comment #{identifier}'
 
 
 def short_time(value):
@@ -89,11 +103,13 @@ class MessageCard(wx.Panel):
         layout = wx.BoxSizer(wx.HORIZONTAL)
         avatar = wx.Panel(self, size=(34, 34))
         avatar.SetMinSize((34, 34))
-        colors = ['#087f8c', '#7461b4', '#aa6b25', '#377652', '#a85469']
+        from .theme import AVATAR_COLORS
+        colors = AVATAR_COLORS
         color = colors[hashlib.sha256(row['author'].encode()).digest()[0] % len(colors)]
         avatar.SetBackgroundColour(color)
         av = wx.BoxSizer(wx.VERTICAL)
         initial = wx.StaticText(avatar, label=(row['author'][:2] or '?').upper())
+        initial.review_foreground_role = 'inverse'
         initial.SetForegroundColour('#ffffff')
         font(initial, 10, bold=True)
         av.AddStretchSpacer()
@@ -119,10 +135,27 @@ class MessageCard(wx.Panel):
             head.Add(kind, 0, wx.ALIGN_CENTER_VERTICAL)
         content.Add(head, 0, wx.EXPAND | wx.TOP | wx.RIGHT, 12)
         if reply:
-            quoted = wx.StaticText(self, label='↳ Reply in thread')
+            relationship = row.get('replyLabel') or reply_header(row, getattr(owner.session, 'rows', []))
+            quoted = wx.StaticText(self, label='↳ ' + (relationship or 'Reply in thread'), style=wx.ST_ELLIPSIZE_END)
+            quoted.SetToolTip(relationship)
+            quoted.SetMinSize((0, -1))
             quoted.SetForegroundColour(ACCENT)
             font(quoted, 8)
-            content.Add(quoted, 0, wx.TOP, 4)
+            content.Add(quoted, 0, wx.EXPAND | wx.TOP | wx.RIGHT, 4)
+        diagnostics = [item for item in row.get('contextStatus', []) if item.get('status') != 'current']
+        notices = [str(item.get('status', 'unavailable')).capitalize() + ': ' + str(item.get('reason', '')).replace('-', ' ')
+                   for item in diagnostics]
+        if row.get('replyIssue'):
+            notices.append('Reply relationship: ' + row['replyIssue'].replace('-', ' '))
+        variants = sorted({a.get('variant', '*') for a in row.get('anchors', [])})
+        if variants:
+            notices.append('Variant: ' + ', '.join('all variants' if item == '*' else item for item in variants))
+        if notices:
+            from .theme import palette
+            notice = wx.StaticText(self, label='\n'.join(notices))
+            notice.SetForegroundColour(palette(owner)['warning'] if diagnostics else palette(owner)['muted'])
+            notice.Wrap(450)
+            content.Add(notice, 0, wx.TOP | wx.RIGHT, 6)
         text = message_text(row)
         # Attachments remain explicit user-opened provider links, not arbitrary
         # automatic remote image fetches from third-party comment text.
@@ -137,6 +170,9 @@ class MessageCard(wx.Panel):
         reply_button.SetForegroundColour(ACCENT)
         reply_button.Bind(wx.EVT_BUTTON, lambda event: owner.begin_reply(row))
         actions.Add(reply_button, 0, wx.RIGHT | wx.BOTTOM, 8)
+        quote = ActionButton(self, 'Quote reply', lambda event: owner.quote_reply(row), compact=True)
+        quote.SetToolTip('Reply with this comment quoted in your draft; nothing is sent until you send it')
+        actions.Add(quote, 0, wx.RIGHT | wx.BOTTOM, 8)
         thread = ActionButton(self, 'View thread' if getattr(owner, 'reply_counts', {}).get(row['id']) or row.get('parentId') else 'Focus message', compact=True)
         thread.SetToolTip('Show this message and its replies without changing your draft')
         thread.Bind(wx.EVT_BUTTON, lambda event: owner.focus_thread(row))
@@ -199,6 +235,7 @@ class ConversationPane(ReviewPane):
         self.session = None
         self.busy = self.closed = False
         self.target = None
+        self.review_variant = '*'
         self.generation = 0
         self.highlighted_authors = set()
         self.pending_attachments = []
@@ -423,6 +460,7 @@ class ConversationPane(ReviewPane):
     def workspace_menu(self, event=None):
         with wx.Menu() as menu:
             for title, handler in [('Review settings…', self.settings), ('Refresh comments', self.refresh),
+                                   ('Attach image…', self.choose_image),
                                    ('Highlight reviewers…', self.highlight_people), ('Workflow guide', self.toggle_workflow),
                                    ('User guide', lambda event: webbrowser.open((Path(__file__).parent / 'USER_GUIDE.html').as_uri())),
                                    ('Show / hide design', self.toggle_design), ('Sign out', self.sign_out)]:
@@ -745,6 +783,8 @@ class ConversationPane(ReviewPane):
         action = ActionButton(self.feed, action_label or ('Open provider' if self.session else 'Connect a review'),
                               action_handler or (self.open_provider if self.session else self.settings))
         self.feed.GetSizer().Add(action, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 24)
+        from .theme import apply_theme
+        apply_theme(self.feed, self.review_theme)
         self.feed.FitInside()
         for rail in self.feed_rails:
             rail.Refresh()
@@ -754,7 +794,11 @@ class ConversationPane(ReviewPane):
             return
         self.design_canvas.sync_review()
         all_rows = self.session.rows
-        rows = self.thread_rows(all_rows)
+        from .thread_layout import flat_threads
+        rows = flat_threads(self.thread_rows(all_rows))
+        for row in rows:
+            if row.get('parentId'):
+                row['replyLabel'] = reply_header(row, all_rows)
         self.reply_counts = {}
         for row in all_rows:
             if row.get('parentId'):self.reply_counts[row['parentId']] = self.reply_counts.get(row['parentId'], 0) + 1
@@ -783,6 +827,8 @@ class ConversationPane(ReviewPane):
         self.status.SetLabel(self.session.status + '  ·  ' + str(len(rows)) + (' matches' if filtering else ' messages')
                             + (' in this thread' if root else '')
                             + ('  ·  ' + short_time(self.session.synced_at) if self.session.synced_at else ''))
+        if getattr(self.session, 'context_warning', None):
+            self.status.SetLabel(self.status.GetLabel() + ' · ' + self.session.context_warning)
         if signature == self.render_signature and not force:
             return
         previous = self.feed.GetViewStart()
@@ -798,10 +844,13 @@ class ConversationPane(ReviewPane):
                 older.Bind(wx.EVT_BUTTON, lambda event: self.page_messages(max(0, start - 80)))
                 self.feed.GetSizer().Add(older, 0, wx.ALL | wx.ALIGN_CENTER, 10)
             for row in visible:
-                reply = bool(row.get('parentId'))
+                reply = bool(row.get('replyDepth'))
                 card = MessageCard(self.feed, row, self, reply=reply)
                 self.cards.append(card)
-                self.feed.GetSizer().Add(card, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 22 if reply else 10)
+                row_layout = wx.BoxSizer(wx.HORIZONTAL)
+                row_layout.AddSpacer(38 if reply else 0)
+                row_layout.Add(card, 1, wx.EXPAND)
+                self.feed.GetSizer().Add(row_layout, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
             if start + len(visible) < len(rows):
                 newer = wx.Button(self.feed, label='Latest messages ↓', style=wx.BU_EXACTFIT)
                 newer.Bind(wx.EVT_BUTTON, lambda event: self.page_messages(None))
@@ -855,12 +904,36 @@ class ConversationPane(ReviewPane):
 
     def begin_reply(self, row):
         self.reply_to = row['id']
-        self.reply_label.SetLabel('Replying to ' + row['author'] + ' · ' + MARKER.sub('', row['body']).strip().replace('\n', ' ')[:65])
-        self.reply_label.SetToolTip(MARKER.sub('', row['body']).strip())
+        text = message_text(row)
+        self.reply_label.SetLabel('Replying to ' + row['author'] + ' · ' + text.replace('\n', ' ')[:65])
+        self.reply_label.SetToolTip(text)
         self.reply_banner.Show()
         self.composer.update_state()
         self.compose.SetFocus()
         self.Layout()
+
+    def quote_reply(self, row):
+        if not self.compose.IsEnabled() or self.busy:
+            self.status.SetLabel('Finish the current operation before quoting a comment.')
+            return
+        # Resolve the current complete feed, never a stale card or an ambiguous ID.
+        matches = [item for item in self.session.rows if item.get('id') == row.get('id')] if self.session else []
+        if len(matches) != 1:
+            self.status.SetLabel('The quoted comment is no longer available. Refresh first.')
+            return
+        row = matches[0]
+        author = ' '.join(row['author'].split())
+        text = message_text(row)
+        quote = '> ' + author + ' wrote:\n' + '\n'.join('> ' + line for line in text.splitlines()) + '\n\n'
+        existing = self.compose.GetValue()
+        insertion = ('\n\n' if existing else '') + quote
+        if len(existing) + len(insertion) > 16000:
+            self.status.SetLabel('This quote would exceed the 16000-character draft limit. Shorten the draft first.')
+            return
+        self.begin_reply(row)
+        self.compose.SetInsertionPointEnd()
+        self.composer.insert_text(insertion)
+        self.composer.update_state()
 
     def cancel_reply(self):
         self.reply_to = None
@@ -891,6 +964,8 @@ class ConversationPane(ReviewPane):
 
     def refresh_failed(self, error):
         self.design_canvas.sync_review()
+        if self.session and any(row.get('contextStatus') for row in self.session.rows):
+            self.populate(force=True)
         self.send.Disable()
         self.composer.update_state()
         if self.session and self.session.provider.kind == 'discussion' and not self.session.rows:
@@ -912,6 +987,8 @@ class ConversationPane(ReviewPane):
 
     def locate_row(self, row):
         if self.session:
+            if self.design_canvas.focus_context(row):
+                return
             if self.design_canvas.focus_comment(row['id']):
                 if not self.design_splitter.IsSplit():
                     self.toggle_design()
@@ -926,7 +1003,9 @@ class ConversationPane(ReviewPane):
 
     def context_menu(self, event):
         with wx.Menu() as menu:
-            for title, handler in [('Selected PCB object', self.capture), ('Region in mm…', self.region), ('Clear design context', self.clear_target)]:
+            for title, handler in [('Selected PCB object', self.capture), ('Region in mm…', self.region),
+                                   ('BOM fields', self.design_canvas.show_bom), ('Project Gerbers…', self.design_canvas.show_gerbers),
+                                   ('Clear design context', self.clear_target)]:
                 item = menu.Append(wx.ID_ANY, title)
                 self.Bind(wx.EVT_MENU, handler, item)
             self.PopupMenu(menu)
@@ -938,8 +1017,17 @@ class ConversationPane(ReviewPane):
         self.Layout()
 
     def set_target(self, target):
-        self.target = target
-        if target.get('uuid') or target.get('area') or target.get('position'):
+        self.target = target = dict(target, variant=target.get('variant', self.review_variant))
+        if target.get('context'):
+            context = target['context']
+            label = ('BOM · ' + target.get('reference', context.get('rowId', '')) +
+                     (' · ' + context['field'] if context.get('field') else '') if context['type'] == 'bom'
+                     else 'Gerber · ' + context['file'])
+            self.target_label.SetLabel(label + ' · ' + ('all variants' if target['variant'] == '*' else target['variant']))
+            self.target_label.Wrap(max(330, self.GetClientSize().width - 32))
+            self.target_label.Show()
+            self.Layout()
+        elif target.get('uuid') or target.get('area') or target.get('position'):
             area, point = target.get('area'), target.get('position')
             location = (f"Region · {area['x']:.3f}, {area['y']:.3f} mm · {area['width']:.3f} × {area['height']:.3f} mm" if area else
                         f"Point · {point['x']:.3f}, {point['y']:.3f} mm" if point else 'Selected PCB object')

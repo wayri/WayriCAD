@@ -1,5 +1,71 @@
 # Review companion validation
 
+## 4.5.0 testing release — 5 November 2026
+
+The changes add a read-only saved-field BOM table, project-local
+Gerber review, variant-tagged comment context, one-level reply indentation,
+a padded composer, and conservative changed/orphan context diagnostics. These
+are not features of the already published 4.4.0 binaries.
+
+The maintainer requested publication with the native/provider gaps below
+disclosed. Publication does not turn those pending workflows into passes.
+
+The later composer refinement removes Paste/Image buttons, keeps image paste
+and drop, and offers file selection through More → Attach image…. Attach
+location… remains compact and explains its draft-only purpose. Quote reply
+appends current visible comment text as one undoable insertion without replacing
+the existing draft or publishing. Reply headers identify the immediate sender
+and recipient, including after filtering; unavailable/ambiguous parents are
+labeled. **54 native tests** passed for these final composer/reply/image and
+conversation changes. This is source verification, not a live-provider send.
+
+Windows source checks used Python 3.11.5, wxPython 4.2.2 MSW and wxWidgets 3.3.2.
+The integrated core/session/context suite passed **149 tests and 22 subtests**,
+with one Windows symlink-capability skip. A native controls group passed
+**68 tests**. Further composer, image, search, scroll and artifact controls
+passed **73 tests**; document, asset, BOM and online-format checks passed
+**65 tests with five skips**; authentication, discussion and native rendering
+checks passed **91 tests with one skip**. Groups overlap where noted by their
+subjects; these counts must not be summed into a unique-suite total. The
+JavaScript bridge passed **28 tests**. Provider responses in these regression
+tests are mocked; they do not establish live provider acceptance.
+
+The additional five document/asset skips cover three unavailable Windows
+symlink capabilities, an external viewer source opt-in, and the actual online
+client parser opt-in. Base online marker-format cases ran. Source documentation
+validation and the whitespace diff check passed after guide updates.
+
+Installed KiCad 11 development CLI (10.99.0) generated **22 Gerber files** from
+the public sample. A repeat after input-isolation changes verified unchanged
+original/adjacent file hashes and removal of the disposable CLI input. All 22
+files from the earlier export were parsed by the separately supplied viewer
+with zero errors/warnings. The later isolation repeat was an export/hash check,
+not another renderer acceptance run.
+
+Installed KiCad 10.0.6 CLI crashes with `0xC0000005`, including on `version`
+and `--help`, with `kicommon.dll` named in Windows crash records. Both isolated
+and copied known-valid configuration profiles reproduced it. This native CLI
+failure blocks KiCad 10 Gerber-generation acceptance; it is not a passing test
+or evidence of a Review parser failure. No installation was replaced.
+
+A labeled Windows **source feature preview** displayed the native BOM table
+and illustrative thread cards. It is neither connected to a provider nor
+attached to an editor. After Windows was unlocked, the front-copper Gerber
+opened and rendered; its native source-preview screenshot was captured.
+An isolated private candidate was launched through the KiCad 11 development
+PCB Editor toolbar and opened Review. Browser approval and provider acceptance
+remain pending; the launched candidate precedes the final Image-button removal.
+KiCad 10/11 installed-source acceptance, live GitLab
+browser sign-in, complete visual add/edit/delete synchronization, BOM/Gerber
+provider publication and automatic orphan/recovery notes remain pending.
+
+GitHub browser sign-in succeeded in installed Review 4.4.0 from KiCad 10.
+A disposable comment appeared automatically; background edit/deletion updated
+the process cache. A later native capture verified the deleted comment was
+absent from the synced feed and the unpublished draft was retained. Visible
+remote-edit acceptance remains unresolved.
+No new release is represented as accepted by these partial results.
+
 ## 4.4.0 release packaging
 
 The new visual guide and local screenshots are included in the Review PCM ZIP,

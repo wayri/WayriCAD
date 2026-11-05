@@ -41,10 +41,11 @@ def data_home():
 
 
 class ReviewSession:
-    def __init__(self, settings, *, provider=None, cache_dir=None, desktop=False):
+    def __init__(self, settings, *, provider=None, cache_dir=None, desktop=False, context_updates=None):
         if not isinstance(settings, dict):
             raise ValueError('Review settings must be a JSON object.')
         self.settings = dict(settings)
+        self.context_updates = desktop if context_updates is None else context_updates is True
         self.scope = scope(settings)
         self._desktop_auth = None
         provider_options = {}
@@ -83,6 +84,9 @@ class ReviewSession:
         self.synced_at = None
         self.failures = 0
         self.cache_warning = None
+        self.context_warning = None
+        from .context_sync import ContextTracker
+        self.context_tracker = ContextTracker()
 
     def require_authorization(self):
         if self._desktop_auth is not None:
@@ -112,7 +116,7 @@ class ReviewSession:
                     or not isinstance(r.get('body'), str) or not isinstance(r.get('author'), str)
                     or not isinstance(r.get('updatedAt', ''), str) for r in rows):
                 raise ValueError('Invalid cache schema.')
-            self.rows = [dict(r, anchors=[], updatedAt=r.get('updatedAt', '')) for r in rows]
+            self.rows = [dict(r, anchors=[], contextStatus=[], updatedAt=r.get('updatedAt', '')) for r in rows]
             self.synced_at, self.status = timestamp, 'cached / unverified'
         except FileNotFoundError:
             pass
@@ -151,23 +155,45 @@ class ReviewSession:
         return None
 
     def refresh(self):
+        source_verified = False
+        def committed_guard():
+            self.require_authorization()
+            unchanged(self.path, self.digest)
         try:
             self.require_authorization()
             unchanged(self.path, self.digest)
+            source_verified = True
             rows = self.provider.snapshot()
             self.require_authorization()
+            source_verified = False
             unchanged(self.path, self.digest)
+            source_verified = True
             for row in rows:
                 # Local remoteRefs cannot invent publication: only provider readback
                 # constructs this association. Invalid or foreign anchors stay unlocated.
                 annotations = read_markers(row['body'], self.scope)
                 row['anchors'] = [n['anchor'] for n in annotations]
                 row['annotations'] = annotations
+            rows = self.context_tracker.update(rows, self.provider, self.settings['root'], self.scope,
+                auto_publish=self.context_updates and self.settings.get('contextSync', True) is True,
+                prepublish=committed_guard)
+            self.context_warning = self.context_tracker.warning
+            self.require_authorization()
+            source_verified = False
+            unchanged(self.path, self.digest)
+            source_verified = True
+            # A status preflight can include a newly arrived or edited row.
+            # Rebuild navigation authority from its actual provider body.
+            for row in rows:
+                row['annotations'] = read_markers(row['body'], self.scope)
+                row['anchors'] = [n['anchor'] for n in row['annotations']]
             identifiers = {row['id'] for row in rows}
             for row in rows:
-                if self.provider.kind != 'discussion' and not row.get('parentId') and len(row['annotations']) == 1:
-                    reply_to = row['annotations'][0].get('replyTo')
-                    if isinstance(reply_to, str) and reply_to in identifiers and reply_to != row['id']:
+                from .model import project_markers
+                relationships = row['annotations'] or project_markers(row['body'], self.scope)
+                if self.provider.kind != 'discussion' and not row.get('parentId') and len(relationships) == 1:
+                    reply_to = relationships[0].get('replyTo')
+                    if isinstance(reply_to, str) and reply_to.isdigit() and len(reply_to) <= 200 and reply_to != row['id']:
                         row['parentId'] = reply_to
             timestamp = datetime.now(timezone.utc).isoformat(timespec='seconds')
             try:
@@ -178,9 +204,30 @@ class ReviewSession:
             self.rows, self.synced_at, self.status, self.failures = rows, timestamp, 'synced', 0
             return rows
         except Exception:
-            if self.status != 'signed out':
+            context_only = False
+            if not source_verified and self.status != 'signed out':
+                # Independent diagnostics may read the conversation after the
+                # source disappears; they never restore navigation/publication.
+                try:
+                    self.require_authorization()
+                    rows = self.provider.snapshot()
+                    self.require_authorization()
+                    rows = self.context_tracker.update(rows, self.provider, self.settings['root'], self.scope,
+                        auto_publish=self.context_updates and self.settings.get('contextSync', True) is True,
+                        prepublish=self.require_authorization)
+                    self.require_authorization()
+                    self.rows = [dict(row, anchors=[], annotations=[]) for row in rows]
+                    self.context_warning = self.context_tracker.warning
+                    self.status = 'context only / saved source changed or unavailable'
+                    self.synced_at = datetime.now(timezone.utc).isoformat(timespec='seconds')
+                    self.failures = 0
+                    context_only = True
+                except Exception:
+                    pass
+            if self.status != 'signed out' and not context_only:
                 self.status = 'offline / stale'
-            self.failures = min(6, self.failures + 1)
+            if not context_only:
+                self.failures = min(6, self.failures + 1)
             raise
 
     @property
@@ -198,11 +245,14 @@ class ReviewSession:
         unchanged(self.path, self.digest)
         if scope(target) != self.scope:
             raise ValueError('Comment anchor belongs to a different revision or file.')
+        from .review_targets import verify_target
+        verify_target(target, self.settings['root'])
         if reply_to is not None and str(reply_to) not in {r['id'] for r in self.rows}:
             raise ValueError('Reply target is no longer in this provider conversation.')
         # Preflight existence/permissions and resolve ambiguous prior publications
         # through fresh provider reads; POST itself is never automatically retried.
         self.refresh()
+        verify_target(target, self.settings['root'])
         if reply_to is not None and str(reply_to) not in {r['id'] for r in self.rows}:
             raise ValueError('The reply target was removed remotely. Draft retained.')
         value = note(text, target, reply_to=reply_to, attachments=attachments)

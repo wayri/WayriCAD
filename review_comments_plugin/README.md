@@ -8,12 +8,12 @@ GitHub/GitLab issue/PR/MR conversation; **Discussions** uses real GitHub
 Discussions and native threaded replies. GitHub and GitLab own published comments and anchors. Local files hold
 private settings, pending drafts and an optional cache.
 
-Review **4.4.0** is a **testing** package. The embedded KiView canvas
-and direct desktop sign-in are in this source, but are not in the published
-[Review 4.3.0 testing package](https://github.com/wayri/WayriCAD/releases/tag/v4.3.0).
-The final Windows source viewer has passed a saved KiCad 10 visual check;
-live OAuth and installed-package acceptance remain separate. See the
-[offline visual user guide](USER_GUIDE.html) for setup and an illustrated tour.
+[Review **4.5.0**](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0)
+is a **testing** package. It adds BOM and Gerber context, variant tags and
+orphan-status diagnostics alongside the compact composer and reply improvements.
+Windows KiCad 10 GitHub sign-in, visible additions and deletions, and draft
+retention were verified; the GitLab and browser live-sync matrix remains
+incomplete. See the [offline visual user guide](USER_GUIDE.html) for setup.
 
 ## What appears beside KiCad
 
@@ -32,10 +32,14 @@ the main KiCad window. The current document catalog supplies no component
 model assets, so 3D uses stand-ins where models are needed. STEP models are not
 supported by this integration.
 
-The current-source pane needs a separately supplied KiView asset directory:
+Both themes keep disabled labels readable, distinguish control borders and
+show a visible keyboard-focus outline. Sign-in fields have persistent labels;
+composer updates preserve the chosen theme, including warnings and character
+counts. Switching themes retains drafts and field values.
+
+The pane needs a separately supplied KiView asset directory:
 set `WAYRICAD_REVIEW_VIEWER_ROOT` before launch or choose **Viewer assets…**.
-KiView is not bundled with Review while its separate distribution rights are
-being resolved. The pane serves an in-memory snapshot of those assets through
+KiView is separately supplied and is not bundled or relicensed by Review. The pane serves an in-memory snapshot of those assets through
 a temporary loopback listener, closed with the window. **Open project/design…**
 chooses a saved PCB or schematic; **Review this file** connects its exact saved
 file to the provider conversation. Pins and regions are local drafts until
@@ -130,7 +134,8 @@ action for live-editor navigation.
    Self-hosted GitLab needs a public client ID via
    `WAYRICAD_REVIEW_GITLAB_CLIENT_ID`. A disabled device grant or missing client
    ID fails with an actionable message. The account is verified before Review
-   treats sign-in as complete. No live OAuth acceptance is claimed here.
+   treats sign-in as complete. GitHub sign-in was checked on KiCad 10; other
+   provider and native acceptance remains incomplete.
 4. Read the message cards and use **Reply** on the relevant card, or write a new
    message. **Send message** or **Ctrl+Enter** publishes to the active conversation.
    **View thread** focuses a message and its replies; **All messages** returns to
@@ -156,7 +161,8 @@ an existing object UUID does not prove its live position matches the commit.
 
 ## Formatted messages and workspace
 
-The compact toolbar keeps bold, italic, inline code and links at hand. **More
+The compact toolbar keeps bold, italic, inline code and links at hand; it has
+no separate Paste or Image buttons. Use **More → Attach image…** for an image. **More
 formats** opens headings, quotes, numbered/bulleted lists, tasks, engineering
 tables and code blocks. The editor stores provider-compatible Markdown;
 **Write / Preview** switches between editing and the local formatted view.
@@ -173,7 +179,7 @@ Long messages scroll inside their cards. Background work shows an activity indic
 Drafts support 16,000 characters; publication is limited to 4,000 including
 reply and image-link text. Overlong drafts remain local with a clear message.
 
-Paste an image with **Ctrl+V** or **Paste**, use **Image** to choose files, or
+Paste an image with **Ctrl+V**, use **More → Attach image…**, or
 drag PNG/JPEG files onto the composer. Up to four images are supported per
 message, including multiple-file drops. Files are limited to 4 MiB and
 16 megapixels before decoding; upload copies are reduced to 1024 pixels per
@@ -197,17 +203,23 @@ message or erase draft text. **Ctrl+Enter** remains the explicit send shortcut.
 
 | Action | Behaviour |
 | --- | --- |
-| + Design context → Selected PCB object | Reads one native PCB selection; the UUID must exist in the saved file. |
-| + Design context → Region | Enter board-top XY, width and height in mm. Current source can also draft a region in the embedded viewer. Neither action changes the design. |
+| Attach location… → Selected PCB object | Reads one native PCB selection; the UUID must exist in the saved file. The location is attached to the draft, not published until Send. |
+| Attach location… → Region | Enter board-top XY, width and height in mm. Current source can also draft a region in the embedded viewer. Neither action changes the design. |
 | Embedded viewer → Pin comment / Region comment | Draft a point or region on the saved PCB or schematic after the matching provider conversation has refreshed; write and explicitly send the message to publish it. |
 | Design-item chip on a message | Resolves a matching provider-read UUID in the originating PCB editor. Selection is confirmed; previous selection is restored on failure where supported. |
 | Paste image — GitLab | Preview a clipboard PNG, approve its upload, then post the confirmed image link and KiView attachment metadata with your comment. Images are reduced to at most 1024 pixels per side. |
 | Paste image — GitHub | Opens GitHub's browser editor for its supported image/screenshot attachment workflow. Refresh after posting there. |
 | Reply | Opens an inline reply composer. Issue/PR/MR replies link their parent message; GitHub Discussions replies use the actual provider thread. Replies to replies stay in their top-level Discussion thread. |
+| Quote reply | Adds the current comment's visible text as a Markdown quote at the end of your existing draft and selects that comment as the reply target. The insertion can be undone; it never sends automatically. |
 | Refresh | Fetches root description and all general comments, including edits and deletions. Failed or incomplete reads never replace the last cache. |
 | View thread / All messages | Focus the selected message and its replies, then return without changing a draft or pending reply. |
 | Author / With design context / Search | Combine filters for an author, provider-read anchors and message/design text. Search stays within a focused thread. Clear filters retains the thread and draft. |
 | People | Highlight several authors without filtering them. This does not imply online presence, typing or cursors. |
+
+Replies show the sender and immediate recipient in their header, even when
+replying to another reply. Every reply retains one indentation level. Removed
+or ambiguous parents are labeled unavailable rather than attributed to another
+person. Quoting a comment does not retarget any attached design location.
 
 Refresh runs about every eight seconds while the pane is visible, including
 while you work in the main KiCad editor, backing off to two minutes after
@@ -246,6 +258,49 @@ No local sidecar or cache can authorize a published location. Navigation and
 posting require a successful provider read. After an ambiguous write failure,
 refresh and inspect the thread before retrying; writes are never auto-retried.
 Up to 5,000 general comments are supported; exceeding limits fails explicitly.
+
+## BOM, Gerbers, variants and orphan context
+
+- **BOM** opens a read-only native field-value grid for the displayed saved PCB
+  or schematic. It includes custom fields, hierarchy identities and DNP/exclusion
+  flags. Select a cell or row, choose **Comment on cell / row**, then write and
+  send explicitly. Connect the matching saved file with **Review this file**
+  first. Editing stays in KiCad; this is not a live copy of its field editor.
+- **Gerbers…** lists existing project-local drawings, or offers **Load files…**
+  and **Generate Gerbers**. Generation uses the matching KiCad CLI and a
+  disposable input snapshot, writes a unique project-local folder and preserves
+  existing fabrication files. Unsupported formats show an error. Viewing needs
+  a current externally supplied KiView build with manufacturing support.
+  Pins/regions use that Gerber's coordinates and exact saved-file hash;
+  **Design options → Comment on current Gerber** attaches a file-level note.
+- **All variants** or an explicitly saved named variant sets new-comment
+  context. Cards retain variant labels, and drawing markers respect the selected
+  variant. The choice does not regenerate geometry or calculate effective
+  inherited variant field values: the table shows base saved fields and retains
+  explicit variant metadata. No population state is guessed.
+- Replies appear under their origin post at **one indentation level**, including
+  replies to replies. Missing parents and malformed thread relationships remain
+  visible with diagnostics. The composer has a padded focus border and scrolling.
+
+Orphan checks distinguish missing files, objects, BOM rows/fields and variants
+from changed content, older revisions, ambiguous identities and unavailable
+evidence. A failed read is not deletion. Original anchors remain intact; no
+rename or nearby-object matching silently moves a comment. To attach a replacement,
+reply to the original note and explicitly choose the new saved context.
+
+**Review settings → Post changed/orphan context status updates** controls
+append-only provider status notes. Two stable observations and fresh provider
+and source preflight are required. Local working-tree observations identify
+the Git HEAD baseline without claiming those changes exist in that commit.
+No author comment is overwritten. At most one status note is sent per refresh;
+uncertain writes halt automatic status publication until the user checks the
+provider and reconnects. Cross-client deduplication is best effort because the
+provider has no atomic compare-and-append API. CLI `sync` stays read-only.
+
+Changing/removing the selected design permits **context-only** diagnostics;
+publication and navigation stay blocked until a matching saved revision is
+connected. Generated artifacts need not be committed, but must stay inside the
+origin design's project directory. Caches cannot authorize any location.
 
 ## CLI
 

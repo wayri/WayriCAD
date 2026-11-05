@@ -104,7 +104,7 @@ class Marker:
     region: tuple[float, float, float, float] | None = None
 
 
-def markers_from_rows(rows, expected_scope, status, positions=None):
+def markers_from_rows(rows, expected_scope, status, positions=None, *, artifact=None, variant='*'):
     """Place only a current provider snapshot's exact-scope validated anchors.
 
     ``positions`` maps a UUID/object ID to one ``{x, y}`` or ``(x, y)`` point.
@@ -151,11 +151,22 @@ def markers_from_rows(rows, expected_scope, status, positions=None):
             if scope(target) != expected:
                 unavailable('Anchor belongs to another provider, repository, revision or design file.', target)
                 continue
-            area = target.get('area')
+            if variant != '*' and target.get('variant', '*') not in ('*', variant):
+                continue
+            context = target.get('context')
+            geometry = target
+            if context:
+                if context['type'] != 'gerber' or not artifact or any(context[key] != artifact.get(key) for key in ('file', 'sha256')):
+                    unavailable('Context belongs to a BOM or a different manufacturing artifact.', target)
+                    continue
+                geometry = context
+            elif artifact:
+                continue
+            area = geometry.get('area')
             region = tuple(float(area[key]) for key in ('x', 'y', 'width', 'height')) if area else None
             try:
-                if 'position' in target:
-                    x, y = _point(target['position'])
+                if 'position' in geometry:
+                    x, y = _point(geometry['position'])
                 elif area:
                     x, y = area['x'] + area['width']/2, area['y'] + area['height']/2
                 else:

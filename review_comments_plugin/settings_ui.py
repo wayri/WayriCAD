@@ -61,6 +61,10 @@ class ReviewSetup(Settings):
                 layout.Add(ActionButton(page, 'Choose saved PCB or schematic…', self.choose_design), 0, wx.ALL, 16)
             else:
                 layout.Add(ActionButton(page, 'Open provider work board', self.board), 0, wx.ALL, 16)
+                self.context_sync = wx.CheckBox(page, label='Post changed/orphan context status updates to the provider')
+                self.context_sync.SetValue(values.get('contextSync', True) is True)
+                self.context_sync.SetToolTip('Appends linked status notes after confirmed observations. Original comments are retained; uncertain writes are not retried.')
+                layout.Add(self.context_sync, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
             page.SetSizer(layout)
             self.book.AddPage(page, str(index))
         main.Add(self.book, 1, wx.EXPAND | wx.ALL, 18)
@@ -81,6 +85,9 @@ class ReviewSetup(Settings):
         self.go(0)
         from .theme import apply_theme, theme_of
         apply_theme(self, theme_of(parent))
+
+    def read(self):
+        return dict(super().read(), contextSync=self.context_sync.GetValue())
 
     def login(self, event=None):
         from .desktop_auth_ui import SignInDialog

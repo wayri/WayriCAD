@@ -92,26 +92,44 @@ class Composer(wx.Panel):
             self.format_buttons[action] = button
         self.more_button = ActionButton(self, 'More formats', self.toggle_formats, compact=True)
         self.more_button.SetToolTip('Headings, lists, tasks, quotes, tables and code blocks')
-        toolbar.Add(self.more_button, 0, wx.BOTTOM, 4)
+        toolbar.Add(self.more_button, 0, wx.RIGHT | wx.BOTTOM, 4)
         layout.Add(toolbar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
         self.extra_formats.SetSizer(extras)
         self.extra_formats.Hide()
         layout.Add(self.extra_formats, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 10)
         self.book = wx.Simplebook(self, style=wx.BORDER_NONE)
-        self.editor = wx.TextCtrl(self.book, style=wx.TE_MULTILINE | wx.TE_RICH2 | wx.TE_NO_VSCROLL | wx.BORDER_NONE)
+        # A real inset makes the editing area legible in both palettes. Keep
+        # RichEdit for native selection/undo and allow its normal vertical bar.
+        self.entry = wx.Panel(self.book, style=wx.BORDER_NONE)
+        self.entry.SetBackgroundColour('#ffffff')
+        self.entry.Bind(wx.EVT_PAINT, self.paint_entry)
+        entry_layout = wx.BoxSizer(wx.VERTICAL)
+        self.editor_surface = wx.Panel(self.entry, style=wx.BORDER_NONE)
+        self.editor_surface.SetBackgroundColour('#ffffff')
+        surface_layout = wx.BoxSizer(wx.VERTICAL)
+        self.editor = wx.TextCtrl(self.editor_surface,
+                                  style=wx.TE_MULTILINE | wx.TE_RICH2 | wx.VSCROLL | wx.BORDER_NONE)
         self.editor.SetBackgroundColour('#ffffff')
         self.editor.SetForegroundColour(INK)
         self.editor.SetName('Review message')
+        self.editor.SetToolTip('Write a message. Ctrl+V pastes text or images; drop images here, or use More → Attach image…')
         self.editor.SetMinSize((-1, 110))
         self.editor.SetMaxLength(16000)
+        self._entry_focused = False
+        self.editor.Bind(wx.EVT_SET_FOCUS, self.editor_focus)
+        self.editor.Bind(wx.EVT_KILL_FOCUS, self.editor_focus)
         self.editor.SetDropTarget(ReviewDropTarget(self))
         self.editor.Bind(wx.EVT_TEXT_PASTE, self.paste)
         self.editor.Bind(wx.EVT_TEXT, self.changed)
         self.editor.Bind(wx.EVT_KEY_DOWN, owner.compose_key)
+        surface_layout.Add(self.editor, 1, wx.EXPAND | wx.ALL, 8)
+        self.editor_surface.SetSizer(surface_layout)
+        entry_layout.Add(self.editor_surface, 1, wx.EXPAND | wx.ALL, 1)
+        self.entry.SetSizer(entry_layout)
         self.preview = wx.html.HtmlWindow(self.book, style=wx.html.HW_SCROLLBAR_AUTO | wx.BORDER_NONE)
         self.preview.SetDropTarget(ReviewDropTarget(self))
         self.preview.Bind(wx.html.EVT_HTML_LINK_CLICKED, lambda event: None)
-        self.book.AddPage(self.editor, 'Write')
+        self.book.AddPage(self.entry, 'Write')
         self.book.AddPage(self.preview, 'Preview')
         layout.Add(self.book, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
         self.attachments = wx.Panel(self)
@@ -119,16 +137,13 @@ class Composer(wx.Panel):
         self.attachments.SetSizer(wx.WrapSizer(wx.HORIZONTAL))
         self.attachments.Hide()
         layout.Add(self.attachments, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 10)
-        footer = wx.WrapSizer(wx.HORIZONTAL)
-        self.context_button = ActionButton(self, '+ Context', owner.context_menu, compact=True)
-        self.image_button = ActionButton(self, 'Image', owner.choose_image, compact=True)
-        self.paste_button = ActionButton(self, 'Paste', lambda event: self.paste(None), compact=True)
-        for button in (self.context_button, self.image_button, self.paste_button):
-            footer.Add(button, 0, wx.RIGHT | wx.BOTTOM, 5)
+        self.context_button = ActionButton(self, 'Attach location…', owner.context_menu, compact=True)
+        self.context_button.SetToolTip('Attach a component, BOM cell, Gerber, point or region to this message')
         self.send = ActionButton(self, 'Send message', owner.post, primary=True, compact=True)
         self.send.SetToolTip('Publish to this conversation · Ctrl+Enter · drafts stay local until sent')
         actions = wx.BoxSizer(wx.HORIZONTAL)
-        actions.Add(footer, 1, wx.EXPAND | wx.RIGHT, 8)
+        actions.Add(self.context_button, 0, wx.ALIGN_BOTTOM | wx.RIGHT | wx.BOTTOM, 8)
+        actions.AddStretchSpacer()
         actions.Add(self.send, 0, wx.ALIGN_BOTTOM | wx.BOTTOM, 5)
         layout.Add(actions, 0, wx.EXPAND | wx.ALL, 10)
         self.hint = wx.StaticText(self, label='Markdown · Ctrl+Enter sends · 4000 published / 16000 draft characters', style=wx.ST_ELLIPSIZE_END)
@@ -138,6 +153,21 @@ class Composer(wx.Panel):
         self.SetSizer(layout)
         self.SetDropTarget(ReviewDropTarget(self))
         self.Bind(wx.EVT_WINDOW_DESTROY, self.destroyed)
+
+    def editor_focus(self, event):
+        self._entry_focused = event.GetEventType() == wx.wxEVT_SET_FOCUS
+        self.entry.Refresh()
+        event.Skip()
+
+    def paint_entry(self, event):
+        from .theme import palette
+        dc = wx.PaintDC(self.entry)
+        colors = palette(self)
+        dc.SetPen(wx.Pen(wx.Colour(colors['accent' if self._entry_focused else 'border']), 1))
+        dc.SetBrush(wx.TRANSPARENT_BRUSH)
+        width, height = self.entry.GetClientSize()
+        if width > 1 and height > 1:
+            dc.DrawRectangle(0, 0, width - 1, height - 1)
 
     def toggle_formats(self, event=None):
         expanded = not self.extra_formats.IsShown()
@@ -167,7 +197,8 @@ class Composer(wx.Panel):
         self.mode_label.SetLabel(('Reply · ' if replying else 'New message · ') + destination)
         self.hint.SetLabel(str(published) + ' / 4000 published · ' + str(count) + ' / 16000 draft' +
                            (' · shorten before sending' if published > 4000 else ' · Ctrl+Enter sends'))
-        self.hint.SetForegroundColour('#aa4b21' if published > 4000 else '#65738b')
+        from .theme import palette
+        self.hint.SetForegroundColour(palette(self)['warning' if published > 4000 else 'muted'])
         self.hint.SetToolTip(self.hint.GetLabel())
         self.Layout()
 

@@ -4,6 +4,7 @@
  */
 const NS = 'http://www.w3.org/2000/svg';
 const LIMIT = 1e6;
+export const MARKER_COLORS = Object.freeze({normal:'#087f8c', selected:'#915700', error:'#b53434', draftLight:'#915700', draftDark:'#ffd08a'});
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 function fields(value, keys) {
@@ -42,7 +43,7 @@ export function canonicalScope(value) {
 }
 const sameScope = (left, right) => Boolean(left && right && JSON.stringify(canonicalScope(left)) === JSON.stringify(canonicalScope(right)));
 export function validateAnchor(value, expected) {
-  fields(value, ['repository', 'ref', 'file', 'provider', 'host', 'uuid', 'objectId', 'reference', 'netName', 'kind', 'variant', 'position', 'area']);
+  fields(value, ['repository', 'ref', 'file', 'provider', 'host', 'uuid', 'objectId', 'reference', 'netName', 'kind', 'variant', 'position', 'area', 'context']);
   const target = canonicalScope(Object.fromEntries(['repository', 'ref', 'file', 'provider', 'host'].filter(key => key in value).map(key => [key, value[key]])));
   if (!sameScope(target, expected)) throw new TypeError('Anchor belongs to another design or revision.');
   for (const [key, limit] of Object.entries({uuid:200, objectId:200, reference:100, netName:500, kind:80, variant:100})) if (key in value) {
@@ -54,29 +55,45 @@ export function validateAnchor(value, expected) {
     target.area = Object.fromEntries(['x', 'y', 'width', 'height'].map(key => [key, number(value.area[key])]));
     if (!(target.area.width > 0 && target.area.height > 0)) throw new TypeError('A region needs positive dimensions.');
   }
+  if ('context' in value) {
+    target.context = validateArtifact(value.context);
+    if ('position' in value || 'area' in value) throw new TypeError('Manufacturing coordinates must remain in artifact context.');
+  }
   return target;
 }
+const gerberPath = value => typeof value === 'string' && value.length <= 500 && !/[\\:\x00-\x1f\x7f]/.test(value) && !value.startsWith('/') && value.split('/').every(p=>p && p!=='.' && p!=='..') && /\.(gbr|ger|gerber|gtl|gbl|gts|gbs|gto|gbo|gtp|gbp|gm1|gko|drl)$/i.test(value);
+function validateArtifact(value) {
+  fields(value,['type','file','sha256','position','area']);
+  if(value.type!=='gerber' || !gerberPath(value.file) || !/^[a-f0-9]{64}$/.test(value.sha256)) throw new TypeError('A bounded project-local manufacturing identity is required.');
+  const result={type:'gerber',file:value.file,sha256:value.sha256};
+  if(value.position) result.position=point(value.position);
+  if(value.area){ fields(value.area,['x','y','width','height']); result.area=Object.fromEntries(['x','y','width','height'].map(k=>[k,number(value.area[k])])); if(result.area.width<=0||result.area.height<=0)throw new TypeError('A region needs positive dimensions.'); }
+  if(result.area&&result.position)throw new TypeError('Choose a point or region.');
+  return result;
+}
 export function validateDocument(value) {
-  fields(value, ['source', 'path', 'source_sha256', 'scope', 'view', 'documents', 'current_document_id']);
+  fields(value, ['source', 'path', 'source_sha256', 'scope', 'view', 'documents', 'current_document_id', 'artifact']);
   if (typeof value.source !== 'string' || value.source.length > 64 * 1024 * 1024) throw new TypeError('A bounded saved design source is required.');
-  const path = text(value.path), kind = /\.kicad_pcb$/i.test(path) ? 'pcb' : /\.kicad_sch$/i.test(path) ? 'schematic' : null;
-  if (!kind || !new RegExp('^\\s*\\(kicad_' + (kind === 'pcb' ? 'pcb' : 'sch') + '(?:\\s|\\))').test(value.source)) throw new TypeError('Source and saved design type do not match.');
+  const path = text(value.path), kind = /\.kicad_pcb$/i.test(path) ? 'pcb' : /\.kicad_sch$/i.test(path) ? 'schematic' : gerberPath(path) ? 'manufacturing' : null;
+  if (!kind || kind !== 'manufacturing' && !new RegExp('^\\s*\\(kicad_' + (kind === 'pcb' ? 'pcb' : 'sch') + '(?:\\s|\\))').test(value.source)) throw new TypeError('Source and saved design type do not match.');
   if (!/^[a-f0-9]{64}$/i.test(value.source_sha256)) throw new TypeError('A saved source SHA256 is required.');
   const scope = value.scope == null ? null : canonicalScope(value.scope);
   const view = value.view || kind;
-  if (!['pcb', 'schematic', '3d'].includes(view) || kind === 'schematic' && view !== 'schematic' || kind === 'pcb' && view === 'schematic') throw new TypeError('View does not match this design type.');
+  if (!['pcb', 'schematic', '3d', 'manufacturing'].includes(view) || kind === 'manufacturing' && view !== 'manufacturing' || kind === 'schematic' && view !== 'schematic' || kind === 'pcb' && !['pcb','3d'].includes(view)) throw new TypeError('View does not match this design type.');
+  const artifact = value.artifact == null ? null : validateArtifact(value.artifact);
+  if(artifact && (kind!=='manufacturing' || artifact.sha256!==value.source_sha256)) throw new TypeError('Manufacturing identity differs from its saved bytes.');
   const documents = value.documents || [];
   if (!Array.isArray(documents) || documents.length > 128) throw new TypeError('Project document list is oversized.');
   const seen = new Set();
   const choices = documents.map(entry => {
     fields(entry, ['id', 'label', 'kind']);
     const id = text(entry.id), label = text(entry.label), type = entry.kind;
-    if (seen.has(id) || !['pcb', 'schematic'].includes(type)) throw new TypeError('Invalid project document choice.');
+    if (seen.has(id) || !['pcb', 'schematic', 'manufacturing'].includes(type)) throw new TypeError('Invalid project document choice.');
     seen.add(id); return { id, label, kind: type };
   });
   const current = value.current_document_id == null ? null : text(value.current_document_id);
   if (current && !seen.has(current)) throw new TypeError('Current document is not in the host choices.');
-  return { source: value.source, path, source_sha256: value.source_sha256.toLowerCase(), scope, view, kind, documents: choices, current_document_id: current };
+  return { source: value.source, path, source_sha256: value.source_sha256.toLowerCase(), scope, view, kind, documents: choices, current_document_id: current, artifact };
 }
 export function validateComments(value, document) {
   fields(value, ['scope', 'status', 'markers', 'selected_id', 'path', 'source_sha256']);
@@ -85,9 +102,12 @@ export function validateComments(value, document) {
   return value.markers.map(item => {
     fields(item, ['comment_id', 'anchor', 'x', 'y', 'severity', 'state', 'label', 'region']);
     const anchor = validateAnchor(item.anchor, document.scope);
-    const region = anchor.area ? [anchor.area.x, anchor.area.y, anchor.area.width, anchor.area.height] : null;
+    if(anchor.context && (!document.artifact || anchor.context.file!==document.artifact.file || anchor.context.sha256!==document.artifact.sha256))throw new TypeError('Marker belongs to another manufacturing artifact.');
+    if(document.kind==='manufacturing' && !anchor.context)throw new TypeError('Manufacturing markers need artifact context.');
+    const geometry=anchor.context||anchor;
+    const region = geometry.area ? [geometry.area.x, geometry.area.y, geometry.area.width, geometry.area.height] : null;
     if (item.region != null && (!Array.isArray(item.region) || item.region.length !== 4 || item.region.some((v, i) => number(v) !== region?.[i]))) throw new TypeError('Region does not match its anchor.');
-    const position = anchor.position || (region ? { x: region[0]+region[2]/2, y: region[1]+region[3]/2 } : { x: number(item.x), y: number(item.y) });
+    const position = geometry.position || (region ? { x: region[0]+region[2]/2, y: region[1]+region[3]/2 } : { x: number(item.x), y: number(item.y) });
     if (!anchor.position && !region && !anchor.uuid && !anchor.objectId) throw new TypeError('Comment has no saved location.');
     if (Math.abs(number(item.x)-position.x) > 1e-6 || Math.abs(number(item.y)-position.y) > 1e-6) throw new TypeError('Marker position differs from its anchor.');
     return { comment_id: text(item.comment_id, 200), anchor, ...position, region,
@@ -172,16 +192,16 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     updateTabs();updateLayers();updateDocuments();
   }
   function updateTabs() {
-    for (const view of ['pcb', 'schematic', '3d']) {
+    for (const view of ['pcb', 'schematic', '3d', 'manufacturing']) {
       const button = elements[`view-${view}`];
-      if (button) { button.disabled = !document || view === '3d' && document.kind !== 'pcb'; button.setAttribute('aria-pressed', String(viewer.view === view)); }
+      if (button) { button.disabled = !document || view === '3d' && document.kind !== 'pcb' || view==='manufacturing' && !document.documents.some(d=>d.kind==='manufacturing'); button.setAttribute('aria-pressed', String(viewer.view === view)); }
     }
     updateModeControls();
   }
   function updateLayers() {
     if (!elements.layers) return;
     elements.layers.replaceChildren();
-    const known = viewer.view === 'pcb' ? viewer.getLayers() : [];
+    const known = ['pcb','manufacturing'].includes(viewer.view) ? viewer.getLayers() : [];
     const toggle = elements['layers-toggle'];
     if (toggle) {
       toggle.disabled = !known.length;
@@ -219,7 +239,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       if (!at) continue;
       const visible=at.x>=-20 && at.y>=-20 && at.x<=rect.width+20 && at.y<=rect.height+20;
       if (!visible && !marker.region) continue;
-      const color = marker.comment_id === selected ? '#b36b00' : ['error', 'critical'].includes(marker.severity) ? '#b53434' : '#087f8c';
+      const color = marker.comment_id === selected ? MARKER_COLORS.selected : ['error', 'critical'].includes(marker.severity) ? MARKER_COLORS.error : MARKER_COLORS.normal;
       const group = shape('g', { 'data-comment-id': marker.comment_id, tabindex: 0, role: 'button', 'aria-label': marker.label || `Comment ${index+1}` });
       group.style.pointerEvents = 'all';
       if (marker.region) {
@@ -236,8 +256,9 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     }
     if (draft && api.authorized) {
       const group = shape('g', {'data-draft':'true', 'aria-label':'Unpublished comment location'});
-      const color = '#b36b00', area = draft.area;
-      const center = area ? {x:area.x+area.width/2,y:area.y+area.height/2} : draft.position;
+      const geometry=draft.context||draft;
+      const color = theme === 'dark' ? MARKER_COLORS.draftDark : MARKER_COLORS.draftLight, area = geometry.area;
+      const center = area ? {x:area.x+area.width/2,y:area.y+area.height/2} : geometry.position;
       if (area) {
         const corners = [{x:area.x,y:area.y},{x:area.x+area.width,y:area.y},
           {x:area.x+area.width,y:area.y+area.height},{x:area.x,y:area.y+area.height}]
@@ -281,7 +302,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     send('objectSelected', { item: result, view: viewer.view });
   });
   listen(viewer, 'error', event => error(event.detail));
-  for (const view of ['pcb', 'schematic', '3d']) listen(elements[`view-${view}`], 'click', safe(() => api.setView(view)));
+  for (const view of ['pcb', 'schematic', '3d', 'manufacturing']) listen(elements[`view-${view}`], 'click', safe(() => api.setView(view)));
   listen(elements.fit, 'click', safe(() => { viewer.fit(); drawOverlay(); }));
   listen(elements['layers-toggle'], 'click', () => { layersOpen = !layersOpen; updateLayers(); });
   for (const [id, value] of [['mode-pan','navigate'], ['mode-pin','pin'], ['mode-region','region']]) listen(elements[id], 'click', safe(() => setMode(value)));
@@ -302,8 +323,9 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     const start = drag; drag = null;
     if (viewer.stage.hasPointerCapture?.(event.pointerId)) viewer.stage.releasePointerCapture(event.pointerId);
     const rect = viewer.stage.getBoundingClientRect(), a = screenToWorld(viewer,start.x,start.y), b = screenToWorld(viewer,event.clientX-rect.left,event.clientY-rect.top);
-    const target = mode === 'region' ? { ...document.scope, kind:'region', area:{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)} }
+    let target = mode === 'region' ? { ...document.scope, kind:'region', area:{x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)} }
       : { ...document.scope, kind:'position', position:b };
+    if(document.kind==='manufacturing')target={...document.scope,kind:'gerber',objectId:'gerber',context:{...document.artifact,...(target.area?{area:target.area}:{position:target.position})}};
     const checked = validateAnchor(target, document.scope);
     if (!api.authorized) throw new Error('Provider state changed; refresh before drafting.');
     send('draftAnchor', { anchor:checked }); mode='navigate'; updateModeControls();
@@ -321,6 +343,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       try{next=validateDocument(payload);}catch(reason){document=null;markers=[];api.authorized=false;clearDrawing();error(reason);return false;}
       document = next; markers=[]; selected=null; mode='navigate'; api.authorized=false; clearTick(); overlay.replaceChildren(); updateDocuments();
       try {
+        if(next.kind==='manufacturing' && typeof viewer.showManufacturing!=='function')throw new Error('This externally supplied KiView build does not support Gerber drawings. Update its viewer assets.');
         const loaded = await viewer.loadSource(next.source, {path:next.path,view:next.view});
         if (disposed || ticket !== generation || !loaded) return false;
         applyTheme(); viewer.fit(); installProjectionHooks(); send('documentReady', {view:viewer.view});
@@ -342,7 +365,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
           updateModeControls();drawOverlay();return 0;
         }
         markers=validateComments(payload,document);
-        api.authorized=Boolean(document?.scope && payload.status==='synced' && sameScope(payload.scope,document.scope));
+        api.authorized=Boolean(document?.scope && (document.kind!=='manufacturing'||document.artifact) && payload.status==='synced' && sameScope(payload.scope,document.scope));
         if (api.authorized && previousDraft) {
           try { draft=validateAnchor(previousDraft,document.scope); } catch { draft=null; }
         }
@@ -357,14 +380,15 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
         if (value == null) return true;
         if (!document?.scope || !api.authorized) throw new Error('Refresh the matching provider conversation before previewing a draft.');
         const checked=validateAnchor(value,document.scope);
-        if (!checked.position && !checked.area) return false;
+        if (!checked.position && !checked.area && !checked.context?.position && !checked.context?.area) return false;
+        if(checked.context && (!document.artifact || checked.context.file!==document.artifact.file || checked.context.sha256!==document.artifact.sha256))throw new TypeError('Draft belongs to another manufacturing artifact.');
         draft=checked;
         return true;
       } finally { drawOverlay(); }
     },
     async setView(view) {
       if (!document) return false;
-      if (view === 'schematic' && document.kind !== 'schematic' || view === 'pcb' && document.kind !== 'pcb') { send('requestView',{view}); return false; }
+      if (view === 'schematic' && document.kind !== 'schematic' || view === 'pcb' && document.kind !== 'pcb' || view==='manufacturing' && document.kind!=='manufacturing') { send('requestView',{view}); return false; }
       if (view === '3d' && document.kind !== 'pcb') throw new Error('3D requires a saved PCB document.');
       mode='navigate'; clearTick(); const result=await viewer.setView(view); if (result) { applyTheme(); viewer.fit(); installProjectionHooks(); } return result;
     },
