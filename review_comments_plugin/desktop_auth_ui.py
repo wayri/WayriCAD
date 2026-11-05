@@ -7,6 +7,8 @@ import weakref
 import webbrowser
 
 import wx
+from wx.lib.checkbox import GenCheckBox
+from .widgets import ActionButton
 
 from . import desktop_auth
 
@@ -30,28 +32,28 @@ class SignInDialog(wx.Dialog):
         self.instructions = wx.StaticText(self, label='Choose Sign in browser to request a one-time code. Approve Review there, then return here.')
         self.instructions.Wrap(420)
         layout.Add(self.instructions, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
-        self.private = wx.CheckBox(self, label='Include private GitHub repositories (broad repo write scope)')
+        self.private = GenCheckBox(self, label='Include private GitHub repositories (broad repo write scope)')
         self.private.Show(provider == 'github')
         layout.Add(self.private, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
+        layout.Add(wx.StaticText(self, label='One-time code'), 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
         code_row = wx.BoxSizer(wx.HORIZONTAL)
         self.code = wx.TextCtrl(self, style=wx.TE_READONLY)
-        self.code.SetHint('One-time code appears here')
         code_row.Add(self.code, 1, wx.RIGHT, 8)
-        self.copy = wx.Button(self, label='Copy code')
+        self.copy = ActionButton(self, 'Copy code')
         self.copy.Disable()
         code_row.Add(self.copy, 0)
         layout.Add(code_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
+        layout.Add(wx.StaticText(self, label='Verification address'), 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
         self.verification = wx.TextCtrl(self, style=wx.TE_READONLY)
-        self.verification.SetHint('Verification address appears here')
         layout.Add(self.verification, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
         self.message = wx.StaticText(self, label='No sign-in has started.')
         self.message.Wrap(420)
         layout.Add(self.message, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
         actions = wx.BoxSizer(wx.HORIZONTAL)
         actions.AddStretchSpacer()
-        self.cancel_button = wx.Button(self, wx.ID_CANCEL, 'Cancel')
+        self.cancel_button = ActionButton(self, 'Cancel', id=wx.ID_CANCEL)
         actions.Add(self.cancel_button, 0, wx.RIGHT, 8)
-        self.primary = wx.Button(self, wx.ID_ANY, 'Sign in browser')
+        self.primary = ActionButton(self, 'Sign in browser', primary=True)
         actions.Add(self.primary, 0)
         layout.Add(actions, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 16)
         self.SetSizerAndFit(layout)

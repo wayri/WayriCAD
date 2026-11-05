@@ -277,7 +277,8 @@ def test_remote_anchor_selection_and_bytes_unchanged(session):
                 assert ids == ['abc'] and kwargs['expected_sha256'] == session.digest
                 return dict(count=1, focus='requested')
             assert session.locate('5', selector=selector)['count'] == 1
-        assert check.call_count == 4
+        # Context diagnostics have a separate post-observation source guard.
+        assert check.call_count == 5
         assert session.path.read_bytes() == before
 
 

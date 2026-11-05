@@ -115,8 +115,17 @@ class ReviewDocuments:
         self.selected_id = selected.relative_to(self.root).as_posix()
 
     def entries(self) -> list[dict[str, str]]:
-        return [{'id': name, 'label': name, 'kind': _KINDS[path.suffix.lower()]}
+        return [{'id': name, 'label': name, 'kind': _KINDS.get(path.suffix.lower(), 'manufacturing')}
                 for name, path in self.documents.items()]
+
+    def add_gerber(self, path):
+        from .project_artifacts import read_artifact
+        raw = Path(path).absolute()
+        payload = read_artifact(self.root, raw)
+        if len(self.documents) >= MAX_DOCUMENTS and payload['path'] not in self.documents:
+            raise ValueError('Saved Review catalog exceeds 64 files.')
+        self.documents[payload['path']] = raw
+        return payload['path']
 
     def path_for(self, document_id: str) -> Path:
         if not isinstance(document_id, str) or document_id not in self.documents:
@@ -134,6 +143,10 @@ class ReviewDocuments:
 
     def load(self, document_id: str) -> dict:
         path = self.path_for(document_id)
+        if path.suffix.lower() not in _KINDS:
+            from .project_artifacts import read_artifact
+            payload = read_artifact(self.root, path)
+            return dict(payload, documents=self.entries(), current_document_id=document_id)
         before = _sha(path)
         if path.stat().st_size > MAX_SOURCE_BYTES:
             raise ValueError('Saved Review document exceeds the 64 MiB read limit.')

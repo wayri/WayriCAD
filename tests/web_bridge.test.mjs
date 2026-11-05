@@ -47,7 +47,8 @@ class Viewer extends EventTarget {
     this.surface.append(this.toolbar,this.unrelatedToolbar,this.stage);host.append(this.surface);
     this.fitCount=0;this.layers=['F.Cu','B.Cu','Edge.Cuts'];this.theme=options.theme;this.themeCalls=[];
   }
-  async loadSource(source,{path,view}) { this.source=source;this.path=path;this.kind=source.includes('(kicad_sch')?'schematic':'pcb';return this.setView(view); }
+  async loadSource(source,{path,view}) { this.source=source;this.path=path;this.kind=view==='manufacturing'?'manufacturing':source.includes('(kicad_sch')?'schematic':'pcb';return this.setView(view); }
+  async showManufacturing() { return this.setView('manufacturing'); }
   async setView(view) {
     this.view=view;
     this.renderer=view==='3d'?{projectAnchor:({position})=>({x:position.x+10,y:position.y+20,visible:true}),setSelection(value){this.selection=value;},setAnchor(value){this.anchor=value;}}:
@@ -84,6 +85,32 @@ test('document and anchor payloads are data-only, bounded and immutable-scope',(
   assert.throws(()=>validateAnchor({...scope,position:{x:NaN,y:1}},scope),/coordinate/);
   assert.throws(()=>validateAnchor({...scope,area:{x:1,y:2,width:0,height:1}},scope),/positive/);
   assert.throws(()=>validateAnchor({...scope,ref:'c'.repeat(40),position:{x:1,y:2}},scope),/another/);
+});
+
+test('local Gerber pins retain separate artifact coordinates and reject cross-artifact authority',async()=>{
+  const artifact={type:'gerber',file:'fab/top.gbr',sha256:'b'.repeat(64)};
+  const payload=documentPayload({source:'%FSLAX46Y46*%\n%MOMM*%\nM02*',path:'fab/top.gbr',view:'manufacturing',artifact,
+    documents:[{id:'fab/top.gbr',label:'Top Gerber',kind:'manufacturing'}],current_document_id:'fab/top.gbr'});
+  assert.equal(validateDocument(payload).kind,'manufacturing');
+  assert.throws(()=>validateDocument({...payload,path:'../private.gbr'}),/type/);
+  assert.throws(()=>validateDocument({...payload,artifact:{...artifact,sha256:'c'.repeat(64)}}),/identity/);
+  const {bridge,messages}=fixture();assert.equal(await bridge.setDocument(payload),true);
+  bridge.setComments(comments({markers:[],path:payload.path,source_sha256:payload.source_sha256}));
+  bridge.setMode('pin');
+  const stage=bridge.viewer.stage;
+  stage.dispatchEvent(event('pointerdown',{button:0,pointerId:1,clientX:410,clientY:270}));
+  stage.dispatchEvent(event('pointerup',{pointerId:1,clientX:410,clientY:270}));
+  const target=messages.find(value=>value.type==='draftAnchor').anchor;
+  assert.deepEqual(target.context,{...artifact,position:{x:40,y:30}});
+  assert.equal(target.position,undefined);assert.equal(target.file,'board.kicad_pcb');
+  assert.equal(bridge.setDraft(target),true);
+  assert.equal(bridge.setComments(comments({markers:[marker({anchor:target,x:40,y:30})],path:payload.path,source_sha256:payload.source_sha256})),1);
+  assert.throws(()=>bridge.setComments(comments({markers:[marker({anchor:{...target,context:{...target.context,file:'fab/bottom.gbr'}},x:40,y:30})]})),/another manufacturing/);
+  assert.equal(bridge.authorized,false);
+  assert.equal(await bridge.setDocument({...payload,scope:null,artifact:null}),true);
+  bridge.setComments(comments({markers:[],path:payload.path,source_sha256:payload.source_sha256}));
+  assert.equal(bridge.authorized,false);
+  bridge.dispose();
 });
 
 test('GitLab authority preserves exact explicit-port scope like Python model.scope',()=>{

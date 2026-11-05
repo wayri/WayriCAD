@@ -138,6 +138,42 @@ Sources: [add-on capabilities](https://dev-docs.kicad.org/en/apis-and-binding/ip
 
 ## Packaging and adoption
 
+### Context extension (4.5.0 testing package)
+
+Review keeps the online `kicad-review:v1` anchor scoped to its
+originating committed PCB/schematic. BOM cell metadata and generated Gerber
+identity use an additional `wayricad-context:v1` base64url JSON marker linked by
+annotation ID and SHA-256 of the canonical legacy anchor. Duplicate, malformed
+or mismatched extensions are ignored. The old marker contains no Gerber
+coordinates, avoiding a misleading pin on the origin PCB in older viewers.
+An online client that rewrites a note without preserving this extension loses
+the richer context; desktop does not invent it from a reference or position.
+
+BOM context contains stable `rowId`, optional `field`, and the complete saved
+source hash map. Gerber context contains project-relative `file`, `sha256` and
+optional point/region coordinates. Both are revalidated before publication;
+native design files remain untouched. Variant `*` means all variants; a named
+variant must exist in explicit saved metadata. Effective variant inheritance is
+not evaluated by this read-only table.
+
+`ContextTracker` reads only bounded, explicitly referenced local paths and
+source hierarchies. Its completeness covers `knownPaths`, not the whole Git
+repository. Working-tree provenance is explicit: HEAD is a baseline, not proof
+that observed bytes are committed. Missing/changed evidence, permission errors,
+linked paths and ambiguous IDs have distinct outcomes. A source that becomes
+stale allows diagnostic provider reads only; its anchors cannot navigate or
+publish a user message. Native and normal provider publication still enforce
+the selected saved-file digest.
+
+When enabled in desktop settings, two identical verified observations plus a
+fresh local/provider preflight may append one `wayricad-status:v1` event to the
+conversation. Events identify the original annotation, reason, provenance,
+checked baseline and predecessor. No original comment or anchor is edited.
+Uncertain writes halt the tracker; they are never automatically retried.
+Independent clients can still race; duplicate/forked event histories pause
+further automatic updates. Non-desktop sessions default to diagnostic reads
+only, preserving CLI preview/read-only contracts.
+
 The plugin directory is self-contained except for `wayricad_runtime`, which
 the existing PCM builder vendors into each IPC ZIP. `plugin.json` exposes a PCB
 action; `wayricad-tool.json` loads `action.ReviewPlugin`. Importing the source package

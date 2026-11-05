@@ -81,6 +81,14 @@ def anchor(value):
             if key == 'area' and (box['width'] <= 0 or box['height'] <= 0):
                 raise ValueError('A region must have positive dimensions in mm.')
             result[key] = {f: box[f] for f in fields}
+    if 'context' in value:
+        from .review_targets import validate_context
+        result['context'] = validate_context(value['context'])
+        context = result['context']
+        if context['type'] == 'bom' and (result.get('objectId') != context['rowId'] or result['file'] not in context['sourceFiles']):
+            raise ValueError('BOM context must identify its originating file and row.')
+        if context['type'] == 'gerber' and (not result.get('kind', '').startswith('gerber') or 'position' in result or 'area' in result):
+            raise ValueError('Manufacturing coordinates belong only to their Gerber context.')
     return result
 
 
@@ -102,7 +110,8 @@ def attachment(value, target):
 
 
 def note(text, target, *, reply_to=None, attachments=()):
-    if not isinstance(text, str) or not text.strip() or len(text) > 4000 or '<!-- kicad-review:' in text:
+    if (not isinstance(text, str) or not text.strip() or len(text) > 4000 or
+            any(marker in text for marker in ('<!-- kicad-review:', '<!-- wayricad-context:', '<!-- wayricad-status:'))):
         raise ValueError('Write between 1 and 4,000 characters.')
     now = datetime.now(timezone.utc).isoformat(timespec='milliseconds').replace('+00:00', 'Z')
     result = dict(id=str(uuid.uuid4()), text=text.strip(), createdAt=now, updatedAt=now,
@@ -121,12 +130,16 @@ def markdown(value):
     target = anchor(value['anchor'])
     if not value.get('text') or len(value['text']) > 4000:
         raise ValueError('Invalid review text.')
-    payload = dict(value, anchor=target)
+    payload = dict(value, anchor={k: v for k, v in target.items() if k != 'context'})
     payload.pop('capture', None)
     data = base64.urlsafe_b64encode(json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode()).decode().rstrip('=')
     if len(data) > 32000:
         raise ValueError('Review metadata exceeds the shared marker limit.')
-    return value['text'] + '\n\n<!-- kicad-review:v1 ' + data + ' -->'
+    result = value['text'] + '\n\n<!-- kicad-review:v1 ' + data + ' -->'
+    if 'context' in target:
+        from .review_targets import context_markdown
+        result += '\n' + context_markdown(value['id'], target)
+    return result
 
 
 def read_markers(body, expected):
@@ -143,7 +156,28 @@ def read_markers(body, expected):
                 result.append(dict(data, anchor=target))
         except (ValueError, KeyError, TypeError, RecursionError):
             continue
-    return result
+    from .review_targets import attach_contexts
+    return attach_contexts(body, result)
+
+
+def project_markers(body, expected):
+    """Provider-read historical anchors for diagnostics, never navigation authority."""
+    expected = scope(expected)
+    found = []
+    if not isinstance(body, str) or len(body.encode()) > 1024 * 1024:
+        raise ValueError('Provider comment exceeds 1 MiB.')
+    for match in list(MARKER.finditer(body))[:100]:
+        try:
+            value = json.loads(base64.b64decode(match[1] + '=' * (-len(match[1]) % 4), altchars=b'-_', validate=True))
+            target = anchor(value['anchor'])
+            candidate = scope(target)
+            if all(candidate.get(key) == expected.get(key) for key in ('provider', 'host', 'repository')):
+                if isinstance(value.get('id'), str) and isinstance(value.get('text'), str):
+                    found.append(dict(value, anchor=target))
+        except (ValueError, KeyError, TypeError, RecursionError):
+            continue
+    from .review_targets import attach_contexts
+    return attach_contexts(body, found)
 
 
 def saved_context(root, target):

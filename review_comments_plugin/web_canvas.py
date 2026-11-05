@@ -28,12 +28,20 @@ class WebDesignCanvas(wx.Panel):
         self.markers = []
         self.positions = {}
         self.selected_id = None
+        self.origin_path = None
         layout = wx.BoxSizer(wx.VERTICAL)
         actions = wx.BoxSizer(wx.HORIZONTAL)
         from .widgets import ActionButton
-        for label, handler in [('Open…', self.open_design), ('Design options', self.options_menu)]:
+        for label, handler in [('Open…', self.open_design), ('Design options', self.options_menu),
+                               ('BOM', self.show_bom), ('Gerbers…', self.show_gerbers)]:
             button = ActionButton(self, label, handler, compact=True)
             actions.Add(button, 0, wx.RIGHT | wx.BOTTOM, 4)
+        self.variant = wx.Choice(self, choices=['All variants'])
+        self.variant.SetSelection(0)
+        self.variant.SetToolTip('Variant context for new comments; saved design geometry is unchanged')
+        self.variant.Bind(wx.EVT_CHOICE, self.variant_changed)
+        self._variants = ['*']
+        actions.Add(self.variant, 0, wx.RIGHT, 5)
         self.status = wx.StaticText(self, label='Saved design', style=wx.ST_ELLIPSIZE_END)
         self.status.SetMinSize((0, -1))
         actions.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 8)
@@ -41,6 +49,15 @@ class WebDesignCanvas(wx.Panel):
         self.view_area = wx.Panel(self)
         self.view_layout = wx.BoxSizer(wx.VERTICAL)
         self.view_area.SetSizer(self.view_layout)
+        self.view_book = wx.Simplebook(self.view_area)
+        self.drawing_area = wx.Panel(self.view_book)
+        self.drawing_layout = wx.BoxSizer(wx.VERTICAL)
+        self.drawing_area.SetSizer(self.drawing_layout)
+        from .bom_view import BomView
+        self.bom_view = BomView(self.view_book, self)
+        self.view_book.AddPage(self.drawing_area, 'Drawing')
+        self.view_book.AddPage(self.bom_view, 'BOM fields')
+        self.view_layout.Add(self.view_book, 1, wx.EXPAND)
         layout.Add(self.view_area, 1, wx.EXPAND)
         self.SetSizer(layout)
         self.Bind(wx.EVT_WINDOW_DESTROY, self.destroyed)
@@ -63,7 +80,7 @@ class WebDesignCanvas(wx.Panel):
             backend = wx.html2.WebViewBackendEdge if wx.Platform == '__WXMSW__' else wx.html2.WebViewBackendDefault
             if not wx.html2.WebView.IsBackendAvailable(backend):
                 raise RuntimeError('A modern WebView backend is required; install the system WebView2 runtime on Windows.')
-            browser = wx.html2.WebView.New(self.view_area, backend=backend, style=wx.BORDER_NONE)
+            browser = wx.html2.WebView.New(self.drawing_area, backend=backend, style=wx.BORDER_NONE)
             if not browser.AddScriptMessageHandler('wayricadHost'):
                 browser.Destroy()
                 raise RuntimeError('This WebView does not support the Review message bridge.')
@@ -71,7 +88,7 @@ class WebDesignCanvas(wx.Panel):
             host.close()
             raise
         self.host, self.browser = host, browser
-        self.view_layout.Add(browser, 1, wx.EXPAND)
+        self.drawing_layout.Add(browser, 1, wx.EXPAND)
         browser.Bind(wx.html2.EVT_WEBVIEW_NAVIGATING, self.navigating)
         browser.Bind(wx.html2.EVT_WEBVIEW_NEWWINDOW, lambda event: event.Veto())
         browser.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
@@ -89,6 +106,7 @@ class WebDesignCanvas(wx.Panel):
     def options_menu(self, event=None):
         with wx.Menu() as menu:
             for label, handler in [('Reload saved design', self.reload), ('Review this file', self.review_file),
+                                   ('Comment on current Gerber', self.comment_gerber),
                                    ('Locate comment in KiCad', self.locate_main), ('Viewer assets…', self.choose_assets)]:
                 item = menu.Append(wx.ID_ANY, label)
                 menu.Bind(wx.EVT_MENU, handler, item)
@@ -109,6 +127,128 @@ class WebDesignCanvas(wx.Panel):
             raise ValueError('Choose light or dark theme.')
         self.theme = theme
         self._call('setTheme', theme)
+        self.bom_view.apply_palette()
+
+    def set_variants(self, names):
+        current = getattr(self.owner, 'review_variant', '*')
+        self._variants = ['*', *sorted(set(names) - {'*'})]
+        self.variant.SetItems(['All variants', *self._variants[1:]])
+        self.variant.SetSelection(self._variants.index(current) if current in self._variants else 0)
+        if current not in self._variants: self.owner.review_variant = '*'
+
+    def variant_changed(self, event=None):
+        selected = self._variants[self.variant.GetSelection()]
+        self.owner.review_variant = selected
+        if self.owner.session:
+            self.owner.set_target(dict(self.owner.target or self.owner.session.scope, variant=selected))
+        self.sync_review()
+
+    def show_bom(self, event=None, *, path=None):
+        from .bom_review import load_bom
+        source = path or self.origin_path or getattr(self.owner.session, 'path', None) or self.owner.board_path
+        if not source:
+            self.status.SetLabel('Open a saved PCB or schematic to view its fields.')
+            return
+        root = Path(self.owner.values['root']).resolve() if self.owner.values.get('root') else Path(source).parent.resolve()
+        def complete(snapshot):
+            self.bom_view.apply_snapshot(source, root, snapshot)
+            self.view_book.SetSelection(1)
+            self.owner.status.SetLabel('Saved KiCad fields loaded. Select a row or cell to comment.')
+        self.owner.task(lambda: load_bom(source, root=root), complete, 'Reading saved KiCad fields…', on_error=self.failed)
+
+    def open_gerber(self, path):
+        if not self.documents:
+            raise ValueError('Open the originating PCB or schematic project first.')
+        identifier = self.documents.add_gerber(path)
+        self.apply_document(identifier, self.documents.load(identifier), positions={})
+
+    def comment_gerber(self, event=None):
+        try:
+            self.can_anchor()
+            if getattr(self, 'active_kind', None) != 'manufacturing':
+                raise ValueError('Open a project Gerber drawing first.')
+            from .project_artifacts import gerber_anchor
+            self.documents.assert_current(self.document_id, self.digest)
+            target = gerber_anchor(self.owner.session.scope, Path(self.owner.session.settings['root']), self.path,
+                                   variant=getattr(self.owner, 'review_variant', '*'))
+            self.owner.set_target(target)
+            self.owner.compose.SetFocus()
+        except (ValueError, RuntimeError, OSError) as error: self.status.SetLabel(str(error))
+
+    def show_gerbers(self, event=None):
+        from .project_artifacts import discover_gerbers
+        if not self.documents:
+            self.status.SetLabel('Open a saved design project before loading local Gerbers.')
+            return
+        try: files = discover_gerbers(self.documents.root)
+        except (ValueError, OSError) as error:
+            self.status.SetLabel(str(error)); return
+        with wx.Dialog(self, title='Project Gerber drawings', size=(620, 390), style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER) as dialog:
+            layout = wx.BoxSizer(wx.VERTICAL)
+            layout.Add(wx.StaticText(dialog, label='Generated Gerber/drill files inside this project only.'), 0, wx.ALL, 12)
+            choices = wx.ListBox(dialog, choices=[p.relative_to(self.documents.root).as_posix() for p in files])
+            if files: choices.SetSelection(0)
+            layout.Add(choices, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 12)
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            from .widgets import ActionButton
+            action = {'kind': None}
+            def choose(kind):
+                action['kind'] = kind
+                dialog.EndModal(wx.ID_OK)
+            for label, kind in [('View selected', 'view'), ('Load files…', 'load'), ('Generate Gerbers', 'generate')]:
+                button = ActionButton(dialog, label, lambda event, kind=kind: choose(kind), compact=True)
+                if kind == 'view': button.Enable(bool(files))
+                row.Add(button, 0, wx.RIGHT, 6)
+            layout.Add(row, 0, wx.ALL, 12)
+            dialog.SetSizer(layout)
+            from .theme import apply_theme
+            apply_theme(dialog, self.theme)
+            if dialog.ShowModal() != wx.ID_OK: return
+            operation = action['kind']
+            index = choices.GetSelection()
+        try:
+            if operation == 'view': self.open_gerber(files[index])
+            elif operation == 'load':
+                with wx.FileDialog(self, 'Load project-local Gerbers', defaultDir=str(self.documents.root),
+                    wildcard='Gerber and drill files|*.gbr;*.ger;*.gerber;*.gtl;*.gbl;*.gts;*.gbs;*.gto;*.gbo;*.gm1;*.gko;*.drl|All files|*.*',
+                    style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE) as picker:
+                    if picker.ShowModal() == wx.ID_OK:
+                        paths = picker.GetPaths()
+                        for path in paths: self.documents.add_gerber(path)
+                        if paths: self.open_gerber(paths[0])
+            elif operation == 'generate':
+                from .project_artifacts import generate_gerbers
+                board = self.origin_path.with_suffix('.kicad_pcb')
+                def completed(result):
+                    output, generated = result
+                    for path in generated: self.documents.add_gerber(path)
+                    self.open_gerber(generated[0])
+                    self.owner.status.SetLabel(f'Generated {len(generated)} project-local Gerber drawings.')
+                self.owner.task(lambda: generate_gerbers(board), completed, 'Generating project-local Gerbers…', on_error=self.failed)
+        except (ValueError, OSError, IndexError) as error: self.status.SetLabel(str(error))
+
+    def focus_context(self, row):
+        targets = [target for target in row.get('anchors', []) if target.get('context')]
+        if len(targets) != 1 or not self.owner.session or self.owner.session.status != 'synced': return False
+        target = targets[0]
+        context = target['context']
+        try:
+            if context['type'] == 'bom':
+                path = Path(self.owner.session.settings['root']).resolve() / target['file']
+                self.bom_view.load(path)
+                self.bom_view.focus_anchor(target)
+                self.view_book.SetSelection(1)
+                return True
+            path = Path(self.owner.session.settings['root']).resolve() / context['file']
+            self.open_gerber(path)
+            if self.digest != context['sha256']:
+                raise ValueError('Gerber changed. The original comment is retained without moving its marker.')
+            self.sync_review()
+            self.selected_id = row['id']
+            self._call('focusComment', row['id'])
+            return True
+        except (ValueError, OSError) as error:
+            self.status.SetLabel(str(error)); return True
 
     def open_design(self, event=None):
         with wx.FileDialog(self, 'Open saved review project or design',
@@ -147,6 +287,7 @@ class WebDesignCanvas(wx.Panel):
             if generation != self._generation or self.owner.closed:
                 return
             self.documents, identifier, payload, positions = result
+            self.origin_path = self.documents.path_for(identifier)
             self.apply_document(identifier, payload, positions=positions)
         self.owner.task(operation, complete, 'Opening interactive saved design…', on_error=self.failed)
 
@@ -155,11 +296,19 @@ class WebDesignCanvas(wx.Panel):
         self.document_id = identifier
         self.path = self.documents.path_for(identifier)
         self.digest = payload['source_sha256']
-        self.positions = saved_positions(payload['source']) if positions is None else positions
+        manufacturing = payload['view'] == 'manufacturing'
+        self.active_kind = payload['view']
+        self.positions = ({} if manufacturing else saved_positions(payload['source'])) if positions is None else positions
+        if not manufacturing:
+            self.origin_path = self.path
+        elif self.owner.session:
+            root = Path(self.owner.session.settings['root']).resolve()
+            payload['artifact'] = dict(type='gerber', file=self.path.relative_to(root).as_posix(), sha256=self.digest)
         self.selected_id = None
         session = self.owner.session
         payload['scope'] = session.scope if self.can_anchor(quiet=True) else None
         self.pending = payload
+        self.view_book.SetSelection(0)
         if self.ready:
             self._call('setDocument', payload)
         if self.browser:
@@ -174,9 +323,15 @@ class WebDesignCanvas(wx.Panel):
                 if quiet:
                     return False
                 raise
+        manufacturing = getattr(self, 'active_kind', None) == 'manufacturing'
+        expected = self.origin_path if manufacturing else self.path
         ready = bool(self.path and self.digest and session and session.status == 'synced'
-                     and getattr(session, 'path', None) == self.path
-                     and getattr(session, 'digest', None) == self.digest)
+                     and getattr(session, 'path', None) == expected
+                     and (manufacturing or getattr(session, 'digest', None) == self.digest))
+        if ready and manufacturing:
+            from .model import unchanged
+            try: unchanged(session.path, session.digest)
+            except (ValueError, OSError): ready = False
         if not ready and not quiet:
             raise ValueError('Use Review this file and refresh its matching saved revision before placing comments.')
         return ready
@@ -187,7 +342,8 @@ class WebDesignCanvas(wx.Panel):
         if self.can_anchor(quiet=True):
             try:
                 self.documents.assert_current(self.document_id, self.digest)
-                self.markers, unplaced = markers_from_rows(session.rows, session.scope, session.status, self.positions)
+                self.markers, unplaced = markers_from_rows(session.rows, session.scope, session.status, self.positions,
+                    artifact=(self.pending or {}).get('artifact'), variant=getattr(self.owner, 'review_variant', '*'))
                 self._call('setComments', dict(scope=session.scope, status=session.status,
                            path=self.document_id, source_sha256=self.digest,
                            markers=[asdict(marker) for marker in self.markers], selected_id=self.selected_id))
@@ -205,6 +361,11 @@ class WebDesignCanvas(wx.Panel):
             try:
                 self.documents.assert_current(self.document_id, self.digest)
                 checked = anchor(target)
+                if checked.get('context', {}).get('type') == 'gerber':
+                    context = checked['context']
+                    artifact = (self.pending or {}).get('artifact', {})
+                    if context['file'] == artifact.get('file') and context['sha256'] == self.digest:
+                        draft = checked
                 if scope(checked) == scope(self.owner.session.scope):
                     key = checked.get('uuid') or checked.get('objectId')
                     if 'position' not in checked and 'area' not in checked and key in self.positions:
@@ -274,7 +435,12 @@ class WebDesignCanvas(wx.Panel):
             elif kind == 'draftAnchor':
                 self.can_anchor()
                 proposed = value.get('anchor', {})
-                if 'area' in proposed:
+                if (self.pending or {}).get('view') == 'manufacturing':
+                    from .project_artifacts import gerber_anchor
+                    context = proposed.get('context', {})
+                    target = gerber_anchor(self.owner.session.scope, Path(self.owner.session.settings['root']), self.path,
+                        variant=getattr(self.owner, 'review_variant', '*'), position=context.get('position'), area=context.get('area'))
+                elif 'area' in proposed:
                     area = proposed['area']
                     target = draft_region(self.owner.session.scope, *(area[key] for key in ('x', 'y', 'width', 'height')))
                 else:
@@ -291,6 +457,9 @@ class WebDesignCanvas(wx.Panel):
             self.status.SetLabel('Connect a provider conversation in Settings first.')
             return
         try:
+            if (self.pending or {}).get('view') == 'manufacturing':
+                self.status.SetLabel('Gerber comments use the connected origin design and exact generated-file hash.')
+                return
             relative = self.path.relative_to(Path(self.owner.values['root']).resolve()).as_posix()
             values = dict(self.owner.values, file=relative)
             self.owner.connect(values, canvas_path=self.path)
@@ -324,7 +493,7 @@ class WebDesignCanvas(wx.Panel):
         self._generation += 1
         self.ready = False
         if self.browser:
-            self.view_layout.Detach(self.browser)
+            self.drawing_layout.Detach(self.browser)
             self.browser.Destroy()
             self.browser = None
         if self.host:

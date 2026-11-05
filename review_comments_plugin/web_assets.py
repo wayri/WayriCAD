@@ -38,7 +38,18 @@ THREE_D_NOTICES = (
     'extension/vendor/fzstd/README.md',
 )
 MODERN_2D = (*tuple(name.replace('extension/', 'engine/', 1) if name.startswith('extension/')
-                  else name for name in VIEWER_2D), 'web-library/viewer-chrome.mjs')
+                  else name for name in VIEWER_2D),
+             'web-library/viewer-chrome.mjs',
+             'web-library/archive/zip.mjs',
+             'web-library/manufacturing-input.mjs',
+             'web-library/manufacturing-canvas.mjs',
+             'web-library/source-types.mjs',
+             'web-library/manufacturing/index.mjs',
+             'web-library/manufacturing/gerber.mjs',
+             'web-library/manufacturing/excellon.mjs',
+             'web-library/manufacturing/geometry.mjs',
+             'web-library/manufacturing/apertures.mjs',
+             'web-library/inspector.mjs')
 MODERN_3D = tuple(name.replace('extension/', 'engine/', 1) for name in VIEWER_3D)
 MODERN_NOTICES = tuple(name.replace('extension/', 'engine/', 1) for name in THREE_D_NOTICES)
 MODERN_LICENSE = ('licenses/Pocket-KiView-Source-Available-1.0.txt',)

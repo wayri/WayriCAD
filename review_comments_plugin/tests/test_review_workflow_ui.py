@@ -54,6 +54,34 @@ def test_no_matches_explains_filters_instead_of_claiming_empty_provider(pane):
     assert len(pane.cards)==2
 
 
+def test_late_connection_error_is_readable_in_dark_theme_without_losing_draft(pane):
+    from review_comments_plugin.theme import PALETTES
+    pane.toggle_theme()
+    assert pane.review_theme == 'dark'
+    pane.compose.SetValue('Keep this unpublished draft')
+    pane.show_empty('Conversation unavailable', 'Sign in to Review to continue.')
+    labels = {child.GetLabel(): child for child in pane.feed.GetChildren()
+              if isinstance(child, wx.StaticText)}
+    colors = PALETTES['dark']
+    for label, role in [('Conversation unavailable', 'text'),
+                        ('Sign in to Review to continue.', 'muted')]:
+        control = labels[label]
+        assert control.GetForegroundColour().GetAsString(wx.C2S_HTML_SYNTAX).lower() == colors[role]
+        assert control.GetBackgroundColour() == pane.feed.GetBackgroundColour()
+    assert pane.compose.GetValue() == 'Keep this unpublished draft'
+
+
+def test_composer_status_updates_keep_dark_theme_and_warning_contrast(pane):
+    from review_comments_plugin.theme import PALETTES
+    pane.toggle_theme()
+    for value, role in [('Unpublished draft', 'muted'), ('x' * 4100, 'warning')]:
+        pane.compose.SetValue(value)
+        pane.composer.update_state()
+        actual = pane.composer.hint.GetForegroundColour().GetAsString(wx.C2S_HTML_SYNTAX).lower()
+        assert actual == PALETTES['dark'][role]
+        assert pane.compose.GetValue() == value
+
+
 def test_deleted_thread_root_returns_to_feed_without_discarding_draft(pane):
     pane.populate()
     pane.focus_thread(pane.session.rows[0])
