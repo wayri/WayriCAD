@@ -68,6 +68,7 @@ def capabilities() -> dict[str, Any]:
             "layer-counter": "wayricad-layer-counter --help (KiCad 10 Python; read-only preview or new candidate board)",
             "trace-refiner": "wayricad-trace-refiner --help (KiCad 10 Python; preview, validate, export a new project)",
             "project-fusion": "wayricad-fusion --help (native KiCad CLI required for merge; offline project apply)",
+            "portable-web-export": "wayricad-portable-export --help (saved project to self-contained offline HTML)",
             "variant-manager": "wayricad-variants --help (native KiCad 10 variants; preview-first batch jobs and verified backups)",
             "trace-impedance": "wayricad-rlc --help (KiCad 10 Python; trace/via/hybrid and filled-zone estimates)",
             "copper-balancer": "wayricad-copper --help (KiCad 10 native geometry required)",

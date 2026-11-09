@@ -12,6 +12,7 @@ from portable_web_export_plugin.exporter import (
     scan_project,
     write_export_document,
 )
+from portable_web_export_plugin.cli import main as cli_main
 
 
 BOARD = '''(kicad_pcb (version 20240108) (generator pcbnew)
@@ -112,6 +113,17 @@ class PortableExporterTests(unittest.TestCase):
         written = destination.read_text(encoding="utf-8")
         self.assertEqual(document, written)
         self.assertIn(manifest["documentId"], written)
+
+    def test_cli_exports_saved_project_and_manifest(self):
+        output = self.root / "cli-review.html"
+        manifest = self.root / "cli-review.json"
+        self.assertEqual(0, cli_main([
+            str(self.root / "demo.kicad_pcb"), str(output),
+            "--no-3d", "--manifest", str(manifest),
+        ]))
+        self.assertTrue(output.is_file())
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+        self.assertEqual("WayriCAD Portable Web Export 0.1.0", payload["exporter"])
 
 
 if __name__ == "__main__":

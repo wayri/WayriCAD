@@ -48,6 +48,7 @@ wayricad-trace-refiner = "trace_refiner_plugin.cli:main"
 wayricad-review = "review_comments_plugin.cli:main"
 wayricad-pocket-export = "wayricad_runtime.pocket_kivi_cli:main"
 wayricad-results = "wayricad_runtime.project_results_cli:main"
+wayricad-portable-export = "portable_web_export_plugin.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

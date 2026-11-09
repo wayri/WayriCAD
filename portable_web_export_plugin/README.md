@@ -27,6 +27,17 @@ Every document embeds standard HTML metadata plus a machine-readable JSON tracea
 - Browser storage is keyed by project identity and exact exported revision. A backup from another project is rejected. A different revision requires the explicit migration checkbox and only matching stable identities are imported.
 - Local browser progress does not rewrite the downloaded HTML. Use **Export progress JSON** to move or recover state.
 
+## Command line
+
+The headless exporter uses saved project files and the same pinned viewer, selection rules and traceability manifest as the native preview workflow:
+
+```text
+wayricad-portable-export Example.kicad_pcb Example-review.html
+wayricad-portable-export Example.kicad_pcb Example-review.html --sheet "Control*.kicad_sch" --no-3d --manifest Example-review.json
+```
+
+Use `--sheet` and `--model` repeatedly for case-insensitive glob selection. Output and optional manifest paths must not overwrite KiCad sources. The CLI cannot provide the embedded review gate, so open and inspect the generated HTML before distribution.
+
 ## 3D support
 
 WRL, GLB and GLTF models that resolve from the saved board are selectable. The exporter rewrites only the bundled copy of the PCB so external model paths point at safe in-document paths. STEP and IGES decoding is not provided by the current portable WebView build; these models are reported before export and remain labelled proxies.
