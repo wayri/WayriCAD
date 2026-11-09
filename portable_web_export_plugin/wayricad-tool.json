@@ -1,0 +1,6 @@
+{
+  "tool": "portable_web_export_plugin",
+  "name": "WayriCAD Portable Web Export",
+  "module": "portable_web_export_plugin",
+  "class": "PortableWebExportPlugin"
+}

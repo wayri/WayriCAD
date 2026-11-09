@@ -4,11 +4,11 @@
 [![Release downloads — GitHub and PCM](https://img.shields.io/github/downloads/wayri/WayriCAD/total?label=downloads%20%28GitHub%20%2B%20PCM%29&color=168b78)](https://github.com/wayri/WayriCAD/releases)
 [![CI](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/wayri/WayriCAD/actions/workflows/ci.yml)
 [![KiCad target](https://img.shields.io/badge/KiCad-10-315b7d)](docs/COMPATIBILITY.md)
-[![Tools](https://img.shields.io/badge/Tools-26-168b78)](#all-26-plugins)
+[![Tools](https://img.shields.io/badge/Tools-27-168b78)](#all-27-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
 **KiCad engineering tools for layout, circuit analysis and manufacturing.** Choose
-from 26 independently installable plugins. Processing runs locally after setup.
+from 27 independently installable development packages. Processing runs locally after setup.
 KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 
 [Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
@@ -127,7 +127,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Download or update | [Release 4.5.0](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) · [Release notes](docs/RELEASE_NOTES_4.5.0.md) |
 | Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
-| Choose a tool | [All 26 plugins](#all-26-plugins) |
+| Choose a tool | [All 27 plugins](#all-27-plugins) |
 | See the interfaces | [Showcase](#showcase) · [Screenshots by plugin](#plugin-previews) |
 | Find detailed instructions | [Full user guide](docs/USER_GUIDE.md) |
 | Review algorithms and research | [Methods, sources and verification by tool](docs/METHODS_AND_RESEARCH.md) |
@@ -455,10 +455,12 @@ currencies stay explicit.
 
 <a id="all-21-plugins"></a>
 <a id="all-24-plugins"></a>
+<a id="all-27-plugins"></a>
 
-## All 26 plugins
+## All 27 plugins
 
-Release **4.5.0** includes 26 independently installable plugins. Quick EMerge
+Current `develop` includes 27 independently installable plugins. Release **4.5.0**
+contains the previous 26-package inventory. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models. Download badges count
@@ -479,6 +481,7 @@ they do not include earlier releases or represent unique installations.
 | <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Combine projects or circuit blocks and review linked updates. | [![4.5.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.5.0/WayriCAD-project-fusion-0.9.25-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) |
 | <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md) | Compare, edit, merge and recover assembly variants. | [![4.5.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.5.0/WayriCAD-variant-manager-0.6.18-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) |
 | <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. | [![4.5.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.5.0/WayriCAD-embed-3d-4.5.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) |
+| <img src="portable_web_export_plugin/icon.png" width="24" height="24" alt="Portable Web Export icon"> [Portable Web Export](portable_web_export_plugin/README.md) | Preview and export selected saved project content as one traceable, self-contained offline HTML review. | Development package; planned for the next release. |
 | <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. | [![4.5.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.5.0/WayriCAD-fanout-generator-4.5.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) |
 | <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. | [![4.5.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.5.0/WayriCAD-via-stitching-4.5.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) |
 | <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Review routing jog cleanup with metrics, focused proposals and exclusions; native connectivity and DRC gate Apply. | [![4.5.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.5.0/WayriCAD-trace-refiner-0.3.15-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.5.0) |

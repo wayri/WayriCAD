@@ -153,6 +153,16 @@ _add('embed-3d.scan', 'embed-3d', 'Scan footprint model references',
      summary='Scan one footprint file for embedded or unresolved model references; never embeds or changes it.')
 _add('extract-pins.board', 'extract-pins', 'Extract PCB pins',
      ('extract pins', 'list board pins', 'pin inventory'), ('board',), dict(board=BOARD))
+_add('portable-web-export.build', 'portable-web-export', 'Export portable project webpage',
+     ('portable web export', 'offline project review', 'export interactive html'),
+     ('board',),
+     dict(board=BOARD,
+          no_schematic=field('Exclude schematic', 'boolean'),
+          no_pcb=field('Exclude PCB', 'boolean'),
+          no_bom=field('Exclude BOM', 'boolean'),
+          no_3d=field('Exclude 3D models', 'boolean')),
+     effect='export',
+     summary='Build one self-contained HTML review and traceability manifest from saved project sources in the private run directory.')
 _add('project-fusion.detect', 'project-fusion', 'Detect project import scope',
      ('fusion', 'detect project scope', 'inspect import'), ('project',), dict(project=PROJECT))
 _add('variant-manager.list', 'variant-manager', 'List saved variants',
@@ -354,6 +364,12 @@ def compile_action(action_id, params, context, output_dir):
     elif action_id == 'embed-3d.inspect': args.extend(['inspect-board', values['board'], '--json'])
     elif action_id == 'embed-3d.scan': args.extend(['scan', values['footprint'], '--json'])
     elif action_id == 'extract-pins.board': args.extend(['board-extract', values['board'], '--include-power']); output()
+    elif action_id == 'portable-web-export.build':
+        result['outputs'].extend(['project-review.html', 'manifest.json'])
+        args.extend([values['board'], str(root / 'project-review.html'),
+                     '--manifest', str(root / 'manifest.json')])
+        for key in ('no_schematic', 'no_pcb', 'no_bom', 'no_3d'):
+            if values.get(key): args.append('--' + key.replace('_', '-'))
     elif action_id == 'project-fusion.detect': args.extend(['detect', values['project']]); output()
     elif action_id == 'variant-manager.list': args.extend(['list', values['project']])
     elif action_id.startswith('bom-studio.'):

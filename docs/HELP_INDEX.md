@@ -21,6 +21,7 @@ Each independently installed package includes `help.html` and its local illustra
 | Mechanical Check | [Open local help](../mechanical_check_plugin/help.html) | [Read guide](../mechanical_check_plugin/README.md) |
 | PCB / Foil Heater Designer | [Open local help](../heater_designer_plugin/help.html) | [Read guide](../heater_designer_plugin/ReadMe.md) |
 | Planar Magnetics & Actuator Workbench | [Open local help](../planar_magnetics_plugin/help.html) | [Read guide](../planar_magnetics_plugin/ReadMe.md) |
+| Portable Web Export | [Open local help](../portable_web_export_plugin/help.html) | [Read guide](../portable_web_export_plugin/README.md) |
 | Quick EMerge (beta) | [Open local help](../quick_emerge_plugin/help.html) | [Read guide](../quick_emerge_plugin/README.md) |
 | Quick PI | [Open local help](../quick_pi_plugin/help.html) | [Read guide](../quick_pi_plugin/README.md) |
 | Quick SI | [Open local help](../signal_integrity_advisor_plugin/help.html) | [Read guide](../signal_integrity_advisor_plugin/ReadMe.md) |
