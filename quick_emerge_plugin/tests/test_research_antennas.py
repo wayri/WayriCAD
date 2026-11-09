@@ -247,6 +247,7 @@ class ResearchAntennaTests(unittest.TestCase):
         self.assertEqual(comparison["checks"][0]["status"], "fail")
         self.assertEqual(comparison["checks"][1]["status"], "insufficient")
 
+    @unittest.skipUnless(importlib.util.find_spec("vtk"), "VTK runtime required")
     def test_native_preview_uses_research_geometry_not_generic_patch(self):
         from quick_emerge_plugin.scene_data import preview_geometry, research_scene
         config = example_config("kabir-2023-cubesat-sx-shared-aperture")
