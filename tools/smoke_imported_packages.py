@@ -62,7 +62,7 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from argparse import Namespace
 from wayricad_runtime.tool_cli import catalogue
-assert len(catalogue()['tools'])==26
+assert len(catalogue()['tools'])==27
 from wayricad_runtime.control_cli import main as control_main
 params=Path(sys.argv[1])/'tool-params.json'
 params.write_text('{"pattern":"R*","replacement":"X*","values":["R1"]}',encoding='utf-8')
