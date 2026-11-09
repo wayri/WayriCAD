@@ -226,7 +226,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | Dense-board Fanout | Native padstack/track/arc checks, real keepout polygons, faster connector exits and retained short-stub continuation. [Marble results](docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md). |
 | Simpler Constraint Studio | Ordinary rules and netclasses stay in KiCad; Studio retains a read-only overview, protocol presets, matrices, reusable sets and reviewed export. [Guide](protocol_constraint_composer_plugin/ReadMe.md). |
 | Fanout corrections | Accept nullable saved netclass assignments and reject duplicate Fixed-mode launches on connected pads. [Real-board trial results and remaining limits](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
-| Updated guides and showcase | Refreshed navigation for all 24 plugins, retained earlier previews and added current native screenshots. |
+| Updated guides and showcase | Refreshed navigation for the current 27-plugin development catalogue, retained earlier previews and added current native screenshots. |
 | Guard via stitching | Fence selected signal nets/traces on a distinct guard net; review pitch, offset, clearances and rejections. [Guide](via_stitching_plugin/ReadMe.md). |
 | Guided, cancellable Fanout | Actual component thumbnails, Before/After and small-window actions. [Guide](fanout_generator_plugin/ReadMe.md). |
 | Shared responsiveness | Faster dropdowns and exact picking; Quick PI geometry-ready time 33.09 s to 20.26 s. [Measurements and limits](docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md). |
@@ -246,7 +246,7 @@ Refresh the WayriCAD repository in Plugin and Content Manager, install updates, 
 | PI Joule heating checkbox | Enable temperature feedback, then supply reviewed material and cooling inputs. Plain DC already reports copper losses. |
 | Quick SI local crosstalk | Configure directed aggressor/victim pairs and review supported straight-section coupling, modeled coverage and omitted geometry. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
 | PI / SI / Therm reports | Read status, coverage and provenance; search/sort tables, navigate sections and print. Interactive plots and probes remain available. |
-| CLI access across all 24 tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
+| CLI access across all 27 development tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
 | Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
 
 PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.38.md).
@@ -512,7 +512,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 |---|---|
 | Run analyses | [Quick PI](#quick-pi) · [QuickTherm](#quicktherm) · [Quick SI](#quick-si) · [Quick EMerge (beta)](#quick-emerge-beta) · [Trace RLC](#trace-rlc--impedance) |
 | Improve layout | [Fanout](#fanout-generator) · [Guard vias](#via-stitching) · [Trace Refiner](#trace-refiner) · [Silkscreen](#silkscreen-label-placer) |
-| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-26-plugins) |
+| Coordinate tools | [Assistant](#wayricad-assistant) · [All plugin guides](#all-27-plugins) |
 
 <a id="quick-emerge-beta"></a>
 

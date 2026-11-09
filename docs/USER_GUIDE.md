@@ -2,7 +2,7 @@
 
 [Install](INSTALLATION.md) · [Choose a tool](#tool-directory) · [Routing](#routing-review) · [Electrical analysis](#electrical-analysis) · [BOM and libraries](#bom-and-project-libraries) · [Troubleshooting](TROUBLESHOOTING.md) · [CLI](CLI_USER_GUIDE.md)
 
-This guide covers the current 26-plugin catalogue. Released packages and new candidate installers are identified in their individual guides. Quick EMerge is an exploratory beta; Review and Assistant are testing packages. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
+This guide covers the current 27-plugin development catalogue. Released packages and new candidate installers are identified in their individual guides. Quick EMerge is an exploratory beta; Review and Assistant are testing packages. Screenshots are captures of the applications using example or Marble projects; their values are examples, not predictions for your board. Individual tool guides explain additional controls.
 
 ## Install and first launch
 
