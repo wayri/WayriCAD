@@ -31,6 +31,7 @@ ACTION_PLUGIN_MODULES = (
     ("harness_workbench_plugin", "harness_workbench_plugin.py"),
     ("heater_designer_plugin", "heater_designer_plugin.py"),
     ("manufacturing_readiness_plugin", "manufacturing_readiness_plugin.py"),
+    ("portable_web_export_plugin", "portable_web_export_plugin.py"),
     ("planar_magnetics_plugin", "planar_magnetics_plugin.py"),
     ("protocol_constraint_composer_plugin", "protocol_constraint_composer_plugin.py"),
     ("signal_integrity_advisor_plugin", "signal_integrity_advisor_plugin.py"),
@@ -45,7 +46,7 @@ class SuiteUxTests(unittest.TestCase):
             path for path in ROOT.iterdir()
             if path.is_dir() and (path / "metadata.json").is_file()
         )
-        self.assertEqual(26, len(packages))
+        self.assertEqual(27, len(packages))
         icon_hashes = {}
         for package in packages:
             with self.subTest(package=package.name):

@@ -6,3 +6,7 @@ pcm/*.json text eol=lf
 
 # Saved simulation fixtures and receipts are bound to their exact file bytes.
 docs/examples/pocket-kivi/* -text whitespace=cr-at-eol
+
+# The pinned WebView release is verified by byte hash; never rewrite line endings.
+portable_web_export_plugin/vendor/kicad-webview/* -text
+portable_web_export_plugin/vendor/kicad-webview/licenses/* -text

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://go.kicad.org/pcm/schemas/v2",
+  "name": "WayriCAD Portable Web Export",
+  "description": "Export a KiCad project as one offline interactive HTML review and assembly page.",
+  "description_full": "Build one self-contained HTML document from selected schematic sheets, PCB layout, BoM data and supported 3D models. The export uses the maintained KiCad WebView renderer, works directly from disk without a server or CDN, cross-selects saved component identities, and keeps procurement and assembly progress in revision-scoped browser storage with JSON backup and recovery. A native preflight window lists missing or unsupported assets and estimates the final file size before writing.",
+  "identifier": "com.github.wayri.wayricad.portable-web-export",
+  "type": "plugin",
+  "author": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "maintainer": {
+    "name": "Wayri (Yawar)",
+    "contact": {
+      "github": "https://github.com/wayri"
+    }
+  },
+  "license": "GPL-3.0-only",
+  "resources": {
+    "homepage": "https://github.com/wayri/WayriCAD",
+    "icon": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/portable_web_export_plugin/icon.png"
+  },
+  "versions": [
+    {
+      "version": "0.1.0",
+      "status": "testing",
+      "kicad_version": "10.0",
+      "runtime": "ipc"
+    }
+  ]
+}

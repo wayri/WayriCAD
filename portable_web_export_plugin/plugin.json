@@ -1,0 +1,30 @@
+{
+  "$schema": "https://go.kicad.org/api/schemas/v1",
+  "identifier": "com.github.wayri.wayricad.portable-web-export",
+  "name": "WayriCAD Portable Web Export",
+  "description": "Export the active project as one offline interactive HTML review page.",
+  "runtime": {
+    "type": "python",
+    "min_version": "3.10.0"
+  },
+  "actions": [
+    {
+      "identifier": "open",
+      "name": "WayriCAD Portable Web Export",
+      "description": "Select project views and create a self-contained offline HTML file.",
+      "show-button": true,
+      "scopes": ["pcb"],
+      "entrypoint": "ipc_entrypoint.py",
+      "icons-light": [
+        "resources/icon-24.png",
+        "resources/icon-48.png",
+        "resources/icon-96.png"
+      ],
+      "icons-dark": [
+        "resources/icon-dark-24.png",
+        "resources/icon-dark-48.png",
+        "resources/icon-dark-96.png"
+      ]
+    }
+  ]
+}

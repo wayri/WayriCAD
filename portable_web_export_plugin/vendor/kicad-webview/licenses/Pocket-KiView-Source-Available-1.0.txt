@@ -1,0 +1,92 @@
+Pocket KiView Source-Available License 1.0
+Effective date: 23 October 2026
+Copyright (c) 2026 Yawar B (wayri). All rights reserved except as granted below.
+Licensing contact: support.kivi@sigharmonic.com
+
+1. Scope and ownership
+This license applies to the original Pocket KiView / KiCad Visual Review code,
+documentation and included owner-authored SPIKE subset supplied with this license
+(the Software), to the extent Yawar B (wayri) holds the necessary rights. It does
+not license the rest of the SPIKE repository. Separately licensed third-party
+material and previously granted rights are governed by their own terms (section
+6). Copyright and other intellectual property remain with their rights holders.
+This is a source-available license, not an open-source license.
+
+2. Permitted use and modification
+You may obtain, install, run and make backup copies of lawfully supplied copies
+of the Software, without a license fee, for personal, educational, research,
+community and internal professional or business use. If source is supplied to
+you lawfully, you may inspect and modify it for those purposes. This grant does
+not itself require the licensor to disclose private repositories, credentials,
+third-party proprietary code or source not supplied with your copy.
+
+You may share the Software and your modifications without compensation if you
+include this complete license, preserve copyright and third-party notices,
+clearly identify your changes, and give recipients no fewer rights under this
+license. A recipient receives these permissions directly from the licensor;
+you cannot grant a broader commercial license on the licensor's behalf.
+
+3. Commercial distribution requires written permission
+Unless separately authorized in writing by Yawar B (wayri), you must not:
+(a) sell, rent, lease or otherwise distribute or sublicense the Software or a
+modified or derivative version in exchange for money or other consideration;
+(b) include it as a supplied component of a paid software product, subscription,
+appliance or other paid bundle, even if its price is not separately itemized;
+(c) provide paid hosted, managed, API or software-as-a-service access to its
+functionality, or monetize such access through advertising or sponsorship; or
+(d) give a third party rights to perform any of the activities above.
+A written commercial agreement must identify the authorized scope. This license
+alone is not that agreement. Contact the licensing email above for permission.
+
+4. Professional work, outputs and independent services
+Internal deployment to your organization's staff is permitted under section 2;
+ordinary salaries do not make that deployment a paid distribution. You may use
+the Software in paid engineering or other professional work. You retain your
+rights in your own designs, data, comments, reports and other outputs; you may
+sell or license those outputs without permission under this license, provided
+they do not contain or distribute the Software itself. Independent consulting,
+training or support fees are permitted where they are not payment for a copy,
+license, hosted access or a paid bundle of the Software. You remain responsible
+for third-party rights in your input files and outputs.
+
+5. Notices and branding
+Preserve legal notices and do not misrepresent authorship, your changes, or
+endorsement. No trademark license or right to use the project's branding as
+your own is granted. Accurate descriptive references and required attribution
+are permitted. Do not represent this license as OSI-approved or open source.
+
+6. Third-party rights and mandatory law
+Third-party components retain their own licenses, including any rights to use,
+modify, reverse engineer, redistribute or sell those components. This license
+does not narrow those rights or any valid earlier license. Component-specific
+terms control those components where they differ. See THIRD-PARTY-NOTICES.md
+and the notices supplied with individual components. Nothing here restricts
+rights that applicable law does not permit to be restricted.
+
+7. No warranty; engineering verification
+To the extent permitted by law, the Software is supplied AS IS, without express
+or implied warranties, including merchantability, fitness for a particular
+purpose and non-infringement. Independently check engineering results, exports
+and resolved designs. The Software does not certify electrical correctness,
+safety or manufacturing readiness. Keep backups.
+
+8. Liability and termination
+To the extent permitted by law, the licensor and contributors are not liable
+for indirect, incidental, special or consequential damages, lost profits, lost
+data or business interruption arising from the Software. This does not exclude
+liability or rights that cannot lawfully be excluded.
+
+Your permissions terminate for a material breach not cured within 30 days after
+written notice from the licensor. On termination, stop the unpermitted use and
+distribution and delete affected copies, except copies required by law and any
+third-party material you may retain under its own license. Compliant recipients'
+independent rights are not terminated by your breach. Existing compliant grants
+are not withdrawn merely by publishing different terms for future versions.
+
+9. Other terms and contributions
+Privacy, account use and user-content rules are addressed separately. They do
+not grant commercial distribution permission. Contributions do not automatically
+transfer copyright or authorize relicensing; a separate contributor agreement
+is needed for that purpose. Any broader grant must be in a separate written
+agreement with the relevant rights holder. No price, exclusive commercial right
+or obligation to provide future updates or support is promised by this license.

@@ -81,6 +81,7 @@ copper_balancer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"
 quick_pi_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "studies/*.json"]
 quick_therm_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "examples/*.png", "examples/*.json", "examples/*.html", "examples/*.kicad_pcb", "examples/*.py", "studies/*.json"]
 embed_3d_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+portable_web_export_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "resources/*.png", "vendor/kicad-webview/*", "vendor/kicad-webview/licenses/*"]
 protocol_constraint_composer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "docs/*.md", "examples/*", "examples/profiles/*.json", "examples/workflow_demo/*", "web/*.html", "web/*.css", "web/*.js"]
 "protocol_constraint_composer_plugin.constraint_studio" = ["*.html", "*.png", "LICENSE*", "help/*.json", "help/images/*"]
 
