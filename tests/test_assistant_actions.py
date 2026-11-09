@@ -167,6 +167,7 @@ class AssistantActionsTests(unittest.TestCase):
                  'trace-refiner.preview': 'trace_refiner_plugin.cli',
                  'component-arranger.preview': 'component_arranger_plugin.cli',
                  'silkscreen-label-placer.preview': 'silkscreen_label_plugin.cli',
+                 'portable-web-export.build': 'portable_web_export_plugin.cli',
                  'project-fusion.detect': 'project_fusion_plugin.cli',
                  'heater-designer.analyze': 'wayricad_runtime.control_cli'}
         for identifier, module_name in cases.items():
