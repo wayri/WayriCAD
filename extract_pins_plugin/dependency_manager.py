@@ -49,6 +49,7 @@ SUITE_PACKAGES: tuple[tuple[str, str], ...] = (
     ('manufacturing_readiness_plugin', 'Manufacturing Readiness Manager'),
     ('mechanical_check_plugin', 'Mechanical Check'),
     ('planar_magnetics_plugin', 'Planar Magnetics & Actuator Workbench'),
+    ('portable_web_export_plugin', 'Portable Web Export'),
     ('protocol_constraint_composer_plugin', 'Constraint Studio'),
     ('quick_emerge_plugin', 'Quick EMerge (beta)'),
     ('quick_pi_plugin', 'Quick PI'),
