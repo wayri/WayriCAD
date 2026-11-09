@@ -52,6 +52,10 @@ def colored_grid(x, y, z, values, options, radiation=False):
 def preview_geometry(config):
     """Describe advanced template geometry without importing the solver or STEP."""
     c=validate_config(config); a=c['advanced']; study=a['study']
+    if study=='research_antenna':
+        from .research_antennas import get_template
+        geometry=get_template(a['research_template'])['geometry']
+        return {'unit':'mm', **geometry}
     if study=='waveguide':
         w,h,l=a['waveguide_width_mm'],a['waveguide_height_mm'],a['waveguide_length_mm']
         return {'kind':'waveguide','unit':'mm','bounds':[-w/2,-h/2,0,w/2,h/2,l]}
@@ -73,6 +77,55 @@ def preview_geometry(config):
         sx,sy,th=c['substrate_x_mm'],c['substrate_y_mm'],c['thickness_mm']
         return {'kind':'thermal_substrate','unit':'mm','bounds':[-sx/2,-sy/2,-th,sx/2,sy/2,0]}
     return None
+
+
+def research_scene(descriptor):
+    """Return preview-only source geometry as substrate/copper polygons and ports."""
+    kind=descriptor['kind']; parts=[]; ports=[]
+    if kind=='rectangular_array_factor':
+        nx,ny=descriptor['count_x'],descriptor['count_y']; px,py=descriptor['pitch_x_mm'],descriptor['pitch_y_mm']
+        sx,sy=descriptor['aperture_mm']; parts.append(('show_context',rectangle(-sx/2,-sy/2,sx,sy),0,(.13,.53,.42),.18))
+        marker=min(px,py)*.35
+        for iy in range(ny):
+            for ix in range(nx):
+                x=(ix-(nx-1)/2)*px; y=(iy-(ny-1)/2)*py
+                parts.append(('copper',rectangle(x-marker/2,y-marker/2,marker,marker),0,(.85,.66,.32),1))
+        return parts,ports
+    sx,sy=descriptor['board_mm']; h=descriptor.get('substrate_height_mm',descriptor.get('lower_layer_height_mm',1.6))
+    parts.append(('show_context',rectangle(-sx/2,-sy/2,sx,sy),-h/2,(.13,.53,.42),.3))
+    if kind=='dual_feed_square_patch':
+        side=descriptor['patch_side_mm']; parts.append(('copper',rectangle(-side/2,-side/2,side,side),0,(.85,.66,.32),1))
+        ports=[((-side/2,0,-h),(-side/2,0,0)),((0,-side/2,-h),(0,-side/2,0))]
+    elif kind=='yang_wlan_monopole':
+        bottom=-sy/2; junction=bottom+descriptor['feed_length_mm']; l2,l3,l4,l5,l6=[descriptor[k] for k in ('l2_mm','l3_mm','l4_mm','l5_mm','l6_mm')]
+        shapes=[rectangle(-descriptor['feed_width_mm']/2,bottom,descriptor['feed_width_mm'],descriptor['feed_length_mm']+1),
+                rectangle(-descriptor['l1_mm']/2,junction,descriptor['l1_mm'],1),
+                rectangle(-descriptor['l1_mm']/2,junction,l3,l2),rectangle(descriptor['l1_mm']/2-l3,junction,l3,l2),
+                rectangle(-l3/2,junction,l3,l4),rectangle(-l5/2,junction+l4-l3,l5,l3),
+                rectangle(-l5/2,junction+l4-l6,l3,l6),rectangle(l5/2-l3,junction+l4-l6,l3,l6)]
+        parts.extend(('copper',shape,0,(.85,.66,.32),1) for shape in shapes)
+        parts.append(('copper',rectangle(-sx/2,bottom,sx,descriptor['partial_ground_length_mm']),-h,(.72,.54,.27),1))
+        ports=[((0,bottom,-h),(0,bottom,0))]
+    elif kind=='liu_cubesat_yagi':
+        x0=descriptor['balun_driven_x_mm']; w=descriptor['element_width_mm']; spacing=descriptor['element_spacing_mm']; half_gap=descriptor['balun_outer_half_gap_mm']
+        lengths=[descriptor['reflector_length_mm'],descriptor['driven_length_mm'],descriptor['director_1_length_mm'],descriptor['director_2_length_mm']]
+        for index,length in enumerate(lengths): parts.append(('copper',rectangle(x0+index*spacing-w/2,-length/2,w,length),0,(.85,.66,.32),1))
+        parts.append(('copper',rectangle(-sx/2,-descriptor['balanced_feed_width_mm']/2,x0+sx/2+spacing,descriptor['balanced_feed_width_mm']),0,(.85,.66,.32),1))
+        parts.extend([('copper',{'outer_mm':[(-sx/2+1,half_gap),(x0-w/2,half_gap),(-sx/2+1,sy/2-1)]},0,(.72,.54,.27),1),
+                      ('copper',{'outer_mm':[(-sx/2+1,-half_gap),(x0-w/2,-half_gap),(-sx/2+1,-sy/2+1)]},0,(.72,.54,.27),1)])
+        ports=[((-sx/2+3,-half_gap,0),(-sx/2+3,-half_gap+1,0))]
+    elif kind=='kabir_sx_shared_aperture':
+        upper=descriptor['upper_layer_height_mm']; side=descriptor['s_ring_length_mm']; slot=descriptor['s_slot_length_mm']; gap=descriptor['slot_spacing_mm']; margin=(side-2*slot-gap)/2; low=-side/2+margin
+        outer=[(-side/2,-side/2),(side/2,-side/2),(side/2,side/2-descriptor['s_corner_perturbation_mm']),(side/2-descriptor['s_corner_perturbation_mm'],side/2),(-side/2,side/2)]
+        holes=[rectangle(x,y,slot,slot)['outer_mm'] for x in (low,low+slot+gap) for y in (low,low+slot+gap)]
+        parts.append(('copper',{'outer_mm':outer,'holes_mm':holes},upper,(.85,.66,.32),1))
+        center=low+slot/2; xp,yp=center,center; xside=descriptor['x_patch_length_mm']; cut=descriptor['x_corner_perturbation_mm']; half=xside/2
+        parts.append(('copper',{'outer_mm':[(xp-half,yp-half),(xp+half,yp-half),(xp+half,yp+half-cut),(xp+half-cut,yp+half),(xp-half,yp+half)]},0,(.95,.55,.22),1))
+        parts.append(('copper',rectangle(-sx/2,-sy/2,sx,sy),-h,(.72,.54,.27),.65))
+        parts.append(('show_context',rectangle(-sx/2,-sy/2,sx,sy),upper+descriptor['air_gap_mm']+descriptor['prs_height_mm']/2,(.37,.48,.71),.18))
+        paper_s=descriptor['s_feed_xy_mm']; paper_x=descriptor['x_feed_xy_mm']; sxy=(paper_s[1],-paper_s[0]); xfeed=(paper_x[1],-paper_x[0])
+        ports=[((sxy[0],sxy[1],-h),(sxy[0],sxy[1],upper)),((xfeed[0],xfeed[1],-h),(xfeed[0],xfeed[1],0))]
+    return parts,ports
 
 
 def triangle_mesh(vertices, triangles):

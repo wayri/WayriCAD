@@ -128,19 +128,30 @@ def build_geometry(em, np, c):
 
 
 def solve(config, progress=print, *, qualifying=False, region=None, export_context=None):
+    c = validate_config(config)
+    if (c['advanced']['study'] == 'research_antenna' and
+            c['advanced']['research_template'] == 'verho-2023-aesa-4x4'):
+        import numpy as np
+        from .research_studies import solve_analytical_research
+        progress('Evaluating the published 4x4 array scan law (active network excluded).', flush=True)
+        return solve_analytical_research(np, c, {'backend': 'Quick EMerge analytical array factor',
+                                                 'version': 1, 'adapter_revision': UPSTREAM_REVISION})
     info = runtime_info(qualifying=qualifying)
     import numpy as np
     import emerge as em
-    c = validate_config(config)
     if c['advanced']['export_dxf'] or c['advanced']['export_optycal']:
         if not export_context:
             raise ValueError('Live exports require a reviewed run directory and originating source; use the study session')
         from .advanced_exports import require_export_dependencies
         require_export_dependencies(c)
-    if c['advanced']['study'] not in ('driven', 'array'):
+    if c['advanced']['study'] not in ('driven', 'array', 'research_antenna'):
         from .advanced_studies import solve_advanced
         return solve_advanced(em, np, c, info, progress, region, qualifying)
-    if c['mode'] == 'pcb_region':
+    if c['advanced']['study'] == 'research_antenna':
+        from .research_geometry import build_research_geometry
+        progress('Building published research antenna geometry.', flush=True)
+        model, air, ports, widths, thickness, bbox = build_research_geometry(em, np, c)
+    elif c['mode'] == 'pcb_region':
         from .region_backend import build_region
         progress('Building actual saved copper clipped to the reviewed rule-area enclosure.', flush=True)
         model, air, ports, widths, thickness, bbox = build_region(em, np, c, region)
@@ -151,9 +162,11 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
     progress('Generating finite-element mesh.', flush=True)
     model.generate_mesh()
     check_mesh_budget(model, c)
-    for i, (port, width) in enumerate(zip(ports, widths), 1):
-        model.mw.bc.LumpedPort(port, i, width=width, height=thickness,
-                               direction=em.ZAX, Z0=c['z0_ohm'])
+    directions = getattr(model, '_quick_port_directions', [em.ZAX] * len(ports))
+    heights = getattr(model, '_quick_port_heights', [thickness] * len(ports))
+    for i, (port, width, height, direction) in enumerate(zip(ports, widths, heights, directions), 1):
+        model.mw.bc.LumpedPort(port, i, width=width, height=height,
+                               direction=direction, Z0=c['z0_ohm'])
     if getattr(model, '_quick_shunt', None) is not None:
         from .advanced import element_impedance
         a = c['advanced']
@@ -179,6 +192,9 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
             s[f'S{port}{excitation}'] = [[float(v.real), float(v.imag)] for v in values]
     frequency = float(frequencies[len(frequencies)//2])
     field = data.field.find(freq=frequency)
+    research_weights = getattr(model, '_quick_excitation_weights', None)
+    if research_weights is not None:
+        field.set_excitations(*research_weights)
     if c['advanced']['study'] == 'array':
         a = c['advanced']
         weights = [np.sqrt(a['array_power_w']/len(ports))*np.exp(1j*np.deg2rad(ix*a['array_phase_x_deg']+iy*a['array_phase_y_deg'])) for iy in range(a['array_count_y']) for ix in range(a['array_count_x'])]
@@ -190,6 +206,14 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
               'frequencies_hz': frequencies.tolist(), 's_parameters': s,
               'field': fields, 'assumptions': physics_assumptions(c)}
     result['port_count'] = len(ports)
+    if c['advanced']['study'] == 'research_antenna':
+        from .research_antennas import get_template, template_digest
+        result['model_scope'] = 'published-research-antenna-template'
+        result['research'] = get_template(c['advanced']['research_template'])
+        result['research_sha256'] = template_digest(result['research'])
+        result['scene_geometry'] = model._quick_scene_geometry
+        result['field']['excitation'] = model._quick_excitation_description
+        result['assumptions'].extend(model._quick_research_assumptions)
     if c['advanced']['study'] == 'array':
         result['model_scope'] = 'finite-patch-array-template'
         result['array'] = dict(port_centers_mm=model._quick_array_centers, incident_power_w=c['advanced']['array_power_w'], excitation_weights=[[float(w.real),float(w.imag)] for w in weights])
@@ -222,6 +246,20 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
         result['radiation'] = {'frequency_hz': frequency, 'theta_rad': theta.tolist(),
                                'phi_rad': phi.tolist(), 'norm_e': norm.tolist(),
                                'quantity': 'Far-field |E|; relative pattern, not gain or efficiency'}
+        if c['advanced']['study'] == 'research_antenna':
+            from .research_antennas import axial_ratio_db, polarization_handedness
+            phi_zero = int(np.argmin(np.abs(phi)))
+            ex = complex(np.asarray(ff.Ex)[0, phi_zero])
+            ey = complex(np.asarray(ff.Ey)[0, phi_zero])
+            axial_ratio = axial_ratio_db(ex, ey)
+            result['radiation']['boresight_polarization'] = {
+                'direction': '+z (theta=0); Cartesian Ex/Ey basis',
+                'ex_ri': [float(ex.real), float(ex.imag)],
+                'ey_ri': [float(ey.real), float(ey.imag)],
+                'axial_ratio_db': axial_ratio if np.isfinite(axial_ratio) else None,
+                'handedness': polarization_handedness(ex, ey),
+                'convention': 'Signed Stokes S3=-2 Im(Ex*conj(Ey)); verify propagation convention before mapping the sign to RHCP/LHCP.',
+            }
     if c['advanced']['export_dxf'] or c['advanced']['export_optycal']:
         from .advanced_exports import export_live_outputs
         result['exports'] = export_live_outputs(model,data,c,boundary,export_context['run_dir'],export_context['source'],config_digest(c))
@@ -230,6 +268,9 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
         thermal_result = solve_thermal(em, np, c, info, progress, region, em_field=field, port_count=len(ports))
         result['thermal'] = thermal_result['thermal']
         result['assumptions'].extend(thermal_result['assumptions'])
+    if c['advanced']['study'] == 'research_antenna':
+        from .research_validation import compare_with_publication
+        result['publication_comparison'] = compare_with_publication(result)
     return result
 
 

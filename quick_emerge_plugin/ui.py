@@ -83,9 +83,10 @@ class QuickEMergeFrame(wx.Frame):
         from .advanced import ADVANCED_FIELDS
         from .workbench_layout import section
         self.study_ids = next(field['choices'] for field in ADVANCED_FIELDS if field['key']=='study')
-        labels={'driven':'Driven EM','periodic':'Periodic / Floquet','scattering':'Scattering / RCS','thermal':'Thermal','optimization':'Parameter optimization'}
+        labels={'driven':'Driven EM','research_antenna':'Published antenna benchmark','periodic':'Periodic / Floquet','scattering':'Scattering / RCS','thermal':'Thermal','optimization':'Parameter optimization'}
         self.study.Set([labels.get(name,name.replace('_',' ').title()) for name in self.study_ids])
         self.study.SetSelection(0)
+        self.study.Unbind(wx.EVT_CHOICE); self.study.Bind(wx.EVT_CHOICE, self.study_changed)
         for field in ADVANCED_FIELDS:
             key = field['key']
             if key in ('study', 'step_sha256', 'import_sha256'):
@@ -103,7 +104,7 @@ class QuickEMergeFrame(wx.Frame):
                 control.Bind(wx.EVT_CHECKBOX, self.invalidate)
             elif field['kind'] == 'choice':
                 control = wx.Choice(row, choices=field['choices']); control.SetStringSelection(str(field['default']))
-                control.Bind(wx.EVT_CHOICE, self.invalidate)
+                control.Bind(wx.EVT_CHOICE, self.research_template_changed if key == 'research_template' else self.invalidate)
             elif key == 'import_path':
                 from .workbench_layout import SourcePicker
                 control = SourcePicker(row, self.invalidate)
@@ -117,16 +118,43 @@ class QuickEMergeFrame(wx.Frame):
             layout.Add(row, 0, wx.EXPAND | wx.ALL, 5)
             self.advanced_inputs[key] = control; self.advanced_rows[key] = (row, field, group)
 
+    def study_changed(self, event=None):
+        if self.study_ids[max(0, self.study.GetSelection())] == 'research_antenna':
+            self.research_template_changed()
+        else:
+            self.invalidate(event)
+
+    def research_template_changed(self, event=None):
+        from .research_antennas import example_config
+        template = self.advanced_inputs['research_template'].GetStringSelection()
+        config = example_config(template)
+        self.mode.SetSelection(0)
+        self.sweep.SetSelection(0 if config['sweep'] == 'linear' else 1)
+        for key, control in self.inputs.items():
+            control.ChangeValue(str(config[key]))
+        for key, control in self.advanced_inputs.items():
+            value = config['advanced'][key]
+            if isinstance(control, wx.CheckBox): control.SetValue(value)
+            elif isinstance(control, wx.Choice): control.SetStringSelection(str(value))
+            elif hasattr(control, 'SetPath'): control.SetPath(str(value))
+            else: control.ChangeValue(str(value))
+        self.invalidate(event)
+
     def update_model_sections(self):
         if 'convergence' in self.inputs:
             self.inputs['convergence'].Enable(self.sweep.GetSelection() == 1)
         if not hasattr(self, 'model_sections'):
             return
+        study = self.study_ids[max(0, self.study.GetSelection())]
+        research = study == 'research_antenna'
+        if research and self.mode.GetSelection() != 0:
+            self.mode.SetSelection(0)
+        self.mode.Enable(not research)
         mode = self.mode.GetSelection()
-        visible = {'region': mode == 2, 'substrate': mode != 2, 'patch': mode == 0, 'line': mode == 1}
+        visible = {'region': not research and mode == 2, 'substrate': not research and mode != 2,
+                   'patch': not research and mode == 0, 'line': not research and mode == 1}
         for name, panel in self.model_sections.items():
             panel.Show(visible[name])
-        study = self.study_ids[max(0, self.study.GetSelection())]
         groups = {}
         for key, (row, field, group) in self.advanced_rows.items():
             show = not field.get('studies') or study in field['studies']
@@ -141,9 +169,10 @@ class QuickEMergeFrame(wx.Frame):
         if group in ('2D', '3D'):
             self.last_dimension = group
         self.current_group = group
-        if hasattr(self, 'chart_quantity'): self.chart_quantity.Show(group == 'Charts')
+        has_network=bool(self.result and self.result.get('s_parameters'))
+        if hasattr(self, 'chart_quantity'): self.chart_quantity.Show(group == 'Charts' and has_network)
         if hasattr(self,'network_tools_button'):
-            self.network_tools_button.Show(group=='Charts');self.network_export_button.Show(group=='Charts')
+            self.network_tools_button.Show(group=='Charts' and has_network);self.network_export_button.Show(group=='Charts' and has_network)
         for name, control in self.navigation.items():
             active=name == group
             control.SetValue(active)
@@ -156,7 +185,7 @@ class QuickEMergeFrame(wx.Frame):
             return
         mapping = {'3D': ['3D setup', '3D fields', '3D radiation'],
                    '2D': ['PCB enclosure', 'Field probes'],
-                   'Charts': ['S-parameters', 'Smith chart']}
+                   'Charts': ['Array factor'] if self.result and self.result.get('array_factor') else ['S-parameters', 'Smith chart']}
         self.workspace_stack.SetSelection(0)
         names = mapping[group]
         if group in ('2D', '3D'):
@@ -181,7 +210,7 @@ class QuickEMergeFrame(wx.Frame):
         previous = self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())]
         dimension = getattr(self, 'last_dimension', '3D')
         if self.results_button.GetValue() and not result_views(self.result, dimension):
-            if self.result and self.result.get('s_parameters'):
+            if self.result and (self.result.get('s_parameters') or self.result.get('array_factor')):
                 self.navigate('Charts')
                 return
             self.SetStatusText('No solved '+dimension+' field is available for this study; geometry remains visible.')
@@ -430,6 +459,12 @@ class QuickEMergeFrame(wx.Frame):
             for key, value in scattering.items():
                 if isinstance(value, (str, int, float)):
                     rows.append((key.replace('_', ' '), value, ''))
+        array_factor = result.get('array_factor')
+        if array_factor:
+            rows.extend([('Requested scan', array_factor['target_theta_deg'], 'deg'),
+                         ('Predicted sampled peak', array_factor['predicted_peak_theta_deg'], 'deg'),
+                         ('Scan error', array_factor['scan_error_deg'], 'deg'),
+                         ('Array elements', array_factor['element_count'], '')])
         for item in result.get('assumptions', []): rows.append(('Assumption', item, ''))
         for label, value, unit in rows:
             index = self.result_table.InsertItem(self.result_table.GetItemCount(), label)
@@ -707,6 +742,8 @@ class QuickEMergeFrame(wx.Frame):
         renderers = {}
         if result.get('s_parameters'):
             renderers.update({'S-parameters': plots.response, 'Smith chart': lambda figure, data, options: plots.smith(figure, data)})
+        if result.get('array_factor'):
+            renderers['Array factor'] = plots.array_factor
         if self.inspection:
             renderers.update({'Field probes': plots.near_field, '3D fields': plots.near_field3d})
         from .radiation_pattern import radiation_status,available_cuts,sample_row
@@ -1269,7 +1306,7 @@ class QuickEMergeFrame(wx.Frame):
             self.timer.Stop()
             result = self.session.collect()
             self.install_result(result)
-            self.select_view('S-parameters') if result.get('s_parameters') else self.select_view('3D fields')
+            self.select_view('S-parameters') if result.get('s_parameters') else self.select_view('Array factor') if result.get('array_factor') else self.select_view('3D fields')
             self.details.SetSelection(0)
             self.SetStatusText(f'Completed • unqualified mesh • {self.session.run_dir.name}')
         except Exception as exc:

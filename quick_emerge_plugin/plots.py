@@ -88,6 +88,22 @@ def response(figure, result, options=None):
     figure.tight_layout(pad=1.5)
 
 
+def array_factor(figure, result, options=None):
+    """Plot the original ideal-array samples without presenting them as gain."""
+    data=result['array_factor']
+    theta=np.asarray(data['theta_deg'],dtype=float)
+    magnitude=np.asarray(data['normalized_magnitude'],dtype=float)
+    db=20*np.log10(np.maximum(magnitude,1e-6))
+    figure.clear();ax=figure.add_subplot(111)
+    ax.plot(theta,db,color='#087e84',linewidth=2,label='Normalized ideal array factor')
+    ax.axvline(data['target_theta_deg'],color='#d08022',linestyle='--',label='Requested scan')
+    ax.axvline(data['predicted_peak_theta_deg'],color='#334b5b',linestyle=':',label='Sampled peak')
+    ax.set(xlabel='Theta [deg]',ylabel='Normalized magnitude [dB]',ylim=(-60,1),
+           title='Ideal 4x4 scan law at '+f"{result['frequencies_hz'][0]/1e9:g} GHz\n"+
+                 'No element pattern, coupling, active-network error or gain prediction')
+    ax.grid(alpha=.18);ax.legend(frameon=False);figure.tight_layout(pad=1.5)
+
+
 def plan_geometry(figure, raw, options=None):
     """Draw the same template contours as the 3D view in physical X/Y units."""
     from matplotlib.patches import PathPatch

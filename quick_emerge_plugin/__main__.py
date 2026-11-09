@@ -28,7 +28,36 @@ def main(argv=None, *, on_ready=None):
     parser.add_argument('--worker', type=Path)
     parser.add_argument('--check-runtime', action='store_true')
     parser.add_argument('--qualify-runtime', type=Path, metavar='CERTIFICATE')
+    parser.add_argument('--list-research-antennas', nargs='?', const='*', metavar='PATTERN')
+    parser.add_argument('--show-research-antenna', metavar='ID')
+    parser.add_argument('--write-research-setup', nargs=2, metavar=('ID', 'JSON'))
+    parser.add_argument('--array-scan', nargs=2, metavar=('ID', 'THETA_DEG'))
+    parser.add_argument('--array-phi', type=float, default=0.0, metavar='DEG')
     args = parser.parse_args(argv)
+    if args.list_research_antennas is not None:
+        from .research_antennas import list_templates
+        print(json.dumps(list_templates(args.list_research_antennas), indent=2))
+        return 0
+    if args.show_research_antenna:
+        from .research_antennas import get_template
+        print(json.dumps(get_template(args.show_research_antenna), indent=2))
+        return 0
+    if args.write_research_setup:
+        from .backend import atomic_json
+        from .research_antennas import example_config
+        template_id, destination = args.write_research_setup
+        path = Path(destination).expanduser().resolve()
+        if path.suffix.lower() != '.json':
+            parser.error('--write-research-setup destination must use a .json extension')
+        atomic_json(path, {'schema': 1, 'kind': 'wayricad-setup', 'plugin': 'quick-emerge',
+                           'config': example_config(template_id)})
+        print(path)
+        return 0
+    if args.array_scan:
+        from .research_antennas import rectangular_array_phases
+        template_id, theta = args.array_scan
+        print(json.dumps(rectangular_array_phases(template_id, float(theta), args.array_phi), indent=2))
+        return 0
     if args.qualify_runtime:
         from .qualification import qualify
         qualify(args.qualify_runtime.resolve())

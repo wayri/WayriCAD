@@ -83,6 +83,34 @@ evidence, not an absence of log warnings.
 
 ## Published antenna reproduction
 
+### Research antenna registry and satellite S/X benchmark (2026-11-09)
+
+Five source-backed templates now cover polarization, WLAN, printed Yagi,
+active-array scan law and CubeSat S/X shared-aperture workflows. The registry,
+CLI setup generation and AESA phase law have deterministic unit coverage. Four
+full-wave geometries were also constructed using the public EMerge 3.0.0b9 API.
+The final focused research suite passed **20 tests** and the complete Quick
+EMerge suite passed **317 tests with 96 environment-specific skips**.
+
+Coarse completed solves exercised the WLAN path (3,371 tetrahedra), corrected
+Kabir S-band path (10,916 tetrahedra) and corrected Kabir X-band path (12,105 tetrahedra). The
+coarse S/X results did not reproduce the paper's narrow axial-ratio bands and
+are explicitly recorded as failed screening comparisons. The paper's x-down,
+y-right coordinates are preserved in metadata and transformed explicitly for
+the solver; earlier pre-audit runs are discarded. Exact inputs, sampled values and remaining convergence work
+are recorded in the [research validation record](../examples/quick_emerge/research_antennas/VALIDATION.md).
+
+The implementation does not claim paper agreement, accepted-power-normalized
+gain, efficiency, flight qualification, or validation of omitted active feed
+networks and satellite mechanics.
+
+Repository package validation remains blocked by the clean worktree's absent
+historical `releases/WayriCAD-bom-studio-4.6.0-PCM.zip` asset. That feed-level
+failure predates and is outside this source-only Quick EMerge change; no binary
+was reconstructed or silently substituted.
+
+### Yeo and Lee 2019 inset patch
+
 The reusable project is
 [`examples/quick_emerge/yeo_lee_2019`](../examples/quick_emerge/yeo_lee_2019/README.md).
 It recreates the conventional unloaded inset-fed antenna in Figure 1(a) of

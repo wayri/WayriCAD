@@ -146,7 +146,13 @@ class SceneViewport(wx.Panel):
     def _advanced_geometry(self, descriptor, region=None, config=None):
         if descriptor.get('unit') != 'mm': raise ValueError('Scene geometry must use mm')
         kind=descriptor['kind']
-        if kind=='waveguide':
+        if kind in ('dual_feed_square_patch','yang_wlan_monopole','liu_cubesat_yagi','kabir_sx_shared_aperture','rectangular_array_factor'):
+            parts,ports=scene_data.research_scene(descriptor)
+            for category,shape,z,color,opacity in parts:
+                if self.options.get(category,True): self._actor(scene_data.polygon(shape,z),color,opacity)
+            if self.options.get('ports',True):
+                for start,end in ports: self._line(start,end,(.94,.25,.39),4)
+        elif kind=='waveguide':
             if self.options.get('copper',True):
                 for wall in scene_data.waveguide_walls(descriptor): self._actor(scene_data.face(wall),(.67,.72,.78),.35)
         elif kind=='stripline_via':
@@ -305,6 +311,8 @@ class SceneViewport(wx.Panel):
         if descriptor.get('kind')=='waveguide': label += ' | hollow waveguide; open ports'
         if descriptor.get('kind')=='stripline_via': label += ' | four-layer internal trace and ideal solid vias'
         if descriptor.get('kind')=='patch_array': label += ' | finite patch array'
+        if descriptor.get('kind') in ('dual_feed_square_patch','yang_wlan_monopole','liu_cubesat_yagi','kabir_sx_shared_aperture'): label += ' | published research geometry'
+        if descriptor.get('kind')=='rectangular_array_factor': label += ' | conceptual element markers; array-factor study'
         if self.name=='3D fields' and self.options.get('field_view','Plane')=='Volume' and arguments.get('field',{}).get('display_volume'):
             label += ' | volume original samples'
         if self.options.get('mesh',False): label += ' | sample grid'
