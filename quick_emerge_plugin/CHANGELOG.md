@@ -1,5 +1,15 @@
 # Quick EMerge changes
 
+## Unreleased
+
+- Added source-backed antenna benchmarks for polarized 2.45 GHz, WLAN,
+  CubeSat printed-Yagi, 3 GHz 4x4 active-array scan-law, and CubeSat S/X-band
+  shared-aperture studies.
+- Added CLI discovery/setup generation, coherent polarization excitation,
+  boresight axial-ratio evidence, embedded citations/model limits and sampled
+  publication comparisons. Screening checks remain distinct from convergence
+  or hardware qualification.
+
 ## 3.6.44 — 2026-10-29
 
 - Expanded native 3D views, linked field probes, line cuts and reports, plus

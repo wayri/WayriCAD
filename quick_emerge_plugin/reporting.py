@@ -54,10 +54,12 @@ def validate_report_result(result, *, expected_config=None, expected_source=None
     result_digest(result)
     config = validate_config(result.get('config'))
     study=config.get('advanced',{}).get('study','driven')
-    nonnetwork=study in ('thermal','scattering')
+    analytical_array=(study=='research_antenna' and
+                      result.get('model_scope')=='published-scan-law-no-active-network')
+    nonnetwork=study in ('thermal','scattering') or analytical_array
     if nonnetwork:
         if result.get('port_count') != 0 or result.get('s_parameters') != {}:
-            raise ValueError('Thermal/scattering studies must not contain a fictitious network')
+            raise ValueError('Non-network studies must not contain a fictitious sampled network')
         network=None
         frequencies=np.asarray(result.get('frequencies_hz',[]),dtype=float)
         if frequencies.ndim!=1 or not np.isfinite(frequencies).all() or np.any(frequencies<=0) or np.any(np.diff(frequencies)<=0):
@@ -66,6 +68,8 @@ def validate_report_result(result, *, expected_config=None, expected_source=None
             raise ValueError('Scattering study requires solved frequencies')
         if study=='thermal' and len(frequencies):
             raise ValueError('Thermal studies do not have an RF sweep')
+        if analytical_array and len(frequencies)!=1:
+            raise ValueError('Analytical array-factor study requires one recorded design frequency')
     else:
         network=from_result(result)
         frequencies=network.frequencies_hz
@@ -91,7 +95,7 @@ def validate_report_result(result, *, expected_config=None, expected_source=None
         validate_region(region, config)
         if region['source'] != source or result.get('region_sha256') != region_digest(region):
             raise ValueError('Region geometry or source hash changed after solve')
-    elif scope not in {'driven':('parametric-template','four-layer-via-template'),'optimization':('parametric-template',),'periodic':('periodic-patch-template',),'array':('finite-patch-array-template',),'waveguide':('rectangular-waveguide-template',),'scattering':('pec-sphere-scattering','step-pec-scattering'),'thermal':('substrate-thermal-template',)}.get(study,()):
+    elif scope not in {'driven':('parametric-template','four-layer-via-template'),'research_antenna':('published-research-antenna-template','published-scan-law-no-active-network'),'optimization':('parametric-template',),'periodic':('periodic-patch-template',),'array':('finite-patch-array-template',),'waveguide':('rectangular-waveguide-template',),'scattering':('pec-sphere-scattering','step-pec-scattering'),'thermal':('substrate-thermal-template',)}.get(study,()):
         raise ValueError('Result geometry scope does not match its study type')
     if len(frequencies) and (frequencies[0] < config['f_start_hz']*(1-1e-12)
             or frequencies[-1] > config['f_stop_hz']*(1+1e-12)):
@@ -107,6 +111,15 @@ def validate_report_result(result, *, expected_config=None, expected_source=None
             raise ValueError('Thermal temperature data cannot be labeled as RF fields')
     if study=='scattering':
         _scattering_data(result,frequencies)
+    if study=='research_antenna':
+        from .research_antennas import template_digest
+        research=result.get('research')
+        if (not isinstance(research,dict)
+                or research.get('id')!=config['advanced']['research_template']
+                or result.get('research_sha256')!=template_digest(research)):
+            raise ValueError('Research template evidence or digest is invalid')
+        if analytical_array:
+            _array_factor_data(result,frequencies)
     if result.get('import_source'):
         imported=result['import_source']
         if not isinstance(imported,dict) or not isinstance(imported.get('path'),str) or re.fullmatch('[0-9a-f]{64}',str(imported.get('sha256',''))) is None:
@@ -334,6 +347,9 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
     network=validate_report_result(snapshot,expected_config=expected_config,expected_source=expected_source,verify_source=verify_source)
     if network is None:
         if derived_network is not None: raise ValueError('Derived network requires an original sampled network')
+        if 'array_factor' in snapshot:
+            return organize_report(_build_array_report(snapshot,result,expected_config,expected_source,
+                                                        verify_source,title,include_figures),snapshot)
         return organize_report(_build_nonnetwork(snapshot,result,expected_config,expected_source,verify_source,probes,line_profile,title,include_figures),snapshot)
     derived_snapshot=deepcopy(derived_network) if derived_network is not None else None
     derived_html=_derived_section(derived_snapshot,network,snapshot,include_figures) if derived_snapshot is not None else ''
@@ -538,6 +554,26 @@ def _scattering_data(result,frequencies):
         raise ValueError('Invalid scattering result structure') from exc
 
 
+def _array_factor_data(result, frequencies):
+    import numpy as np
+    from .network import _numeric
+    try:
+        data=result['array_factor']
+        theta=_numeric(data['theta_deg'],float,'array-factor theta')
+        magnitude=_numeric(data['normalized_magnitude'],float,'array-factor magnitude')
+        scalars={key:_numeric(data[key],float,'array-factor '+key) for key in (
+            'target_theta_deg','target_phi_deg','predicted_peak_theta_deg','scan_error_deg',
+            'progressive_phase_x_deg','progressive_phase_y_deg')}
+        if (theta.ndim!=1 or len(theta)<3 or magnitude.shape!=theta.shape
+                or np.any(np.diff(theta)<=0) or np.any(magnitude<0) or np.any(magnitude>1+1e-12)
+                or len(frequencies)!=1 or not all(value.ndim==0 for value in scalars.values())
+                or int(data.get('element_count',0))<=0):
+            raise ValueError('Invalid array-factor axes, magnitude or scan metadata')
+        return theta,magnitude,{key:float(value) for key,value in scalars.items()}
+    except (KeyError,TypeError) as exc:
+        raise ValueError('Invalid array-factor result structure') from exc
+
+
 def _special_geometry(fig,result):
     """Render only recorded template geometry; STEP is explicitly an enclosure."""
     import numpy as np
@@ -579,6 +615,51 @@ def _special_geometry(fig,result):
         ax.set_xlim(-sx*.6,sx*.6);ax.set_ylim(-sy*.6,sy*.6)
     ax.set(xlabel='X [mm]',ylabel='Y [mm]',title='Thermal substrate top view; copper, vias and components omitted')
     ax.set_aspect('equal');fig.tight_layout()
+
+
+def _build_array_report(snapshot,original,expected_config,expected_source,verify_source,title,include_figures):
+    import numpy as np
+    theta,magnitude,scan=_array_factor_data(snapshot,np.asarray(snapshot['frequencies_hz'],dtype=float))
+    custody=result_digest(snapshot);comparison=snapshot['publication_comparison']
+    source_status='Current bytes checked' if verify_source else 'ARCHIVAL: current source bytes NOT checked'
+    chunks=['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'; base-uri \'none\'; form-action \'none\'">',
+            '<title>'+escape(str(title))+'</title><style>'+_CSS+'</style></head><body><main class="page">',
+            '<header><p class="eyebrow">WayriCAD / Quick EMerge / published array benchmark</p><h1>'+escape(str(title))+'</h1>',
+            '<p>Ideal rectangular-array scan-law evidence with source citation and explicit exclusions.</p></header>',
+            '<nav><a href="#scope">Scope</a><a href="#result">Array factor</a><a href="#limits">Limitations</a><a href="#custody">Evidence</a></nav>',
+            '<div class="cards"><div class="card"><strong>'+_format(scan['target_theta_deg'])+'°</strong> <span>Requested scan</span></div>',
+            '<div class="card"><strong>'+_format(scan['predicted_peak_theta_deg'])+'°</strong> <span>Sampled ideal peak</span></div>',
+            '<div class="card"><strong>'+_format(abs(scan['scan_error_deg']))+'°</strong> <span>Angular-grid error</span></div></div>',
+            '<p class="notice">This is a closed-form isotropic-element array factor, not a full-wave active-array, gain, efficiency or hardware prediction.</p>',
+            '<section id="scope"><h2>Source and model scope</h2>',
+            _table(['Evidence','Recorded value'],[
+                ('Source',snapshot['research']['citation']['title']),('DOI',snapshot['research']['citation']['doi']),
+                ('Geometry scope',snapshot['model_scope']),('Design frequency [GHz]',snapshot['frequencies_hz'][0]/1e9),
+                ('Originating source',Path(snapshot['source']['path']).name),('Source verification',source_status),
+                ('Research template SHA-256',snapshot['research_sha256'])]),
+            '<h3>Active setup</h3>',_table(['Category','Setting','Value'],active_settings(snapshot)),
+            '<details id="full-stored-configuration"><summary>Full stored configuration (includes inactive defaults)</summary><pre>'+escape(json.dumps(snapshot['config'],ensure_ascii=False,allow_nan=False,indent=2))+'</pre></details></section>',
+            '<section id="result"><h2>Ideal array-factor result</h2>']
+    if include_figures:
+        from .plots import array_factor
+        chunks.append(_figure('Normalized ideal array factor; floor displayed at -60 dB.',lambda f:array_factor(f,snapshot)))
+    chunks.extend([_table(['Metric','Value'],[
+        ('Requested phi [deg]',scan['target_phi_deg']),('Progressive phase X [deg]',scan['progressive_phase_x_deg']),
+        ('Progressive phase Y [deg]',scan['progressive_phase_y_deg']),('Stored angular samples',len(theta)),
+        ('Publication comparison',comparison['overall'])]),
+        '<details><summary>Publication comparison</summary><pre>'+escape(json.dumps(comparison,indent=2,allow_nan=False))+'</pre></details>',
+        '<details><summary>Original normalized samples</summary>'+_table(['Theta [deg]','Magnitude'],zip(theta,magnitude))+'</details></section>',
+        '<section id="limits"><h2>Interpretation limits</h2><ul>'+''.join('<li>'+escape(value)+'</li>' for value in snapshot['assumptions'])+'</ul></section>'])
+    evidence={'result':snapshot,'result_sha256':custody,'source_verified_at_export':bool(verify_source)}
+    encoded=base64.b64encode(json.dumps(evidence,ensure_ascii=False,allow_nan=False,indent=2).encode()).decode()
+    chunks.extend(['<section id="custody"><h2>Source and result custody</h2>',
+                   _table(['Identity','SHA-256'],[('Source PCB bytes',snapshot['source']['sha256']),('Normalized configuration',snapshot['config_sha256']),('Research template',snapshot['research_sha256']),('Complete result JSON',custody)]),
+                   '<p><a class="download" download="quick-emerge-evidence.json" href="data:application/json;base64,'+encoded+'">Download complete JSON evidence</a></p>',
+                   '<details><summary>Recorded evidence</summary><pre>'+escape(json.dumps(evidence,ensure_ascii=False,allow_nan=False,indent=2))+'</pre></details></section></main></body></html>'])
+    validate_report_result(snapshot,expected_config=expected_config,expected_source=expected_source,verify_source=verify_source)
+    if result_digest(original)!=custody:raise ValueError('Result changed during report generation')
+    return ''.join(chunks)
 
 
 def _build_nonnetwork(snapshot,original,expected_config,expected_source,verify_source,probes,line_profile,title,include_figures):

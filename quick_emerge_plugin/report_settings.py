@@ -23,7 +23,18 @@ def active_settings(result):
         add(group, label, c.get(key), unit)
 
     thermal = study == 'thermal'
-    substrate = study not in ('scattering', 'waveguide')
+    research = study == 'research_antenna'
+    if research:
+        evidence = result.get('research', {})
+        add('Research', 'Source template', evidence.get('title'))
+        add('Research', 'DOI', evidence.get('citation', {}).get('doi'))
+        add('Research', 'Recorded template SHA-256', result.get('research_sha256'))
+        for key, value in evidence.get('geometry', {}).items():
+            if isinstance(value, (dict, list, tuple)):
+                import json
+                value = json.dumps(value, separators=(',', ':'))
+            add('Source geometry', key.replace('_', ' '), value)
+    substrate = study not in ('scattering', 'waveguide', 'research_antenna')
     if substrate:
         if mode == 'pcb_region':
             recorded = result.get('region', {}).get('substrate', {})

@@ -133,7 +133,7 @@ def build_more_menu(frame):
     """Keep specialist views and controls one click away from the main canvas."""
     menu = wx.Menu()
     for label, group, available in (
-            ('Result charts', 'Charts', bool(frame.result and frame.result.get('s_parameters'))),
+            ('Result charts', 'Charts', bool(frame.result and (frame.result.get('s_parameters') or frame.result.get('array_factor')))),
             ('Result summary', 'Results', frame.result is not None)):
         item = menu.Append(wx.ID_ANY, label); item.Enable(available)
         menu.Bind(wx.EVT_MENU, lambda event, group=group: frame.navigate(group), id=item.GetId())

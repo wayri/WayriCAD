@@ -263,7 +263,7 @@ def build(frame, board):
         frame.scene_viewport_class=SceneViewport;frame.render_backend='VTK hardware 3D'
     except ImportError:
         frame.scene_viewport_class=None
-    for name in ['3D setup','S-parameters','Smith chart','Field probes','3D fields','3D radiation','Radiation pattern','PCB enclosure']:
+    for name in ['3D setup','S-parameters','Smith chart','Array factor','Field probes','3D fields','3D radiation','Radiation pattern','PCB enclosure']:
         factory=frame.scene_viewport_class if name.startswith('3D') and frame.scene_viewport_class else PlotViewport
         page=factory(frame.tabs,name,frame._viewport_probe)
         if isinstance(page, PlotViewport): page.defer_hidden=True
@@ -344,7 +344,7 @@ def build(frame, board):
         frame.advanced_rows[key]=(row,descriptor,'Material overview')
     # The selected study's defining geometry is a primary control, not an
     # expert solver setting. Other groups remain collapsed until requested.
-    for offset, group in enumerate(('Array','Waveguide','Scattering','Optimization')):
+    for offset, group in enumerate(('Research antenna','Array','Waveguide','Scattering','Optimization')):
         pane, _, _ = frame.advanced_groups[group]
         advanced_rows.Detach(pane); pane.Reparent(physics)
         physics_rows.Insert(2+offset,pane,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)

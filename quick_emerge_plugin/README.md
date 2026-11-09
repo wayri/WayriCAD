@@ -51,6 +51,22 @@ uses the installed KiCad Python bindings.
 python -m quick_emerge_plugin --board C:/Projects/Example/board.kicad_pcb
 ```
 
+Published antenna benchmarks can be discovered and turned into portable setup
+files without launching wxPython:
+
+```powershell
+python -m quick_emerge_plugin --list-research-antennas "*satellite*"
+python -m quick_emerge_plugin --show-research-antenna kabir-2023-cubesat-sx-shared-aperture
+python -m quick_emerge_plugin --write-research-setup kabir-2023-cubesat-sx-shared-aperture sx.json
+python -m quick_emerge_plugin --array-scan verho-2023-aesa-4x4 35 --array-phi 0
+```
+
+The registry includes a dual-feed polarized 2.45 GHz patch, dual-band WLAN
+monopole, printed CubeSat Yagi, 3 GHz 4x4 AESA scan-law benchmark, and a stacked
+CubeSat S/X-band shared aperture. Each result embeds its citation, source
+dimensions, model scope, excitation, assumptions and sampled comparison against
+published targets. See the [research examples](../examples/quick_emerge/research_antennas/README.md).
+
 First-open setup discovers Python 3.10-3.13 and installs the latest non-yanked
 EMerge 3+ candidate, including prereleases, into its own environment. Candidate
 installation requires **3 GiB free** and internet access. CAD import and bounded
@@ -319,6 +335,16 @@ steady/transient substrate thermal studies and dielectric RF heating.
 [The capability inventory](CAPABILITIES.md) records the limits of each path.
 Fabrication imports require an explicit reviewed recipe and source manifest;
 they are expert adapters, not a general visual CAD editor/import wizard.
+
+The **Published antenna benchmark** study uses reviewed, data-only templates.
+Four templates build full-wave geometry; the Verho 4x4 active array evaluates
+the paper's ideal scan law because its measured varactor/PIN/feed losses cannot
+be reconstructed from geometry alone. The Yagi planar model omits its CubeSat
+chassis and deployment angle. The dual-feed patch omits the reconfigurable feed
+network; its linear state drives both probes with equal amplitude and phase.
+The S/X satellite model includes the dimensioned dielectric stack and
+two ideal probe ports but omits bolts and SMA bodies. A `publication_comparison`
+is a sampled evidence check, not automatic mesh or hardware qualification.
 
 Coarse compatibility solves do **not** establish antenna accuracy, mesh
 convergence, power balance, array null depth or measured hardware agreement.

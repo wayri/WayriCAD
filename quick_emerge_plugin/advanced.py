@@ -17,7 +17,15 @@ def _f(key, label, default, kind='number', unit='', studies=(), choices=None, gr
 
 
 ADVANCED_FIELDS = (
-    _f('study', 'Study', 'driven', 'choice', choices=('driven', 'periodic', 'scattering', 'thermal', 'optimization', 'waveguide', 'array')),
+    _f('study', 'Study', 'driven', 'choice', choices=('driven', 'research_antenna', 'periodic', 'scattering', 'thermal', 'optimization', 'waveguide', 'array')),
+    _f('research_template', 'Published antenna', 'yang-2016-wlan-monopole', 'choice',
+       choices=('rezaeipour-2021-dual-feed-patch', 'yang-2016-wlan-monopole',
+                'liu-2020-cubesat-yagi', 'verho-2023-aesa-4x4',
+                'kabir-2023-cubesat-sx-shared-aperture'),
+       studies=('research_antenna',), group='Research antenna'),
+    _f('research_excitation', 'Excitation', 'auto', 'choice',
+       choices=('auto', 'linear', 'rhcp', 'lhcp', 's-band', 'x-band'),
+       studies=('research_antenna',), group='Research antenna'),
     _f('array_count_x', 'Array elements X', 2, 'integer', studies=('array',), group='Array'),
     _f('array_count_y', 'Array elements Y', 1, 'integer', studies=('array',), group='Array'),
     _f('array_pitch_x_mm', 'Array pitch X', 60, unit='mm', studies=('array',), group='Array'),
@@ -34,15 +42,15 @@ ADVANCED_FIELDS = (
     _f('waveguide_width_mm', 'Waveguide broad dimension', 22.86, unit='mm', studies=('waveguide',), group='Waveguide'),
     _f('waveguide_height_mm', 'Waveguide narrow dimension', 10.16, unit='mm', studies=('waveguide',), group='Waveguide'),
     _f('waveguide_length_mm', 'Waveguide length', 30, unit='mm', studies=('waveguide',), group='Waveguide'),
-    _f('loss_tangent', 'Dielectric loss tangent', 0, studies=('driven', 'periodic', 'optimization', 'array'), group='Material'),
-    _f('er_stop', 'Permittivity at stop frequency (0 = constant)', 0, studies=('driven', 'periodic', 'optimization', 'array'), group='Material'),
-    _f('conductor', 'Conductor model', 'pec', 'choice', choices=('pec', 'finite'), studies=('driven', 'periodic', 'optimization', 'array'), group='Material'),
-    _f('conductivity_s_m', 'Conductor conductivity', 58000000, unit='S/m', studies=('driven', 'periodic', 'optimization', 'array'), group='Material'),
-    _f('conductor_thickness_um', 'Conductor thickness', 35, unit='um', studies=('driven', 'periodic', 'optimization', 'array'), group='Material'),
-    _f('roughness_um', 'RMS surface roughness', 0, unit='um', studies=('driven', 'periodic', 'optimization', 'array'), group='Material'),
-    _f('boundary', 'Outer boundary', 'absorbing', 'choice', choices=('absorbing', 'pec', 'pmc', 'pml'), studies=('driven', 'optimization', 'array'), group='Boundary'),
-    _f('abc_order', 'Absorbing boundary order', 2, 'integer', studies=('driven', 'optimization', 'array'), group='Boundary'),
-    _f('pml_thickness_mm', 'PML thickness', 5, unit='mm', studies=('driven', 'optimization', 'array'), group='Boundary'),
+    _f('loss_tangent', 'Dielectric loss tangent', 0, studies=('driven', 'research_antenna', 'periodic', 'optimization', 'array'), group='Material'),
+    _f('er_stop', 'Permittivity at stop frequency (0 = constant)', 0, studies=('driven', 'research_antenna', 'periodic', 'optimization', 'array'), group='Material'),
+    _f('conductor', 'Conductor model', 'pec', 'choice', choices=('pec', 'finite'), studies=('driven', 'research_antenna', 'periodic', 'optimization', 'array'), group='Material'),
+    _f('conductivity_s_m', 'Conductor conductivity', 58000000, unit='S/m', studies=('driven', 'research_antenna', 'periodic', 'optimization', 'array'), group='Material'),
+    _f('conductor_thickness_um', 'Conductor thickness', 35, unit='um', studies=('driven', 'research_antenna', 'periodic', 'optimization', 'array'), group='Material'),
+    _f('roughness_um', 'RMS surface roughness', 0, unit='um', studies=('driven', 'research_antenna', 'periodic', 'optimization', 'array'), group='Material'),
+    _f('boundary', 'Outer boundary', 'absorbing', 'choice', choices=('absorbing', 'pec', 'pmc', 'pml'), studies=('driven', 'research_antenna', 'optimization', 'array'), group='Boundary'),
+    _f('abc_order', 'Absorbing boundary order', 2, 'integer', studies=('driven', 'research_antenna', 'optimization', 'array'), group='Boundary'),
+    _f('pml_thickness_mm', 'PML thickness', 5, unit='mm', studies=('driven', 'research_antenna', 'optimization', 'array'), group='Boundary'),
     _f('field_layers', 'Sampled field Z layers (1 = plane)', 1, 'integer', studies=('driven', 'periodic', 'scattering', 'optimization', 'waveguide', 'array'), group='Fields'),
     _f('field_z_min_mm', 'Volume lower Z', .1, unit='mm', studies=('driven', 'periodic', 'scattering', 'optimization', 'waveguide', 'array'), group='Fields'),
     _f('export_dxf', 'Export exact planar sheets as DXF', False, 'bool', studies=('driven','array'), group='Exports'),
@@ -50,8 +58,8 @@ ADVANCED_FIELDS = (
     _f('export_optycal', 'Export official Optycal far-field MsgPack', False, 'bool', studies=('driven','array'), group='Exports'),
     _f('solver_threads', 'Solver threads', 1, 'integer', group='Solver'),
     _f('sparta_mode', 'SPARTA compute mode', 'CPU', 'choice', choices=('CPU', 'GPU', 'HYBRID'), group='Solver'),
-    _f('scan_theta_deg', 'Incidence theta', 0, unit='deg', studies=('periodic', 'scattering'), group='Excitation'),
-    _f('scan_phi_deg', 'Incidence phi', 0, unit='deg', studies=('periodic', 'scattering'), group='Excitation'),
+    _f('scan_theta_deg', 'Scan / incidence theta', 0, unit='deg', studies=('research_antenna', 'periodic', 'scattering'), group='Excitation'),
+    _f('scan_phi_deg', 'Scan / incidence phi', 0, unit='deg', studies=('research_antenna', 'periodic', 'scattering'), group='Excitation'),
     _f('polarization_deg', 'Polarization', 0, unit='deg', studies=('periodic', 'scattering'), group='Excitation'),
     _f('scatter_radius_mm', 'PEC sphere radius', 5, unit='mm', studies=('scattering',), group='Scattering'),
     _f('incident_power_w_m2', 'Incident power density', 1, unit='W/m2', studies=('scattering',), group='Scattering'),
@@ -147,6 +155,27 @@ def validate_advanced(raw, config):
             parse_dxf_heights_mm(a['export_dxf_z_mm'])
         if a['export_optycal'] and (config['points'] > 8 or a['boundary'] not in ('absorbing','pml')):
             raise ValueError('Optycal far-field export requires an open boundary and at most 8 frequency samples')
+    if study == 'research_antenna':
+        from .research_antennas import get_template
+        template = get_template(a['research_template'])
+        excitation = a['research_excitation']
+        allowed = {
+            'rezaeipour-2021-dual-feed-patch': {'auto', 'linear', 'rhcp', 'lhcp'},
+            'yang-2016-wlan-monopole': {'auto'},
+            'liu-2020-cubesat-yagi': {'auto'},
+            'verho-2023-aesa-4x4': {'auto'},
+            'kabir-2023-cubesat-sx-shared-aperture': {'auto', 's-band', 'x-band'},
+        }[template['id']]
+        if config['mode'] != 'patch' or excitation not in allowed:
+            raise ValueError('Published antenna template requires patch mode and a compatible excitation')
+        if template['geometry']['kind'] == 'rectangular_array_factor' and config['points'] > 81:
+            raise ValueError('Analytical array-factor benchmark is limited to 81 frequency samples')
+        if template['geometry']['kind'] == 'kabir_sx_shared_aperture':
+            geometry = template['geometry']
+            stack_top = (geometry['upper_layer_height_mm'] + geometry['air_gap_mm'] +
+                         geometry['prs_height_mm'])
+            if config['air_margin_mm'] <= stack_top or config['field_z_mm'] <= stack_top:
+                raise ValueError('S/X shared-aperture air margin and field plane must lie above the elevated PRS stack')
     if study == 'array':
         if config['mode'] != 'patch' or not 1 <= a['array_count_x'] <= 3 or not 1 <= a['array_count_y'] <= 3 or not 2 <= a['array_count_x']*a['array_count_y'] <= 9:
             raise ValueError('Finite arrays require the patch template and 2 to 9 elements (up to 3 per axis)')
