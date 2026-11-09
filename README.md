@@ -15,6 +15,10 @@ KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
+**Release 4.7.0:** Quick EMerge adds research antenna benchmarks and detailed
+[reproduction walkthroughs](examples/quick_emerge/research_antennas/README.md).
+See [4.7.0 release notes](docs/RELEASE_NOTES_4.7.0.md).
+
 **Release 4.6.0:** Portable Web Export joins the main release as the 27th
 independently installable package. It builds one traceable, self-contained
 offline HTML review from selected saved schematic, PCB, BoM and supported 3D
