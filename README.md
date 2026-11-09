@@ -25,8 +25,8 @@ offline HTML review from selected saved schematic, PCB, BoM and supported 3D
 content, with an exact in-plugin preview and a headless CLI for controlled
 automation. See the [illustrated guide](portable_web_export_plugin/README.md).
 KiCad 10 remains the supported baseline; newer saved-board analysis is experimental.
-[Download 4.6.0](https://github.com/wayri/WayriCAD/releases/tag/v4.6.0) ·
-[Release notes and validation limits](docs/RELEASE_NOTES_4.6.0.md) · [Getting started](#getting-started)
+[Download 4.7.0](https://github.com/wayri/WayriCAD/releases/tag/v4.7.0) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.7.0.md) · [Getting started](#getting-started)
 
 - [Quick PI](quick_pi_plugin/README.md): infer and review VIN → MID → OUT paths,
   parallel devices and current pins in the editor; save independent named batch
@@ -133,7 +133,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 4.6.0](https://github.com/wayri/WayriCAD/releases/tag/v4.6.0) · [Release notes](docs/RELEASE_NOTES_4.6.0.md) |
+| Download or update | [Release 4.7.0](https://github.com/wayri/WayriCAD/releases/tag/v4.7.0) · [Release notes](docs/RELEASE_NOTES_4.7.0.md) |
 | Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 27 plugins](#all-27-plugins) |
@@ -329,7 +329,7 @@ an input or model is missing; they are not a pass.
 
 <img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
 
-1. Download the [Quick EMerge PCM ZIP from release 4.6.0](https://github.com/wayri/WayriCAD/releases/download/v4.6.0/WayriCAD-quick-emerge-4.6.0-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+1. Download the [Quick EMerge PCM ZIP from release 4.7.0](https://github.com/wayri/WayriCAD/releases/download/v4.7.0/WayriCAD-quick-emerge-4.7.0-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
 4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
@@ -480,7 +480,7 @@ currencies stay explicit.
 
 ## All 27 plugins
 
-Current `develop` and release **4.6.0** include 27 independently installable
+Current `develop` and release **4.7.0** include 27 independently installable
 plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
