@@ -131,6 +131,17 @@ class SuiteUxTests(unittest.TestCase):
                 with Image.open(icon_path) as icon:
                     self.assertEqual((64, 64), icon.size)
 
+    def test_portable_web_export_documents_native_and_page_workflows(self) -> None:
+        package = ROOT / "portable_web_export_plugin"
+        help_text = (package / "help.html").read_text(encoding="utf-8")
+        readme = (package / "README.md").read_text(encoding="utf-8")
+        for name in ("help-workflow.png", "help-page-preview.png"):
+            self.assertIn(name, help_text)
+            self.assertIn(name, readme)
+            with Image.open(package / name) as image:
+                self.assertEqual((1200, 680), image.size)
+                self.assertEqual("PNG", image.format)
+
     def test_dependency_manager_has_visual_help_and_guarded_install_actions(self) -> None:
         help_text = (ROOT / "extract_pins_plugin" / "help.html").read_text(encoding="utf-8")
         self.assertIn('src="help-dependencies.png"', help_text)

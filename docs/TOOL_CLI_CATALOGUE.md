@@ -57,6 +57,7 @@ The commands below expose the existing headless workflows. They do **not** imply
 | `manufacturing-readiness` | Headless JSON parameters: manufacturing.audit; GUI write operations are separate | `wayricad tools run manufacturing-readiness -- --help` |
 | `mechanical-check` | Saved-board mechanical screening and solid inspection | `wayricad tools run mechanical-check -- --help` |
 | `planar-magnetics` | Headless JSON parameters: magnetics.analyze; GUI write operations are separate | `wayricad tools run planar-magnetics -- --help` |
+| `portable-web-export` | Export selected saved project content as one traceable, self-contained offline HTML document | `wayricad tools run portable-web-export -- --help` |
 | `project-fusion` | Analyze and merge saved projects | `wayricad tools run project-fusion -- --help` |
 | `protocol-constraints` | Headless JSON parameters: protocol-constraints.compose; GUI write operations are separate | `wayricad tools run protocol-constraints -- --help` |
 | `quick-pi` | DC copper, grouped pads, shared returns and melting/bottleneck screens | `wayricad tools run quick-pi -- --help` |
@@ -69,6 +70,27 @@ The commands below expose the existing headless workflows. They do **not** imply
 | `via-stitching` | Settings, preview plan and reviewed candidate export | `wayricad tools run via-stitching -- --help` |
 
 Aliases include `analytics`, `quick-si`, `rlc`, `silkscreen`, `constraint-studio` and `fusion`.
+
+## Portable offline project review
+
+Portable Web Export is deterministic for a fixed saved input selection and
+pinned viewer distribution. The native plugin adds an exact embedded preview
+gate; the CLI emits the same document format for automation but cannot replace
+human review.
+
+```text
+wayricad tools run portable-web-export -- board.kicad_pcb artifacts/review.html \
+  --sheet "control*.kicad_sch" --no-3d --manifest artifacts/review.json
+```
+
+Repeat `--sheet` and `--model` to combine case-insensitive globs. An unmatched
+pattern is an error. The HTML and optional JSON manifest contain project,
+revision and document IDs, UTC generation time, exporter/viewer versions, and
+SHA-256 plus byte count for each bundled source. The command returns `0` on
+success and argparse status `2` for invalid selections, unsafe aliases,
+malformed data or I/O failure. See the
+[complete plugin guide](../portable_web_export_plugin/README.md) for all options,
+jobset usage, security boundaries and viewer limitations.
 
 ## JSON parameter workflows
 
