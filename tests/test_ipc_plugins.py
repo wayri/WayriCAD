@@ -41,7 +41,10 @@ class WorkbenchPluginTests(unittest.TestCase):
                     for entry in ("action.py", "__init__.py", "help.html", "icon.png"):
                         self.assertTrue((package / entry).is_file())
                     continue
-                expected_version = "0.1.0" if package.name == "portable_web_export_plugin" else "4.6.0"
+                expected_version = {
+                    "portable_web_export_plugin": "0.1.0",
+                    "quick_emerge_plugin": "4.7.0",
+                }.get(package.name, "4.6.0")
                 self.assertEqual(expected_version, metadata["versions"][0]["version"])
                 self.assertEqual("ipc", metadata["versions"][0]["runtime"])
                 manifest = json.loads((package / "plugin.json").read_text(encoding="utf-8"))
