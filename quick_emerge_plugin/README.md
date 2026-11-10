@@ -11,7 +11,7 @@ antenna and line templates are optional separate studies; they do not import the
 board's copper.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 4.1.0 release](https://github.com/wayri/WayriCAD/releases/tag/v4.1.0).
+[WayriCAD 4.7.0 release](https://github.com/wayri/WayriCAD/releases/tag/v4.7.0).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
 
@@ -36,6 +36,149 @@ sampling. Saved setups retain their explicit frequency/grid counts; **3 Solve â†
 Output sampling â†’ Use dense sampling** applies the denser linear preset.
 Frequency samples are FEM solves; field and angular samples evaluate the solved
 field and do not refine its mesh. Report figures export at 200 DPI.
+
+## Published antenna examples and real-result gallery
+
+The research collection includes five source-backed studies. These are bounded
+reconstructions and engineering examples, not qualified reproductions of all
+published measurements. Choose **Setup > Published antenna benchmark** or
+**Files > Open setup** to load a portable example. Preview the geometry/ports,
+review the excitation and sweep, then choose **Run simulation**.
+
+| Example and source | Implemented scope | Important boundary |
+|---|---|---|
+| [Rezaeipour and Sadeghzadeh (2021)](https://arxiv.org/abs/2106.07291), dual-feed 2.45 GHz patch | Equal-phase linear and phase-quadrature circular-feed studies | Published switching/feed network omitted; signed Stokes convention needs reconciliation before RHCP/LHCP claims |
+| [Yang et al. (2016)](https://doi.org/10.3390/s16070983), WLAN monopole | Printed radiator, partial ground, network/field/radiation analysis | Coarse screening failed the matching target; gallery below is this case |
+| [Liu et al. (2020)](https://doi.org/10.3390/electronics9060986), CubeSat Yagi | Planar four-element radiator on 0.6 mm FR4 | CubeSat chassis and deployment angles omitted; taper coordinates digitized |
+| [Verho et al. (2023)](https://doi.org/10.3390/s23031324), 4 x 4 AESA | Ideal 3 GHz, 40 mm-pitch array-factor steering law | Not a full-wave 16-port active array; no mutual coupling or phase-shifter loss |
+| [Kabir et al. (2023)](https://doi.org/10.3390/electronics12214439), CubeSat S/X shared aperture | Stacked radiators, separate probes, air cavity and PRS | Coarse axial-ratio checks failed; nominal laminate Dk assumptions and omitted SMA/fasteners remain limits |
+
+The [step-by-step example guide](../examples/quick_emerge/research_antennas/README.md)
+contains installation, individual sweeps/excitations, GUI and headless run
+instructions, numerical output interpretation and troubleshooting. The separate
+[Yeo-Lee saved-copper example](../examples/quick_emerge/yeo_lee_2019/README.md)
+documents actual PCB-region extraction, port checks and its own numerical
+comparison; do not confuse its board with the WLAN model below.
+
+### Actual run and evidence boundary
+
+All eleven images below come from the **Yang WLAN geometry and one real
+EMerge 3.0.0b9 / SuperLU screening solve**, captured on Windows on 2026-11-10
+using Quick EMerge 4.7.0. They are not marketing mockups, paper figures or
+photographs of manufactured antennas. Native window captures and native 3D
+framebuffer exports are distinguished from the post-processed polarization plot.
+
+| Input/evidence | Recorded value |
+|---|---|
+| Source geometry | 16 x 29 mm FR4 substrate, printed branched radiator/feed and partial bottom ground |
+| FEM sweep | 2.35, 2.45 and 2.55 GHz; three original samples, 100 MHz spacing |
+| Mesh | 4,429 tetrahedra; coarse screening, no refinement/convergence claim |
+| Field plane | 41 x 41 original samples at Z = 2 mm, frequency 2.45 GHz |
+| Radiation | Original angular samples at 2.45 GHz, relative E normalization; not gain/efficiency |
+| Boresight polarization | +Z, Cartesian Ex/Ey; axial ratio 50.156 dB, nearly linear |
+| Matching outcome | Failed paper matching target; S11 remains well above -10 dB |
+
+The saved PCB supplies context/identity only: its unrelated copper is not
+imported into the published template. Three frequency points cannot establish
+resonance or bandwidth. A single Z plane is not a volume solve. These captures
+do not establish paper agreement, accepted-power-normalized gain, efficiency,
+hardware/flight qualification or new cross-platform native acceptance.
+
+### Antenna design open in Quick EMerge
+
+![Actual Yang WLAN design open in Quick EMerge](../examples/quick_emerge/research_antennas/images/wlan-design-open.png)
+
+The native plugin displays the actual simulated radiator, feed, substrate and
+partial ground rather than a generic patch illustration.
+
+![Native top orthographic WLAN design](../examples/quick_emerge/research_antennas/images/wlan-design-2d.png)
+
+Top/orthographic projection of the native 3D model. The current software 2D
+research fallback displays only the substrate, so this uses the actual 3D
+model's camera instead; the fallback is not claimed fixed by this gallery.
+
+![Native isometric WLAN design](../examples/quick_emerge/research_antennas/images/wlan-design-3d.png)
+
+Native geometry-only framebuffer export. The lower ground and top radiator
+are separate surfaces in the model, not a photograph of fabricated copper.
+
+### S-parameter analysis
+
+![Native WLAN S11 magnitude](../examples/quick_emerge/research_antennas/images/wlan-s-parameters.png)
+
+S11 in dB uses the original complex reflection samples. The poor match is
+retained honestly; connecting lines do not supply missing frequency solves.
+
+![Native WLAN S11 phase](../examples/quick_emerge/research_antennas/images/wlan-s-phase.png)
+
+Phase of the same three S11 samples. This is not evidence of a resolved
+group-delay curve, wideband phase behavior or a tuned resonance.
+
+![Native WLAN Smith chart](../examples/quick_emerge/research_antennas/images/wlan-smith.png)
+
+Reflection coefficients referenced to 50 ohm. The points' distance from the
+center is consistent with the failed matching result.
+
+### 2D and 3D field visualization
+
+![Native WLAN E-field plane](../examples/quick_emerge/research_antennas/images/wlan-field-slice.png)
+
+E magnitude in V/m at 2.45 GHz and Z = 2 mm. Pixels retain the original 41 x 41
+samples; no invented high-resolution spatial detail is added.
+
+![Native WLAN 3D field display](../examples/quick_emerge/research_antennas/images/wlan-field-3d.png)
+
+Native 3D display of the same solved plane over the geometry. This does not
+represent independently solved depth slices or a full volume field dataset.
+
+### 2D and 3D radiation visualization
+
+![Native WLAN XZ radiation cut](../examples/quick_emerge/research_antennas/images/wlan-radiation-2d.png)
+
+XZ polar cut at 2.45 GHz using opposite sampled azimuth planes. Radius is
+relative E magnitude normalized to the global stored-sample maximum, not dBi.
+
+![Native WLAN 3D radiation](../examples/quick_emerge/research_antennas/images/wlan-radiation-3d.png)
+
+Native angular-sample framebuffer export with the same relative-E normalization.
+A smooth-looking surface is not evidence of FEM mesh convergence.
+
+### Polarization analysis from actual solved fields
+
+![WLAN solved Jones-vector ellipse and Stokes analysis](../examples/quick_emerge/research_antennas/images/wlan-polarization.png)
+
+This figure is a **numerical post-processing plot**, not a screenshot of a
+native polarization panel. It uses the stored complex boresight Ex/Ey at
+2.45 GHz. The equal-axis ellipse is almost a line: axial ratio is **50.156 dB**,
+not circular polarization. Normalized Stokes values are approximately
+`S1/S0 = -0.999965`, `S2/S0 = 0.005586`, `S3/S0 = -0.006212`.
+The convention is `S3 = -2 Im(Ex conj(Ey))`; no RHCP/LHCP mapping is claimed.
+This single-direction, single-frequency result cannot establish AR bandwidth
+or hemispherical cross-polarization performance. The ellipse's singular-value
+ratio independently checks the stored axial ratio.
+
+### Numerical data, provenance and reproduction
+
+- [Portable numerical samples](../examples/quick_emerge/research_antennas/images/wlan-screening-samples.json)
+  contain the exact configuration, original network/field/radiation samples,
+  research metadata and failed comparisons. The local source-path block is
+  omitted; this is numerical evidence, not a custody-complete GUI reload file.
+- [Capture provenance](../examples/quick_emerge/research_antennas/images/provenance.json)
+  records numerical/image hashes, runtime versions, source geometry digest and
+  complex polarization components. No private project data or paths appear in
+  the images. No numerical results were retouched or replaced with ideal curves.
+- [Dated validation record](../examples/quick_emerge/research_antennas/VALIDATION.md)
+  distinguishes this 4,429-tetrahedron run from earlier coarse screening runs.
+- [Capture/reproduction helper](../tools/capture_research_antenna_results.py):
+  from a source checkout run `python tools/capture_research_antenna_results.py solve`
+  with a qualified EMerge interpreter, then `capture` with a complete
+  wxPython/Matplotlib/VTK desktop interpreter. Use a fresh `--run-dir` on a drive
+  with sufficient space and the same directory for capture. `verify` checks
+  numerical/image digests and independently validates polarization by SVD.
+- For step-by-step per-case settings and output analysis, use the
+  [research walkthrough](../examples/quick_emerge/research_antennas/README.md).
+  The other four research templates are not claimed to have case-specific
+  solved screenshots in this WLAN gallery.
 
 ## Setup and launch
 

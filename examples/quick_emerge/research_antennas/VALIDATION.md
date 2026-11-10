@@ -10,6 +10,28 @@ optional runtime coverage. Skips are not passes.
 
 ## Completed checks
 
+### Native result capture run, 2026-11-10
+
+A fresh Yang WLAN screening run solved 2.35/2.45/2.55 GHz using EMerge 3.0.0b9
+and SuperLU with 4,429 tetrahedra and a 41 x 41 field plane at Z = 2 mm.
+Native Quick EMerge 4.7.0 captured S11, the E-field plane, its 3D display,
+the 2D radiation cut and 3D radiation. The matching check failed. The run is
+not the earlier 3,371-tetrahedron study and does not supersede convergence work.
+The [portable samples](images/wlan-screening-samples.json) and
+[capture hashes/runtime provenance](images/provenance.json) preserve its exact
+inputs and available results without the local source-path block.
+
+The expanded gallery also captures native top/isometric design geometry, the
+design open in the plugin, S11 phase and the Smith chart. A separate numerical
+plot derives the polarization ellipse and Stokes parameters from the stored
+boresight Ex/Ey: AR = 50.156 dB at 2.45 GHz, nearly linear. This is not a native
+polarization-panel screenshot or an AR-bandwidth reproduction. The 2D research
+fallback's missing radiator was observed; design top views instead use the
+actual native 3D model with its orthographic camera. No fix to that fallback is
+claimed by the documentation/capture changes.
+
+### Earlier screening evidence
+
 All five setup records pass the bounded configuration validator. Four full-wave
 geometries construct and commit using the public EMerge API. The 4x4 AESA scan
 law passes deterministic broadside and 35° steering tests with less than 0.26°

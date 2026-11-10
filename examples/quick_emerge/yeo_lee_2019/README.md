@@ -64,6 +64,32 @@ not reproduce the later controlled adaptive study.
 
 ## Step-by-step reproduction
 
+### Native UI references
+
+For newly captured S-parameters, field slice, 2D radiation and native 3D
+results, see the [WLAN result gallery](../research_antennas/README.md#actual-wlan-screening-results-2026-11-10).
+Those are real WLAN results, **not Yeo-Lee results**. This example's own numeric
+comparison remains in [COMPARISON.md](COMPARISON.md).
+
+![Native saved-region preview workflow](../../../quick_emerge_plugin/help-minimal-workspace-4.0.1.png)
+
+Use Setup, Preview and the numbered ports to inspect extraction before Run.
+
+![Native field-result inspection workflow](../../../quick_emerge_plugin/help-antenna-field-4.0.1.png)
+
+Read quantity, frequency and sampling-plane Z before comparing field maps.
+These genuine Windows captures were recorded on 2026-11-01 with Python 3.11.5,
+wxPython 4.3.2 and VTK 9.7.1. They show the public synthetic antenna-region
+fixture, **not this Yeo-Lee board or its measured/published results**. They are
+historical UI guidance, not a new release-4.7.0 native acceptance test. See the
+[capture provenance](../../../quick_emerge_plugin/README.md#visual-workflow).
+For this example's actual numerical evidence, use
+[COMPARISON.md](COMPARISON.md), the paper's Figure 1(a)/Section 2 dimensions and
+Tables 3-4 simulation/measurement references. Do not compare the synthetic
+screenshots to the paper as if they were this benchmark's solution.
+
+### Run and analyze
+
 1. Follow the [Quick EMerge installation and runtime setup](../../../quick_emerge_plugin/README.md#setup-and-launch).
    Open a working copy of `published_patch.kicad_pro` in KiCad 10, then its PCB.
    Preserve the supplied zone fill; do not refill or edit copper for this check.
