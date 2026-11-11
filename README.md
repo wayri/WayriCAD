@@ -7,6 +7,10 @@
 [![Tools](https://img.shields.io/badge/Tools-27-168b78)](#all-27-plugins)
 [![Licenses](https://img.shields.io/badge/License-GPL--3.0%20%2F%20MIT-64748b)](#acknowledgements-and-ai-disclosure)
 
+[![WayriCAD in action: board-level power integrity, 3D thermal analysis, AESA beam steering, antenna fields, magnetic modelling and signal eye diagrams](docs/images/wayricad-showcase.png)](docs/images/wayricad-showcase.png)
+
+<sub>Actual plugin captures and computed examples, not measured hardware. [Explore the showcase](#showcase) · [Image sources and model limits](docs/images/SHOWCASE_SOURCES.md)</sub>
+
 **KiCad engineering tools for layout, circuit analysis and manufacturing.** Choose
 from 27 independently installable development packages. Processing runs locally after setup.
 KiCad 10 is the native validation target; KiCad 11 support remains experimental.

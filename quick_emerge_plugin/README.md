@@ -1,5 +1,62 @@
 # Quick EMerge
 
+**See the geometry. Solve the fields. Inspect the evidence.** Quick EMerge brings
+bounded electromagnetic studies into the KiCad workflow: reviewed PCB-region
+extraction, antenna templates, RF network plots, sampled fields and interactive
+3D radiation views. It is a **read-only engineering beta**, not an automatic
+whole-board RF sign-off tool.
+
+## Capabilities at a glance
+
+These are actual program captures and computed examples. Select an image for its
+full resolution; the [research gallery and run evidence](#published-antenna-examples-and-real-result-gallery)
+explain the inputs, numerical outcomes and limitations. Hosted images need internet.
+
+| Geometry and RF response | Fields and radiation |
+|---|---|
+| **Inspect the antenna before solving**<br>[![WLAN antenna study open in Quick EMerge with its geometry and controls](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-design-open.png)](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-design-open.png)<br>Review geometry, materials and ports. This capture shows a paper-derived template; saved-PCB rule areas are a separate input path. | **Probe solved fields in board coordinates**<br>[![Original solved electric-field samples above the WLAN antenna with millimetre axes and V/m scale](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-field-3d.png)](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-field-3d.png)<br>Inspect E/H samples, slices and supported phase-vector animation. This E-field plane is at Z = 2 mm, not on the copper surface. |
+| **Analyze network matching**<br>[![Computed WLAN S-parameters with frequency and decibel scales](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-s-parameters.png)](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-s-parameters.png)<br>Inspect S-parameter magnitude/phase, impedance, Smith charts and supported network transforms. This screening case failed the paper's matching target. | **Rotate and probe 3D radiation lobes**<br>[![Computed WLAN radiation surface with normalized relative-field scale](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-radiation-3d.png)](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/dense/wlan-radiation-3d.png)<br>Compare 2D cuts and interactive 3D angular samples. Relative E is not gain in dBi, efficiency or distance. |
+| **Inspect polarization evidence**<br>[![Native 3D boresight polarization ellipse from saved complex WLAN fields](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/native-vnext/3d-polarization.png)](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/native-vnext/3d-polarization.png)<br>Use saved complex Ex/Ey for a boresight ellipse; supported dual-feed studies compare excitation phase. This is not a full angular polarization map. | **Explore AESA steering and beam shaping**<br>[![Ideal AESA array factor with 30-degree beam steering and a numeric relative-field scale](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/aesa-vnext/30/3d-radiation.png)](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/aesa-vnext/30/3d-radiation.png)<br>Compare steering angles and uniform/binomial tapers. This ideal isotropic array model omits mutual coupling, active electronics and measured gain. |
+
+Beyond the illustrated antenna workflow, supported studies include finite
+multiport arrays, periodic/Floquet cells, a TE10 waveguide reference, bounded
+scattering/import recipes and RF-loss substrate heating. These are separate
+study modes, not features automatically inferred from arbitrary PCB geometry.
+See the [coverage matrix](CAPABILITIES.md) and [validation evidence](VALIDATION.md).
+
+**Keep the study:** save portable setups and original results, export supported
+Touchstone/CSV data, and create source-checked HTML/PDF reports. Saved viewers
+support navigation and original-sample probes without rerunning the solver.
+[CLI and setup](#setup-and-launch) and the
+[step-by-step example commands](../examples/quick_emerge/research_antennas/README.md)
+enable repeatable, explicit studies.
+
+## From opening the plugin to results
+
+![Quick EMerge workflow: open, configure a saved rule area or separate template, preview geometry and ports, run the reviewed study, inspect results, and save evidence](help-open-to-results.svg)
+
+1. **Open:** save the PCB, then launch Quick EMerge from KiCad. Prepare the
+   [runtime](#setup-and-launch) if prompted; use **Help / F1** for setup.
+2. **Set up:** select **Saved PCB rule area**, or deliberately choose a separate
+   parametric/published example. Review geometry, materials, excitation, sweep,
+   boundaries, mesh limits and output sampling.
+3. **Preview:** check the actual geometry and numbered ports. Correct missing
+   return paths or unsupported geometry before proceeding. Changing inputs
+   invalidates the previous preview/results.
+4. **Run simulation:** review diagnostics and progress. Cancel stops the worker;
+   an error or size limit is not a completed solution. Refine mesh and boundaries
+   separately when evaluating convergence.
+5. **Inspect:** enable **Show results**, select **2D / 3D**, and use charts/probes.
+   Only views backed by stored samples are available; an empty view is not zero.
+6. **Save and export:** use **Files** for setups/results and **Export…** for
+   supported images/reports. Keep source identity, model assumptions and run
+   evidence with the result. A historical result is not a fresh PCB solve.
+
+[Detailed KiCad workflow](help.html) ·
+[Reproduce a research example](../examples/quick_emerge/research_antennas/README.md) ·
+[Interactive WLAN results](../examples/quick_emerge/research_antennas/images/dense/interactive-results.html) ·
+[Interactive AESA steering](../examples/quick_emerge/research_antennas/images/aesa-vnext/interactive-steering.html)
+
 Research gallery images in this README are hosted in the source repository and
 need internet access. The installed plugin's HTML help and local result viewers
 remain available offline after runtime setup. Download the repository gallery's
@@ -41,9 +98,9 @@ The binomial taper is an analytical design extension; no paper agreement is
 claimed for it. The ideal model retains a mirrored rear lobe. In the source
 plugin select the AESA setup, set scan theta/phi and **Ideal AESA amplitude
 taper**, Run, then choose **3D > Show results > 3D radiation**.
-The installed v4.7.0 release does not contain this source update.
+These viewer updates are included in 4.8.0; earlier 4.7.0 binaries lack them.
 
-### In-development 3D antenna viewer update
+### 3D antenna viewer and saved results
 
 The source checkout now adds a **3D polarization** view when a result contains
 saved complex boresight Ex/Ey. It draws the actual normalized polarization
@@ -83,7 +140,7 @@ and polarization axes are dimensionless and must not be placed on a mm board.
 
 ![Native 3D boresight polarization from the real WLAN result](https://raw.githubusercontent.com/wayri/WayriCAD/develop/examples/quick_emerge/research_antennas/images/native-vnext/3d-polarization.png)
 
-This source update is not yet included in the published 4.7.0 plugin binaries.
+These views are included in 4.8.0, but not in the older 4.7.0 plugin binaries.
 Native wx/VTK view tests pass. Offline HTML picking passes in the installed
 Edge browser at CSS-resolution WebGL buffers, including original-angle 3D
 probes, field/network probes, mobile overflow and offline-resource checks.
@@ -353,8 +410,8 @@ Use **Run settings > setup/retry** to request a fresh update check. Both package
 versions are recorded in compatibility evidence; changing installed emsutil
 invalidates a managed runtime's package identity. Updates remain staged and
 must pass the real-solve gate before activation. The manual fallback pins are
-in [requirements-solver.txt](requirements-solver.txt). These changes are not
-yet part of the published v4.7.0 binaries.
+in [requirements-solver.txt](requirements-solver.txt). These changes ship in
+4.8.0; the older v4.7.0 binaries do not contain them.
 
 Update checks occur at most daily. The Run settings offer setup/retry and
 restore-previous-runtime controls. Stale adapter certificates trigger

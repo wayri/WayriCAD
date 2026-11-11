@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="510" viewBox="0 0 1440 510" role="img" aria-labelledby="title desc">
+  <title id="title">Quick EMerge: open to results</title>
+  <desc id="desc">Open the saved board in KiCad and launch Quick EMerge. Configure a saved PCB rule area or a separate template. Preview geometry and ideal ports, run the reviewed study, inspect stored charts and fields, then save results and reports. If geometry or solver checks fail, correct the setup and preview again; never treat failed or stale runs as solved evidence.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0L8 4L0 8Z" fill="#168b78"/></marker>
+  </defs>
+  <rect width="1440" height="510" fill="#f3f8fa"/>
+  <rect width="1440" height="7" fill="#168b78"/>
+  <g font-family="Segoe UI, Arial, sans-serif" letter-spacing="0">
+    <text x="26" y="55" font-size="30" font-weight="700" fill="#17363f">Quick EMerge | From saved geometry to inspectable evidence</text>
+    <text x="26" y="91" font-size="21" fill="#475e68">Two inputs: actual saved-PCB rule area OR a separate parametric / research template</text>
+    <g fill="#ffffff" stroke="#c1d3db" stroke-width="2">
+      <rect x="24" y="133" width="210" height="206" rx="5"/>
+      <rect x="260" y="133" width="210" height="206" rx="5"/>
+      <rect x="496" y="133" width="210" height="206" rx="5"/>
+      <rect x="732" y="133" width="210" height="206" rx="5"/>
+      <rect x="968" y="133" width="210" height="206" rx="5"/>
+      <rect x="1204" y="133" width="210" height="206" rx="5"/>
+    </g>
+    <g fill="none" stroke="#168b78" stroke-width="3" marker-end="url(#arrow)">
+      <path d="M234 230H255"/><path d="M470 230H491"/><path d="M706 230H727"/><path d="M942 230H963"/><path d="M1178 230H1199"/>
+    </g>
+    <g font-size="24" font-weight="700" fill="#17363f">
+      <text x="40" y="174">1  Open</text><text x="276" y="174">2  Setup</text><text x="512" y="174">3  Preview</text>
+      <text x="748" y="174">4  Run</text><text x="984" y="174">5  Inspect</text><text x="1220" y="174">6  Save / export</text>
+    </g>
+    <g font-size="19" fill="#475e68">
+      <text x="40" y="214"><tspan x="40">Save the PCB</tspan><tspan x="40" dy="29">Launch from KiCad</tspan><tspan x="40" dy="29">Check runtime</tspan></text>
+      <text x="276" y="214"><tspan x="276">Choose input</tspan><tspan x="276" dy="29">Materials + ports</tspan><tspan x="276" dy="29">Mesh + sweep</tspan><tspan x="276" dy="29">Sampling + limits</tspan></text>
+      <text x="512" y="214"><tspan x="512">Inspect copper</tspan><tspan x="512" dy="29">Check reference</tspan><tspan x="512" dy="29">Review feed ports</tspan><tspan x="512" dy="29">Reject bad geometry</tspan></text>
+      <text x="748" y="214"><tspan x="748">Run simulation</tspan><tspan x="748" dy="29">Monitor diagnostics</tspan><tspan x="748" dy="29">Cancel if needed</tspan><tspan x="748" dy="29">Review completion</tspan></text>
+      <text x="984" y="214"><tspan x="984">Show results</tspan><tspan x="984" dy="29">Charts + probes</tspan><tspan x="984" dy="29">2D / 3D fields</tspan><tspan x="984" dy="29">Stored radiation</tspan></text>
+      <text x="1220" y="214"><tspan x="1220">Setup + result files</tspan><tspan x="1220" dy="29">Images + reports</tspan><tspan x="1220" dy="29">Source evidence</tspan><tspan x="1220" dy="29">Reload for review</tspan></text>
+    </g>
+    <path d="M837 345V376H365V345" fill="none" stroke="#b77622" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="600" y="407" text-anchor="middle" font-size="19" fill="#875515">Invalid geometry, solver failure or changed inputs? Correct Setup, then Preview again.</text>
+    <rect x="24" y="437" width="1390" height="48" fill="#e3eff1"/>
+    <text x="40" y="468" font-size="19" fill="#17363f">Read-only PCB workflow. Denser display samples do not establish mesh convergence. Ideal AESA studies use an analytical path, not FEM.</text>
+  </g>
+</svg>
