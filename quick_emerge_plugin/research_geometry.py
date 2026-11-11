@@ -223,6 +223,12 @@ def _sx_shared(em, np, config, template):
 def build_research_geometry(em, np, config):
     template = get_template(config["advanced"]["research_template"])
     kind = template["geometry"]["kind"]
+    if kind == 'paper_siw_dra':
+        from .siw_dra_geometry import build
+        return build(em, np, config, template)
+    if kind == 'paper_siw_horn':
+        from .siw_horn_geometry import build
+        return build(em, np, config, template)
     builders = {
         "dual_feed_square_patch": _dual_feed_patch,
         "yang_wlan_monopole": _wlan,

@@ -230,13 +230,24 @@ def near_field3d(figure, result, options=None):
     from matplotlib.cm import ScalarMappable
     options = options or {}
     is_region = result['config'].get('mode', 'patch') == 'pcb_region'
-    if is_region:
+    if options.get('archive_only') and not is_region:
+        figure.clear(); ax=figure.add_subplot(111,projection='3d')
+        scene=result.get('scene_geometry')
+        if scene and scene.get('kind')=='research_solids':
+            from .paper_scene import plot
+            plot(ax,scene,options)
+    elif is_region:
         from .region_view import geometry as region_geometry
         region_geometry(figure, result['region'], options)
     else:
         geometry(figure, result['config'], options)
     ax = figure.axes[0]
     field = result.get('thermal', result.get('field'))
+    if field.get('display_vectors') is not None:
+        from .field_vectors import plot
+        plot(ax, field['display_vectors'])
+        ax.set_title(f"Phase-resolved vectors at {field['display_vectors']['phase_deg']:g} degree\nOriginal coordinates; arrows visually scaled, not displacement")
+        return
     x, y = np.meshgrid(field['x_mm'], field['y_mm'])
     z = np.full(x.shape, field['z_mm'], dtype=float)
     if options.get('field', True):
@@ -321,7 +332,11 @@ def advanced_geometry(figure, config, options=None):
     c=validate_config(config); study=c['advanced']['study']; figure.clear()
     ax=figure.add_subplot(111,projection='3d')
     sx,sy,th=c['substrate_x_mm'],c['substrate_y_mm'],c['thickness_mm']
-    if study=='scattering':
+    from .paper_scene import descriptor, plot
+    paper=descriptor(c) if study=='research_antenna' else None
+    if paper is not None:
+        plot(ax,paper,options or {})
+    elif study=='scattering':
         if c['advanced']['step_path']:
             ax.text2D(.1,.5,'Imported geometry is meshed in the solver; no template substitution.',transform=ax.transAxes)
         else:

@@ -21,11 +21,13 @@ ADVANCED_FIELDS = (
     _f('research_template', 'Published antenna', 'yang-2016-wlan-monopole', 'choice',
        choices=('rezaeipour-2021-dual-feed-patch', 'yang-2016-wlan-monopole',
                 'liu-2020-cubesat-yagi', 'verho-2023-aesa-4x4',
-                'kabir-2023-cubesat-sx-shared-aperture'),
+                'kabir-2023-cubesat-sx-shared-aperture', 'cheh-lin-2023-siw-dra', 'ma-2024-siw-horn'),
        studies=('research_antenna',), group='Research antenna'),
     _f('research_excitation', 'Excitation', 'auto', 'choice',
        choices=('auto', 'linear', 'rhcp', 'lhcp', 's-band', 'x-band'),
        studies=('research_antenna',), group='Research antenna'),
+    _f('research_array_taper', 'Ideal AESA amplitude taper', 'uniform', 'choice',
+       choices=('uniform', 'binomial'), studies=('research_antenna',), group='Research antenna'),
     _f('array_count_x', 'Array elements X', 2, 'integer', studies=('array',), group='Array'),
     _f('array_count_y', 'Array elements Y', 1, 'integer', studies=('array',), group='Array'),
     _f('array_pitch_x_mm', 'Array pitch X', 60, unit='mm', studies=('array',), group='Array'),
@@ -51,8 +53,8 @@ ADVANCED_FIELDS = (
     _f('boundary', 'Outer boundary', 'absorbing', 'choice', choices=('absorbing', 'pec', 'pmc', 'pml'), studies=('driven', 'research_antenna', 'optimization', 'array'), group='Boundary'),
     _f('abc_order', 'Absorbing boundary order', 2, 'integer', studies=('driven', 'research_antenna', 'optimization', 'array'), group='Boundary'),
     _f('pml_thickness_mm', 'PML thickness', 5, unit='mm', studies=('driven', 'research_antenna', 'optimization', 'array'), group='Boundary'),
-    _f('field_layers', 'Sampled field Z layers (1 = plane)', 1, 'integer', studies=('driven', 'periodic', 'scattering', 'optimization', 'waveguide', 'array'), group='Fields'),
-    _f('field_z_min_mm', 'Volume lower Z', .1, unit='mm', studies=('driven', 'periodic', 'scattering', 'optimization', 'waveguide', 'array'), group='Fields'),
+    _f('field_layers', 'Sampled field Z layers (1 = plane)', 1, 'integer', studies=('driven', 'research_antenna', 'periodic', 'scattering', 'optimization', 'waveguide', 'array'), group='Fields'),
+    _f('field_z_min_mm', 'Volume lower Z', .1, unit='mm', studies=('driven', 'research_antenna', 'periodic', 'scattering', 'optimization', 'waveguide', 'array'), group='Fields'),
     _f('export_dxf', 'Export exact planar sheets as DXF', False, 'bool', studies=('driven','array'), group='Exports'),
     _f('export_dxf_z_mm', 'DXF sheet heights', '0', 'text', unit='mm, comma-separated', studies=('driven','array'), group='Exports'),
     _f('export_optycal', 'Export official Optycal far-field MsgPack', False, 'bool', studies=('driven','array'), group='Exports'),
@@ -118,7 +120,7 @@ def validate_advanced(raw, config):
             value = int(value)
         a[key] = value
     zero_ok = ('patch_feed_extension_mm', 'loss_tangent', 'er_stop', 'roughness_um', 'thermal_power_w', 'thermal_time_s')
-    signed = ('patch_offset_y_mm', 'scan_theta_deg', 'scan_phi_deg', 'polarization_deg', 'array_phase_x_deg', 'array_phase_y_deg')
+    signed = ('patch_offset_y_mm', 'scan_theta_deg', 'scan_phi_deg', 'polarization_deg', 'array_phase_x_deg', 'array_phase_y_deg', 'field_z_min_mm')
     for f in _ALL_FIELDS:
         key = f['key']
         if f['kind'] not in ('number', 'integer') or key in signed:
@@ -137,6 +139,8 @@ def validate_advanced(raw, config):
         raise ValueError('Field volume is limited to 17 Z layers and 100,000 samples')
     if a['field_layers'] > 1 and a['field_z_min_mm'] >= config['field_z_mm']:
         raise ValueError('Field volume lower Z must be below the field plane Z')
+    if a['field_layers']>1 and a['field_z_min_mm']<=-config['thickness_mm']-config['air_margin_mm']:
+        raise ValueError('Field volume must lie inside the lower air-domain bound')
     study = a['study']
     extension = a['patch_feed_extension_mm']
     offset_y = a['patch_offset_y_mm']
@@ -165,11 +169,15 @@ def validate_advanced(raw, config):
             'liu-2020-cubesat-yagi': {'auto'},
             'verho-2023-aesa-4x4': {'auto'},
             'kabir-2023-cubesat-sx-shared-aperture': {'auto', 's-band', 'x-band'},
+            'cheh-lin-2023-siw-dra': {'auto'},
+            'ma-2024-siw-horn': {'auto'},
         }[template['id']]
         if config['mode'] != 'patch' or excitation not in allowed:
             raise ValueError('Published antenna template requires patch mode and a compatible excitation')
         if template['geometry']['kind'] == 'rectangular_array_factor' and config['points'] > 81:
             raise ValueError('Analytical array-factor benchmark is limited to 81 frequency samples')
+        if template['geometry']['kind']=='paper_siw_dra' and config['air_margin_mm']<=21:
+            raise ValueError('SIW/DRA air box must extend above the 21 mm resonator.')
         if template['geometry']['kind'] == 'kabir_sx_shared_aperture':
             geometry = template['geometry']
             stack_top = (geometry['upper_layer_height_mm'] + geometry['air_gap_mm'] +
@@ -241,10 +249,19 @@ def verify_step(a):
     return dict(path=str(path), sha256=digest, coordinate_scale_m=a['step_unit_m'])
 
 
+def solver_selection(em, name):
+    """Use the stable 3.0 public classes; retain qualified beta compatibility."""
+    if hasattr(em,'solvers'):
+        names={'SUPERLU':'SuperLU','PARDISO':'Pardiso','UMFPACK':'UMFPACK',
+               'AASDS':'AASDS','CUDSS':'CuDSS','SPARTA':'Sparta'}
+        return getattr(em.solvers,names[name])
+    return em.EMSolver[name]
+
+
 def configure_solver(em, model, c):
     a = c.get('advanced', ADVANCED_DEFAULTS)
     try:
-        solver = model.set_solver(em.EMSolver[c['solver']])
+        solver = model.set_solver(solver_selection(em,c['solver']))
         solver.set_nthreads(a['solver_threads'])
         if c['solver'] == 'SPARTA':
             solver.set_options(mode=a['sparta_mode'])

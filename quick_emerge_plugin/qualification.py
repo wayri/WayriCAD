@@ -142,7 +142,7 @@ def qualify(output):
         checks.append(name)
     checks.extend(qualify_extended_apis(Path(output).parent))
     packages = {}
-    for name in ('emerge', 'numpy', 'scipy', 'matplotlib', 'gmsh', 'packaging', 'emcad', 'ezdxf', 'optycal', 'msgpack', 'msgpack-numpy'):
+    for name in ('emerge', 'emsutil', 'numpy', 'scipy', 'matplotlib', 'gmsh', 'packaging', 'emcad', 'ezdxf', 'optycal', 'msgpack', 'msgpack-numpy'):
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:

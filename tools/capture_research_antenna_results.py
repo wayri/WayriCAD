@@ -1,6 +1,7 @@
 """Solve a bounded WLAN example or capture its actual native result views."""
 import argparse
 import hashlib
+import gzip
 import json
 import os
 from pathlib import Path
@@ -30,7 +31,7 @@ def verify_install():
     print(f'Verified {packages} packages and {files} installed files')
 
 
-def solve(output):
+def solve(output, dense=False):
     from quick_emerge_plugin.backend import atomic_json, run_request
     from quick_emerge_plugin.model import config_digest, source_identity
     from quick_emerge_plugin.research_antennas import example_config
@@ -41,6 +42,8 @@ def solve(output):
     board.write_bytes((ROOT / 'quick_emerge_plugin/tests/fixtures/region_coupon.kicad_pcb').read_bytes())
     config = example_config('yang-2016-wlan-monopole')
     config.update(f_start_hz=2.35e9, f_stop_hz=2.55e9, points=3, field_grid=41)
+    if dense:
+        config.update(points=21, field_grid=161, mesh_edge_mm=1.25, resolution=.22)
     config['solver'] = 'SUPERLU'
     from quick_emerge_plugin.model import validate_config
     config = validate_config(config)
@@ -86,7 +89,8 @@ def polarization_plot(result, destination):
     for i, value in enumerate(stokes):
         bars.text(i, value + (.06 if value >= 0 else -.09), f'{value:.6f}', ha='center')
     bars.axhline(0, color='#777', linewidth=.8)
-    figure.suptitle('Yang WLAN | solved Jones-vector analysis | coarse screening', fontsize=14)
+    label = 'refined screening; not converged' if result['config']['field_grid'] > 41 else 'coarse screening'
+    figure.suptitle('Yang WLAN | solved Jones-vector analysis | '+label, fontsize=14)
     figure.text(.02, .025, 'Post-processed original solver data, not a native plugin polarization panel. '
                 'S3 = -2 Im(Ex conj(Ey)); no RHCP/LHCP convention claim.', fontsize=9)
     figure.tight_layout(rect=(0, .07, 1, .93))
@@ -101,9 +105,10 @@ def capture(result_path, output):
     app = wx.App(False)
     from quick_emerge_plugin.ui import QuickEMergeFrame
     result = json.loads(result_path.read_text(encoding='utf-8'))
+    dense = result['config']['field_grid'] > 41
     output.mkdir(parents=True, exist_ok=True)
     frame = QuickEMergeFrame(Path(result['source']['path']), auto_setup=False)
-    frame.SetSize((1320, 860))
+    frame.SetSize((1800, 1200) if dense else (1320, 860))
     frame.Show()
     frame._apply_setup_config(result['config'], result_path)
     frame.install_result(result)
@@ -118,18 +123,22 @@ def capture(result_path, output):
                                ('Field probes', 'wlan-field-slice.png'),
                                ('Radiation pattern', 'wlan-radiation-2d.png'),
                                ('3D fields', 'wlan-field-3d.png'),
-                               ('3D radiation', 'wlan-radiation-3d.png')]:
+                               ('3D radiation', 'wlan-radiation-3d.png'),
+                               ('3D radiation', 'wlan-radiation-side.png')]:
             frame.select_view(view)
             if view == '3D setup':
                 frame.viewports[view].set_camera(
                     preset='Top' if filename == 'wlan-design-2d.png' else 'Isometric',
                     projection='ortho')
+                if filename == 'wlan-design-open.png':
+                    frame.viewports[view].orientation.SetEnabled(0)
             if filename == 'wlan-s-phase.png':
                 frame.chart_quantity.SetStringSelection('Phase')
                 from quick_emerge_plugin import plots
                 frame.viewports[view].render(plots.response, result, reset=True,
                                              options={'network_quantity': 'Phase'})
-            frame.SetStatusText('Yang WLAN | coarse screening | 2.45 GHz fields | not paper agreement')
+            frame.SetStatusText('Yang WLAN | '+str(result['config']['points'])+
+                               ' frequency samples | 2.45 GHz fields | not convergence-qualified')
             for _ in range(15):
                 wx.Yield()
                 frame.Refresh()
@@ -145,8 +154,67 @@ def capture(result_path, output):
             native_export = view.startswith('3D') and filename != 'wlan-design-open.png'
             if native_export:
                 frame.viewports[view].export_image(str(destination))
+            direct_plot = dense and view in ('S-parameters', 'Smith chart', 'Field probes', 'Radiation pattern', '3D fields', '3D radiation')
+            if direct_plot:
+                from matplotlib.figure import Figure
+                from matplotlib.backends.backend_agg import FigureCanvasAgg
+                from quick_emerge_plugin import plots
+                figure = Figure(figsize=(6, 8) if view == 'Field probes' else (8, 7), dpi=220)
+                FigureCanvasAgg(figure)
+                import matplotlib
+                with matplotlib.rc_context({'font.size': 12, 'axes.labelsize': 13, 'axes.titlesize': 12}):
+                    if view == 'Field probes':
+                        plots.near_field(figure, result)
+                        from quick_emerge_plugin.scene_data import research_scene, preview_geometry
+                        parts, _ = research_scene(preview_geometry(result['config']))
+                        axes = figure.axes[0]
+                        for category, shape, z, _color, _opacity in parts:
+                            if category == 'copper' and z == 0:
+                                for ring in [shape['outer_mm']] + shape.get('holes_mm', []):
+                                    vertices = ring + [ring[0]]
+                                    axes.plot([p[0] for p in vertices], [p[1] for p in vertices],
+                                              color='white', linewidth=.65, alpha=.85)
+                    elif view == 'Radiation pattern':
+                        plots.radiation_polar(figure, result)
+                    elif view == 'Smith chart':
+                        plots.smith(figure, result)
+                    elif view == '3D radiation':
+                        plots.radiation(figure, result)
+                        figure.axes[0].set(xlabel='X [relative radius]', ylabel='Y [relative radius]',
+                                           zlabel='Z [relative radius]')
+                        if filename == 'wlan-radiation-side.png':
+                            figure.axes[0].view_init(elev=0, azim=90)
+                    elif view == '3D fields':
+                        import numpy as np
+                        from matplotlib import colormaps, colors
+                        from matplotlib.cm import ScalarMappable
+                        from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+                        from quick_emerge_plugin.scene_data import research_scene, preview_geometry
+                        axes = figure.add_subplot(111, projection='3d', computed_zorder=False)
+                        parts, _ = research_scene(preview_geometry(result['config']))
+                        for category, shape, z, color, opacity in parts:
+                            vertices = [[(x, y, z) for x, y in shape['outer_mm']]]
+                            axes.add_collection3d(Poly3DCollection(vertices, facecolors=[color], alpha=opacity))
+                        field = result['field']
+                        x, y = np.meshgrid(field['x_mm'], field['y_mm'])
+                        values = np.asarray(field['norm_e_v_m'])
+                        norm = colors.Normalize(float(np.nanmin(values)), float(np.nanmax(values)))
+                        axes.plot_surface(x, y, np.full(x.shape, field['z_mm']),
+                                          facecolors=colormaps['inferno'](norm(values)),
+                                          rcount=x.shape[0], ccount=x.shape[1], shade=False)
+                        axes.set(xlim=(min(field['x_mm']), max(field['x_mm'])),
+                                 ylim=(min(field['y_mm']), max(field['y_mm'])), zlim=(-1.8, 2.8),
+                                 xlabel='X [mm]', ylabel='Y [mm]', zlabel='Z [mm]',
+                                 title='Original E-field samples at Z=2 mm, 2.45 GHz')
+                        axes.set_box_aspect((16, 29, 4.6))
+                        axes.view_init(elev=35, azim=-55)
+                        figure.colorbar(ScalarMappable(norm=norm, cmap='inferno'), ax=axes,
+                                        shrink=.65, pad=.1, label='|E| [V/m]')
+                    else:
+                        plots.response(figure, result, {'network_quantity': 'Phase' if filename == 'wlan-s-phase.png' else 'Magnitude'})
+                    figure.savefig(destination, dpi=220, bbox_inches='tight', pad_inches=.12)
             records.append(dict(view=view, file=filename,
-                                capture_method='native framebuffer export' if native_export else 'native window client capture',
+                                capture_method='direct original-data plot export' if direct_plot else 'native framebuffer export' if native_export else 'native window client capture',
                                 sha256=hashlib.sha256(destination.read_bytes()).hexdigest()))
         name = 'wlan-polarization.png'
         polarization = polarization_plot(result, output / name)
@@ -156,11 +224,14 @@ def capture(result_path, output):
         import vtk
         from quick_emerge_plugin import __version__
         portable = {key: value for key, value in result.items() if key != 'source'}
-        samples = output / 'wlan-screening-samples.json'
-        samples.write_text(json.dumps(portable, indent=2, allow_nan=False), encoding='utf-8')
+        samples = output / ('wlan-screening-samples.json.gz' if dense else 'wlan-screening-samples.json')
+        if dense:
+            samples.write_bytes(gzip.compress(json.dumps(portable, allow_nan=False).encode('utf-8'), mtime=0))
+        else:
+            samples.write_text(json.dumps(portable, indent=2, allow_nan=False), encoding='utf-8')
         provenance = dict(captured_local_date='2026-11-10', plugin=__version__,
                           python=sys.version.split()[0], wx=wx.version(), vtk=vtk.vtkVersion.GetVTKVersion(),
-                          samples_sha256=hashlib.sha256(samples.read_bytes()).hexdigest(),
+                          samples_file=samples.name, samples_sha256=hashlib.sha256(samples.read_bytes()).hexdigest(),
                           source_context='Public synthetic region_coupon fixture; local source path omitted from portable numerical evidence',
                           result_sha256=hashlib.sha256(result_path.read_bytes()).hexdigest(),
                           config=result['config'], research_sha256=result['research_sha256'],
@@ -175,10 +246,10 @@ def capture(result_path, output):
 
 def verify_capture(output):
     record = json.loads((output / 'provenance.json').read_text(encoding='utf-8'))
-    samples = output / 'wlan-screening-samples.json'
+    samples = output / record.get('samples_file', 'wlan-screening-samples.json')
     if hashlib.sha256(samples.read_bytes()).hexdigest() != record['samples_sha256']:
         raise ValueError('Numerical evidence digest mismatch')
-    data = json.loads(samples.read_text(encoding='utf-8'))
+    data = json.loads(gzip.decompress(samples.read_bytes()) if samples.suffix == '.gz' else samples.read_bytes())
     if 'source' in data or data['config'] != record['config']:
         raise ValueError('Portable sample custody or privacy mismatch')
     from quick_emerge_plugin.radiation_pattern import radiation_status
@@ -204,11 +275,12 @@ def verify_capture(output):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('mode', choices=['solve', 'capture', 'verify', 'verify-install'])
-    parser.add_argument('--run-dir', type=Path, default=ROOT / '.validation/research-screenshots')
-    parser.add_argument('--output', type=Path, default=ROOT / 'examples/quick_emerge/research_antennas/images')
+    parser.add_argument('--run-dir', type=Path, default=ROOT / '.validation/research-gallery-dense')
+    parser.add_argument('--output', type=Path, default=ROOT / 'examples/quick_emerge/research_antennas/images/dense')
+    parser.add_argument('--dense', action='store_true', help='21-frequency, finer-mesh, 161 x 161 field study')
     args = parser.parse_args()
     if args.mode == 'solve':
-        solve(args.run_dir.resolve())
+        solve(args.run_dir.resolve(), args.dense)
     elif args.mode == 'capture':
         capture(args.run_dir.resolve() / 'result.json', args.output.resolve())
     elif args.mode == 'verify':

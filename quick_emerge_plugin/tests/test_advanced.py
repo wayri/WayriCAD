@@ -13,6 +13,17 @@ from quick_emerge_plugin.model import validate_config, config_digest
 
 
 class AdvancedContractTests(unittest.TestCase):
+    def test_stable_solver_api_uses_public_classes_without_legacy_enum(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from quick_emerge_plugin.advanced import configure_solver
+        selected=type('SuperLU',(),{})
+        em=SimpleNamespace(solvers=SimpleNamespace(SuperLU=selected))
+        model=Mock()
+        configure_solver(em,model,validate_config({}))
+        model.set_solver.assert_called_once_with(selected)
+        model.set_solver.return_value.set_nthreads.assert_called_once_with(1)
+
     def test_normalized_defaults_and_digest(self):
         c = validate_config({})
         self.assertEqual(c['advanced']['study'], 'driven')

@@ -1,0 +1,36 @@
+"""Paper-derived reconstructions; inferred geometry is not a verified replica."""
+
+REPLICATION_TEMPLATES = {
+    'cheh-lin-2023-siw-dra': {
+        'title': 'Triple-band via-fenced SIW dielectric resonator (reconstruction)',
+        'citation': {'authors': 'I. K. Cheh Lin, M. H. Jamaluddin and A. Gaya',
+                     'title': 'A Triple Band Substrate Integrated Waveguide with Dielectric Resonator Antenna for 4G and 5G Applications',
+                     'year': 2023, 'doi': '10.3390/mi14071284',
+                     'url': 'https://doi.org/10.3390/mi14071284'},
+        'category': ['siw', 'via-fence', 'dielectric-resonator', '4g', '5g'],
+        'geometry': {'kind': 'paper_siw_dra', 'board_mm': [64., 85.],
+                     'substrate_height_mm': 1.6, 'relative_permittivity': 4.6,
+                     'loss_tangent': .019, 'resonator_mm': [40., 40., 21.],
+                     'resonator_er': 10., 'resonator_loss_tangent': .0019,
+                     'via_diameter_mm': 4., 'via_pitch_mm': 8.},
+        'recommended_sweep_ghz': [1.6, 3.9, 47],
+        'published_targets': {'measured_bands_ghz': [[1.675, 2.035], [2.5, 2.67]],
+                              'reported_resonances_ghz': [1.8, 2.6, 3.7]},
+        'model_scope': 'Paper-derived reconstruction with disclosed U-slot and via-lattice assumptions; not an exact author-CAD replica. Eq(7) width conflicts with Table1. Ideal feeds/posts, no adhesive or connector body. Agreement and convergence must be evaluated.',
+    },
+    'ma-2024-siw-horn': {
+        'title': '60 GHz slotted PCB SIW horn (reconstruction)',
+        'citation': {'authors': 'B. Ma et al.', 'year': 2024, 'doi': '10.3390/mi15060728',
+                     'title': 'A 60 GHz Slotted Array Horn Antenna for Radar Sensing Applications in Future Global Industrial Scenarios',
+                     'url': 'https://doi.org/10.3390/mi15060728'},
+        'category': ['siw', 'via-fence', 'pcb-horn', 'mmwave', 'radar'],
+        'geometry': {'kind': 'paper_siw_horn', 'board_mm': [32.48, 13.],
+                     'substrate_height_mm': .508, 'relative_permittivity': 2.55,
+                     'loss_tangent': .0014, 'via_diameter_mm': .3, 'via_pitch_mm': .6,
+                     'frequency_ghz': 60., 'source_copper_thickness_um': 17.5},
+        'recommended_sweep_ghz': [53., 70., 35],
+        'published_targets': {'simulated_band_ghz': [54.06, 69.02],
+                              'measured_bandwidth_ghz': 14.5},
+        'model_scope': 'Paper-derived SIW horn reconstruction with disclosed transition/slot/edge assumptions. Uses dimension sums rather than rounded overall length. Not a validated reproduction of measured gain or matching; convergence required.',
+    },
+}

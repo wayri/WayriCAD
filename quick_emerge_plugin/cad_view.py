@@ -3,6 +3,15 @@
 
 def geometry_bounds(arguments, *, focus=True):
     """Return the selected crop or active template bounds in mm, not board context."""
+    scene=arguments.get('scene_geometry')
+    if isinstance(scene,dict):
+        if scene.get('kind')=='research_solids':
+            from .paper_scene import bounds
+            return bounds(scene)
+        if scene.get('board_mm'):
+            sx,sy=scene['board_mm']; h=scene.get('substrate_height_mm',scene.get('lower_layer_height_mm',0))
+            top=scene.get('upper_layer_height_mm',0)+scene.get('air_gap_mm',0)+scene.get('prs_height_mm',0)
+            return (-sx/2,sx/2,-sy/2,sy/2,-h,top)
     if 'substrate' in arguments:
         points = [point for shape in arguments['substrate']['outline'] for point in shape['outer_mm']]
         thickness = arguments['substrate']['thickness_mm']
@@ -18,6 +27,10 @@ def geometry_bounds(arguments, *, focus=True):
     else:
         from .model import validate_config
         config = validate_config(arguments)
+        if config['advanced']['study']=='research_antenna':
+            from .paper_scene import descriptor, bounds
+            scene=descriptor(config)
+            if scene is not None: return bounds(scene)
         if config['advanced']['study'] not in ('driven', 'optimization'):
             return None
         thickness = config['thickness_mm']

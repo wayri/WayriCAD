@@ -167,6 +167,13 @@ class ComponentInputsModel:
     def selected_references(self):
         return [ref for ref in self.references if ref in self._selected]
 
+    def include_known_power(self):
+        """Explicitly replace scope with valid known powers, including true zero."""
+        selected=[ref for ref in self.references
+                  if (cell:=self.cell(ref,'power_w')).value is not None and not cell.issue]
+        self._selected=set(selected)
+        return selected
+
     def is_included(self, reference):
         return reference in self._selected
 

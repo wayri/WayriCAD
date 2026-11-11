@@ -9,9 +9,17 @@ import tempfile
 from wayricad_runtime.saved_board import assert_current, load_board, provenance
 
 
+def read_protocol_json(path):
+    if path is None:return None
+    if path.stat().st_size>1024*1024:
+        raise ValueError('Protocol configuration exceeds the 1 MiB input budget.')
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     commands=root.add_subparsers(dest='command',required=True)
+    commands.add_parser('protocol-profiles',help='List protocol discovery families and screening assumptions without KiCad.')
     line=commands.add_parser('cross-section',help='Calculate an explicit manual line cross section without opening a board.')
     line.add_argument('--topology',required=True,choices=('microstrip','symmetric-stripline','cpw','grounded-cpw','edge-coupled-stripline'))
     line.add_argument('--width-mm',type=float,required=True)
@@ -20,11 +28,19 @@ def parser():
     line.add_argument('--gap-mm',type=float,help='Lateral-ground slot for CPW or pair gap for coupled stripline.')
     line.add_argument('--er',type=float,required=True)
     line.add_argument('--output',type=Path,help='Separate JSON report path.')
-    for name in ('inspect','path','zone','infer-series','bulk'):
+    for name in ('inspect','path','zone','infer-series','bulk','protocols'):
         command=commands.add_parser(name)
         command.add_argument('board',type=Path)
         command.add_argument('--output',type=Path,help='Write JSON atomically; source design files are never replaced.')
-        if name=='bulk':
+        if name=='protocols':
+            command.add_argument('--rules',type=Path,help='JSON list of wildcard/regex protocol classification rules.')
+            command.add_argument('--targets',type=Path,help='JSON exact-net/profile to explicit target ohms mapping.')
+            command.add_argument('--min-confidence',type=float,default=.75)
+            command.add_argument('--tolerance-pct',type=float,default=10.,help='Screening tolerance, not a protocol compliance limit.')
+            command.add_argument('--frequency-mhz',type=float,default=100.,help='Analysis frequency; not inferred from protocol name.')
+            command.add_argument('--max-sections',type=int,default=5000)
+            command.add_argument('--max-nets',type=int,default=500)
+        elif name=='bulk':
             command.add_argument('--net',action='append',help='Exact net; repeat to select several. Omit to extract all nets.')
             command.add_argument('--bundles',type=Path,help='JSON wayricad.rlc-bundles/v1 explicit net groups.')
             command.add_argument('--frequency-mhz',type=float,default=100.)
@@ -51,6 +67,9 @@ def parser():
 
 
 def analyze(args):
+    if args.command=='protocol-profiles':
+        from .protocol_discovery import list_profiles
+        return {'schema':'wayricad.rlc-protocol-profiles/v1','profiles':list_profiles()}
     if args.command=='cross-section':
         from .cross_section import estimate
         return {'schema':'wayricad.rlc-cross-section/v1','operation':'cross-section',
@@ -64,6 +83,10 @@ def analyze(args):
     except ImportError as exc:
         raise RuntimeError("Run this command with KiCad 10's Python interpreter, which provides pcbnew.") from exc
     from .measurement import TraceMeasurementEngine
+    fingerprints=None
+    if args.command=='protocols':
+        from .bulk_ui import source_fingerprints,verify_sources
+        fingerprints=source_fingerprints(source)
     source_digest=hashlib.sha256(source.read_bytes()).hexdigest()
     board=load_board(str(source), pcbnew=pcbnew)
     if board is None:raise ValueError('KiCad could not load the board.')
@@ -81,7 +104,18 @@ def analyze(args):
                 'operation':'infer-series',
                 'result':result, **source_evidence}
     engine=TraceMeasurementEngine(board)
-    if args.command=='bulk':
+    if args.command=='protocols':
+        from .protocol_scan import scan_engine
+        verify_sources(fingerprints)
+        report=scan_engine(engine,rules=read_protocol_json(args.rules),
+            targets=read_protocol_json(args.targets),
+            min_confidence=args.min_confidence,tolerance_pct=args.tolerance_pct,
+            frequency_mhz=args.frequency_mhz,max_sections=args.max_sections,max_nets=args.max_nets)
+        verify_sources(fingerprints)
+        source_evidence['source_files']=fingerprints
+        from datetime import datetime, timezone
+        source_evidence['generated_utc']=datetime.now(timezone.utc).isoformat()
+    elif args.command=='bulk':
         from .bulk import extract_board
         bundles=json.loads(args.bundles.read_text(encoding='utf-8')) if args.bundles else None
         report=extract_board(engine,nets=args.net,bundles=bundles,frequency_mhz=args.frequency_mhz,
@@ -127,9 +161,16 @@ def main(argv=None):
         if getattr(args,'bundles',None) and args.output and args.output.resolve()==args.bundles.resolve():
             raise ValueError('Output must not overwrite the bundle definition file.')
         report=analyze(args)
-        if args.output:write_report(args.output,report,getattr(args,'board',Path.cwd()))
+        for name in ('rules','targets'):
+            if getattr(args,name,None) and getattr(args,'output',None) and args.output.resolve()==getattr(args,name).resolve():
+                raise ValueError('Output must not overwrite protocol rules or targets.')
+        if getattr(args,'output',None):write_report(args.output,report,getattr(args,'board',Path.cwd()))
         else:print(json.dumps(report,indent=2,allow_nan=False))
-        status=report['result'].get('status','ok')
+        status=report.get('result',{}).get('status','ok')
+        if args.command=='protocols':
+            findings=report['result']['findings']
+            if any(row['status']=='outside_target' for row in findings):return 2
+            if status=='incomplete' or not findings or any(row['status']!='within_screening_target' for row in findings):return 3
         return 2 if status=='disconnected' else 3 if status in ('partial','cancelled','section_budget_exceeded') else 0
     except (RuntimeError,ValueError,OSError) as exc:
         print('WayriCAD RLC: '+str(exc),file=sys.stderr)

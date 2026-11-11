@@ -1,0 +1,15 @@
+{
+  "created_at_utc": "2026-11-10T19:08:10.072028+00:00",
+  "samples_sha256": "521c9ae62c038af83466b2db7b4c27759ebd4f08d80450d311f95d5d54c87cd6",
+  "model": "Ideal 4x4 isotropic array, 3 GHz, 40 mm pitch; no coupling or gain prediction",
+  "source_code_sha256": "0bb2344e85af98ae8c616e1fe2cf2687c4672500406d498b2bf7e48388b6689d",
+  "cases": [
+    "uniform-0",
+    "uniform-30",
+    "uniform-60",
+    "binomial-0",
+    "binomial-30",
+    "binomial-60"
+  ],
+  "binomial_scope": "Analytical design extension, not the paper excitation"
+}

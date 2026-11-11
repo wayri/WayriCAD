@@ -193,6 +193,10 @@ _TEMPLATES = {
 }
 
 
+from .research_replications import REPLICATION_TEMPLATES
+_TEMPLATES.update(REPLICATION_TEMPLATES)
+
+
 def list_templates(pattern="*"):
     """Return deep-copied summaries matching an ID or category wildcard."""
     if not isinstance(pattern, str) or not pattern:
@@ -260,6 +264,13 @@ def example_config(template_id, *, screening=True):
             "loss_tangent": geometry.get("loss_tangent", 0.0),
         },
     }
+    if template_id == 'cheh-lin-2023-siw-dra':
+        raw.update(air_margin_mm=50., field_z_mm=20., field_grid=61)
+        raw['advanced'].update(field_layers=3, field_z_min_mm=.8)
+    elif template_id == 'ma-2024-siw-horn':
+        raw.update(air_margin_mm=5., mesh_edge_mm=.12 if screening else .08,
+                   resolution=.3 if screening else .2, field_z_mm=-.02, field_grid=81)
+        raw['advanced'].update(field_layers=3, field_z_min_mm=-.488)
     return validate_config(raw)
 
 

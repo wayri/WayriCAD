@@ -1,0 +1,17 @@
+{
+  "source_result_sha256": "5ca69db804e01b508a6676219990565c8c47d1c9486b4b9fc895dbd1214adba0",
+  "config_sha256": "ff090aa50ce1ce7b413602ea4b091cebc2fb8a258d084caec26abeea5ca169aa",
+  "engine": "closed-form rectangular array factor",
+  "captures": [
+    {
+      "file": "3d-setup.png",
+      "view": "3D setup",
+      "sha256": "80f85095d661be774dde574caf6e14d00b32370b3931c406b773ba7b509ad955"
+    },
+    {
+      "file": "3d-radiation.png",
+      "view": "3D radiation",
+      "sha256": "0c42dc7ec9bb5ed8986c164367877f512658cd1be0d7eb82b0dcb7360d4cdaf7"
+    }
+  ]
+}

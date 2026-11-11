@@ -67,6 +67,8 @@ class QuickEMergeFrame(wx.Frame):
         self.solver.Bind(wx.EVT_CHOICE, self._solver_selected)
         self.python.Bind(wx.EVT_FILEPICKER_CHANGED, self.probe_solver_runtime)
         self.timer = wx.Timer(self)
+        self.phase_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.advance_field_phase, self.phase_timer)
         self.Bind(wx.EVT_TIMER, self.poll, self.timer)
         self.Bind(wx.EVT_CLOSE, self.close)
         self.Bind(wx.EVT_CHAR_HOOK, self._shortcut)
@@ -465,6 +467,9 @@ class QuickEMergeFrame(wx.Frame):
                          ('Predicted sampled peak', array_factor['predicted_peak_theta_deg'], 'deg'),
                          ('Scan error', array_factor['scan_error_deg'], 'deg'),
                          ('Array elements', array_factor['element_count'], '')])
+        if result.get('discretization', {}).get('tetrahedra') is not None:
+            rows.append(('Actual tetrahedra',result['discretization']['tetrahedra'],''))
+        if result.get('completed_at_utc'): rows.append(('Completed UTC',result['completed_at_utc'],''))
         for item in result.get('assumptions', []): rows.append(('Assumption', item, ''))
         for label, value, unit in rows:
             index = self.result_table.InsertItem(self.result_table.GetItemCount(), label)
@@ -578,12 +583,19 @@ class QuickEMergeFrame(wx.Frame):
             display.Add(control, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 3)
             self.visibility[key] = control
         self.field_quantity = wx.Choice(parent, choices=['E magnitude', 'H magnitude', 'Power-flow magnitude', 'Temperature'])
-        self.field_view = wx.Choice(parent, choices=['Plane', 'Volume samples']); self.field_view.SetSelection(0)
+        self.field_view = wx.Choice(parent, choices=['Plane', 'Volume samples', 'Phase vectors']); self.field_view.SetSelection(0)
         self.field_view.Bind(wx.EVT_CHOICE, self.change_field_quantity); display.Add(self.field_view, 0, wx.ALL, 3)
         self.field_slice = wx.Choice(parent, choices=['Solved Z plane']); self.field_slice.SetSelection(0)
         self.field_slice.Bind(wx.EVT_CHOICE, self.change_field_quantity); display.Add(self.field_slice, 0, wx.ALL, 3)
         self.field_quantity.SetSelection(0); self.field_quantity.Bind(wx.EVT_CHOICE, self.change_field_quantity)
         display.Add(self.field_quantity, 0, wx.ALL, 3)
+        self.field_phase = wx.Slider(parent, value=0, minValue=0, maxValue=360, size=(130, -1))
+        self.field_phase.SetToolTip('Re{E or H phasor × exp(j phase)}; phase of the stored single-frequency solution')
+        self.field_phase.Bind(wx.EVT_SLIDER, self.change_field_quantity)
+        display.Add(self.field_phase, 0, wx.ALL, 3)
+        self.animate_phase = wx.CheckBox(parent, label='Animate phase')
+        self.animate_phase.Bind(wx.EVT_CHECKBOX, self.toggle_field_animation)
+        display.Add(self.animate_phase, 0, wx.ALL, 3)
         self.colormap = wx.Choice(parent, choices=['inferno', 'viridis', 'cividis', 'plasma', 'turbo']); self.colormap.SetSelection(0)
         self.color_scale = wx.Choice(parent, choices=['Linear color', 'Log color']); self.color_scale.SetSelection(0)
         for control in (self.colormap, self.color_scale):
@@ -718,8 +730,9 @@ class QuickEMergeFrame(wx.Frame):
         volume=result.get('field',{}).get('volume')
         self.field_slice.Set([f"Z {z:g} mm" for z in volume['z_mm']] if volume else ['Solved Z plane'])
         self.field_slice.SetSelection(len(volume['z_mm'])-1 if volume else 0)
-        self.field_slice.Enable(bool(volume)); self.field_view.Enable(bool(volume))
+        self.field_slice.Enable(bool(volume)); self.field_view.Enable(bool(result.get('field')))
         self.field_view.SetSelection(0)
+        self.phase_timer.Stop(); self.animate_phase.SetValue(False)
         old_quantity=self.field_quantity.GetStringSelection()
         quantities=(['E magnitude','H magnitude','Power-flow magnitude'] if result.get('field') else [])+(['Temperature'] if result.get('thermal') else [])
         self.field_quantity.Set(quantities or ['E magnitude'])
@@ -749,6 +762,8 @@ class QuickEMergeFrame(wx.Frame):
         from .radiation_pattern import radiation_status,available_cuts,sample_row
         self._radiation_samples,self._radiation_error=radiation_status(result)
         if self._radiation_samples is not None: renderers['3D radiation'] = plots.radiation
+        from .polarization_view import available, plot
+        if available(result): renderers['3D polarization'] = plot
         for name, renderer in renderers.items():
             options = dict(self.display_options)
             if name == '3D radiation': options.pop('minimum', None); options.pop('maximum', None)
@@ -786,10 +801,21 @@ class QuickEMergeFrame(wx.Frame):
         if field['display_unit']=='K': display.pop('field',None);display['thermal']=field
         else: display.pop('thermal',None);display['field']=field
         options=dict(self.display_options,field_view='Volume' if self.field_view.GetSelection()==1 and volume else 'Plane')
+        if self.field_view.GetSelection()==2:
+            from .field_vectors import sample_vectors
+            field['display_vectors'] = sample_vectors(self.result['field'], quantity,
+                self.field_phase.GetValue(), index)
+            options['field_view']='Phase vectors'
         self.display_options.update(field_view=options['field_view'])
         self.viewports['Field probes'].render(plots.near_field,display,reset=reset,options=options)
         self.viewports['3D fields'].render(plots.near_field3d,display,reset=reset,options=options)
         rows=volume_samples(field) if options['field_view']=='Volume' else [dict(self.inspection.probe(x,y),kind='field') for y in self.inspection.y for x in self.inspection.x]
+        if field.get('display_vectors') is not None:
+            vectors=field['display_vectors']; rows=[]
+            for position, vector in zip(vectors['positions'], vectors['vectors']):
+                row=dict(self.inspection.probe(position[0],position[1]),kind='field',
+                         phase_deg=vectors['phase_deg'], instantaneous_vector=vector.tolist())
+                rows.append(row)
         self.viewports['3D fields'].set_samples(rows)
 
     def change_field_quantity(self, event=None):
@@ -798,6 +824,25 @@ class QuickEMergeFrame(wx.Frame):
             self.refresh_field_views()
             self.select_view('3D fields' if self.current_group == '3D' else 'Field probes')
         except Exception as exc: self.message(exc)
+
+    def toggle_field_animation(self, event=None):
+        if self.animate_phase.GetValue():
+            if not self.result or self.field_quantity.GetStringSelection() not in ('E magnitude', 'H magnitude'):
+                self.animate_phase.SetValue(False); return
+            self.field_view.SetSelection(2)
+            try: self.refresh_field_views()
+            except ValueError as exc:
+                self.animate_phase.SetValue(False); self.message(exc); return
+            self.select_view('3D fields'); self.phase_timer.Start(500)
+        else: self.phase_timer.Stop()
+
+    def advance_field_phase(self, event=None):
+        if self.closed or not self.result or self.field_view.GetSelection()!=2:
+            self.phase_timer.Stop(); self.animate_phase.SetValue(False); return
+        self.field_phase.SetValue((self.field_phase.GetValue()+15)%360)
+        try: self.refresh_field_views()
+        except ValueError as exc:
+            self.phase_timer.Stop(); self.animate_phase.SetValue(False); self.SetStatusText(str(exc))
 
     def _viewport_probe(self, name, event, sample=None, selected=False):
         if name == 'PCB enclosure' and event.inaxes is not None and not selected:
@@ -824,6 +869,9 @@ class QuickEMergeFrame(wx.Frame):
                 value = 'unknown' if sample[key] is None else f'{sample[key]:.7g} {self.inspection.unit}'
                 context = f"{sample['frequency_hz']/1e9:g} GHz" if 'frequency_hz' in sample else f"{sample['time_s']:g} s"
                 text = f"Original sample [{sample['ix']}, {sample['iy']}] | {context}\nX={sample['x_mm']:g} mm Y={sample['y_mm']:g} mm Z={sample['z_mm']:g} mm | {self.inspection.quantity}={value}"
+                if 'instantaneous_vector' in sample:
+                    vector=sample['instantaneous_vector']
+                    text+=f"\nPhase={sample['phase_deg']:g} degree; instantaneous X/Y/Z=({vector[0]:.7g}, {vector[1]:.7g}, {vector[2]:.7g}) {self.inspection.unit}"
             elif name in ('3D radiation','Radiation pattern'):
                 if sample is None or not self.visibility['field'].GetValue():
                     return
@@ -1306,7 +1354,7 @@ class QuickEMergeFrame(wx.Frame):
             self.timer.Stop()
             result = self.session.collect()
             self.install_result(result)
-            self.select_view('S-parameters') if result.get('s_parameters') else self.select_view('Array factor') if result.get('array_factor') else self.select_view('3D fields')
+            self.select_view('3D radiation') if self._radiation_samples is not None else self.select_view('S-parameters') if result.get('s_parameters') else self.select_view('Array factor') if result.get('array_factor') else self.select_view('3D fields')
             self.details.SetSelection(0)
             self.SetStatusText(f'Completed • unqualified mesh • {self.session.run_dir.name}')
         except Exception as exc:
@@ -1330,6 +1378,7 @@ class QuickEMergeFrame(wx.Frame):
             self.SetStatusText('Cancelling dependency setup…')
             return
         self.timer.Stop()
+        self.phase_timer.Stop()
         self.session.cancel()
         self.running_state(False)
         self.SetStatusText('Run cancelled • request and diagnostic log retained')
@@ -1429,7 +1478,8 @@ class QuickEMergeFrame(wx.Frame):
         menu = wx.Menu()
         try:
             for label,handler in (('Load setup…',self.load_setup),('Save setup…',self.save_setup),
-                    ('Load results…',self.load_result_file),('Save results…',self.save_result_file)):
+                    ('Load archived simulation…',self.load_result_file),('Inspect solver results…',self.inspect_solver_result),
+                    ('Save results…',self.save_result_file)):
                 item=menu.Append(wx.ID_ANY,label)
                 menu.Bind(wx.EVT_MENU,handler,id=item.GetId())
             self.files_button.PopupMenu(menu)
@@ -1439,9 +1489,10 @@ class QuickEMergeFrame(wx.Frame):
     def _result_file_actions(self):
         if getattr(self,'_project_result_actions',None) is None:
             from wayricad_runtime.project_results_ui import ProjectResultActions
+            from .saved_antenna_viewer import create_viewer
             self._project_result_actions=ProjectResultActions(self,self,None,'quick-emerge',self.session.board,
                 lambda:[('EM result',self.result)] if self.result else [],certify=False,
-                status=self.SetStatusText,module_file=__file__)
+                status=self.SetStatusText,module_file=__file__,viewer_factory=create_viewer)
         return self._project_result_actions
 
     def save_result_file(self,event=None):
@@ -1454,6 +1505,19 @@ class QuickEMergeFrame(wx.Frame):
             self.SetStatusText('Finish the current operation before loading saved results.');return
         return self._result_file_actions().on_load(event)
 
+    def inspect_solver_result(self,event=None):
+        if self.running or self.region_busy or getattr(self,'network_busy',False):
+            self.SetStatusText('Finish the current operation before inspecting saved solver output.'); return
+        with wx.FileDialog(self,'Inspect solver result JSON (read-only)',defaultDir=str(self.session.board.parent),
+                wildcard='Solver result JSON (*.json;*.json.gz)|*.json;*.json.gz',style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as dialog:
+            if dialog.ShowModal()!=wx.ID_OK: return
+            path=dialog.GetPath()
+        from .saved_antenna_viewer import load_solver_json, create_viewer
+        def show(loaded):
+            viewer=create_viewer(self,loaded); viewer.Show()
+            self.SetStatusText('Inspecting saved solver arrays read-only; source binding is unverified.')
+        self._result_file_actions().task(lambda:load_solver_json(path),show)
+
     def close(self, event):
         self._solver_probe_generation += 1
         probe = getattr(self, 'solver_probe_process', None)
@@ -1463,6 +1527,7 @@ class QuickEMergeFrame(wx.Frame):
         self.region_cancel.set()
         self.dependency_cancel.set()
         self.timer.Stop()
+        self.phase_timer.Stop()
         self.session.cancel()
         self.closed = True
         self.Destroy()

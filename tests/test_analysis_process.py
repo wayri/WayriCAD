@@ -9,13 +9,26 @@ import time
 from wayricad_runtime.analysis_process import stop_worker, worker_options
 
 
+def linux_process_state(stat):
+    # The parenthesized comm field can contain spaces and parentheses.
+    tail=stat.rpartition(')')[2].split()
+    return tail[0] if ')' in stat and tail else None
+
+
+def test_linux_process_state_preserves_dead_vs_running_with_complex_names():
+    for name in ('python3.14','python main','python (child)'):
+        assert linux_process_state(f'123 ({name}) Z 1 2 3')=='Z'
+        assert linux_process_state(f'123 ({name}) S 1 2 3')=='S'
+    assert linux_process_state('missing status') is None
+
+
 def alive(pid):
     if os.name != 'nt':
         try:
             os.kill(pid, 0)
             # Linux zombies no longer execute or hold snapshot files.
             status = Path(f'/proc/{pid}/stat')
-            return not (status.is_file() and status.read_text().split()[2] == 'Z')
+            return not (status.is_file() and linux_process_state(status.read_text()) == 'Z')
         except ProcessLookupError:
             return False
     api = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -57,7 +70,10 @@ def test_worker_cancellation_kills_owned_converter_before_scratch_cleanup(tmp_pa
         deadline = time.monotonic()+5
         while alive(pid) and time.monotonic()<deadline:
             time.sleep(.05)
-        assert not alive(pid), 'Converter survived analysis cancellation'
+        status=Path(f'/proc/{pid}/stat')
+        try:detail=status.read_text()
+        except OSError:detail='No Linux process status available'
+        assert not alive(pid), 'Converter survived analysis cancellation: '+detail
     finally:
         if process.poll() is None:
             stop_worker(process)

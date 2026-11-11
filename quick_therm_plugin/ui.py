@@ -18,6 +18,8 @@ from .plot_canvas import FigureCanvasWxAgg, NavigationToolbar2WxAgg
 
 from .thermal_inputs import _parse_sink_areas
 from .thermal_plot import update_component_hover
+from .thermal_review import parse_temperature
+from .screening_setup import STARTING_VALUES
 
 def _wrap_text(control, text, width=270):
     """Keep native text inside the sidebar even on wx builds with weak Wrap."""
@@ -55,6 +57,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_probe_definitions = []
         self.therm_probe_mode = False
         self._thermal_default_view = True
+        self._thermal_auto_model_pending = True
         self._thermal_sidebar_widths={'setup':self.FromDIP(340),'details':self.FromDIP(340)}
         self._thermal_focus_snapshot=None
         self._busy = False
@@ -291,6 +294,9 @@ class QuickThermFrame(wx.Frame):
             self.main_panel.Freeze()
             try:
                 self.inventory = inventory
+                if self._thermal_auto_model_pending:
+                    self.therm_model_kind.SetSelection(1 if inventory.get('thermal_stackup',{}).get('available') else 0)
+                    self._thermal_auto_model_pending=False
                 self._inventory_board_path = self.board_path
                 fields = ["", *inventory.get("field_names", [])]
                 from .quick_therm import restored_field_mapping
@@ -328,8 +334,10 @@ class QuickThermFrame(wx.Frame):
                      if self.therm_refs.IsChecked(i)], self._temperature_field_map())
                 self._update_thermal_scope()
                 self.therm_status.SetLabel(
-                    f"{len(refs)} components. Review saved field mappings or enter manual values; "
-                    "select the dissipating parts, then run."
+                    f"{len(refs)} components. "+
+                    ('Layered model selected from the saved stackup. ' if self.therm_model_kind.GetSelection()==1 else
+                     'Thin-sheet screen selected; no layer thicknesses guessed. ')+
+                    'Include known power or choose parts, enter power and ambient, then run. Package resistances are optional for board temperatures.'
                 )
                 self._show_thermal_start()
             finally:
@@ -513,14 +521,17 @@ class QuickThermFrame(wx.Frame):
                                            style=wx.CP_DEFAULT_STYLE|wx.CP_NO_TLW_RESIZE)
         model_pane=self.therm_model.GetPane();model_grid=wx.FlexGridSizer(0,2,6,8);model_grid.AddGrowableCol(1)
         self.therm_model_enabled=wx.CheckBox(model_pane,label='Include board heat model in next run')
+        self.therm_model_enabled.SetValue(True)
         self.therm_model_kind=ReadableChoice(model_pane,choices=['Thin sheet (screening)','Copper layers + vertical paths',
                                                        'CalculiX 3D · fixed lower face'])
         self.therm_model_kind.SetSelection(0)
-        self.therm_k=wx.TextCtrl(model_pane,value='0.3');self.therm_k.SetToolTip('Assumed effective in-plane conductivity W/(m·K); check against your stackup.')
-        self.therm_dielectric_k=wx.TextCtrl(model_pane,value='')
+        self.therm_k=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['board_k_w_mk']:g}");self.therm_k.SetToolTip('Assumed effective in-plane conductivity W/(m·K); check against your stackup.')
+        self.therm_dielectric_k=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['dielectric_k_w_mk']:g}")
+        self.therm_dielectric_k.SetToolTip('Illustrative FR4 starting value, not a measured property. Override for the actual laminate.')
         self.therm_dielectric_k.SetHint('Measured W/m·K')
-        self.therm_copper_k=wx.TextCtrl(model_pane,value='385')
-        self.therm_plating=wx.TextCtrl(model_pane,value='')
+        self.therm_copper_k=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['copper_k_w_mk']:g}")
+        self.therm_plating=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['via_plating_mm']:g}")
+        self.therm_plating.SetToolTip('Illustrative 25 um via plating. Override from fabrication data; not inferred from the board.')
         self.therm_plating.SetHint('Fabrication value, mm')
         self.therm_ccx_mesh=wx.TextCtrl(model_pane,value='0.5')
         self.therm_ccx_bottom=wx.TextCtrl(model_pane,value='20')
@@ -530,9 +541,9 @@ class QuickThermFrame(wx.Frame):
         self.therm_blur=ReadableChoice(model_pane,choices=['0 · exact cell occupancy','0.5 cell','1 cell'])
         self.therm_blur.SetSelection(0)
         self.therm_model_jb=ReadableComboBox(model_pane,style=wx.CB_READONLY)
-        self.therm_emissivity=wx.TextCtrl(model_pane,value='0.9')
-        self.therm_air_board=wx.TextCtrl(model_pane,value='0')
-        self.therm_air_sink=wx.TextCtrl(model_pane,value='0')
+        self.therm_emissivity=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['board_emissivity']:g}")
+        self.therm_air_board=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['board_airflow_m_s']:g}")
+        self.therm_air_sink=wx.TextCtrl(model_pane,value=f"{STARTING_VALUES['sink_airflow_m_s']:g}")
         self.therm_grid=wx.SpinCtrl(model_pane,min=12,max=80,initial=48,size=(80,-1))
         self.therm_auto_mesh=wx.CheckBox(model_pane,label='Automatic mesh');self.therm_auto_mesh.SetValue(True)
         self.therm_auto_mesh.SetToolTip('Recommend base cells from saved geometry; multilayer mode refines source/contact/material regions within a total-layer-cell budget. A heuristic, not proof of convergence. Uncheck for manual grid control. CalculiX remains manual.')
@@ -632,7 +643,7 @@ class QuickThermFrame(wx.Frame):
         for col in (0,1):actions.AddGrowableCol(col)
         for control in (self.therm_run,self.therm_whole_board,self.therm_sink_button,self.therm_export,self.therm_sankey,self.therm_blender):actions.Add(control,0,wx.EXPAND)
         layout.Add(actions,0,wx.EXPAND|wx.ALL,8)
-        self.therm_status=wx.StaticText(page,label='Open Component inputs to review scanned values and include parts.');self.therm_status.Wrap(270)
+        self.therm_status=wx.StaticText(page,label='Automatic board screen: enter included parts\' power and ambient. Starting assumptions: dielectric k=0.3 W/mK, emissivity 0.9, 25 um plating, still air. Junctions need optional RthetaJB.');self.therm_status.Wrap(270)
         layout.Add(self.therm_status,0,wx.EXPAND|wx.ALL,8)
         page.SetSizer(layout);page.FitInside()
         self.therm_model_jb.Hide()
@@ -668,7 +679,7 @@ class QuickThermFrame(wx.Frame):
             switch.Add(button,0,wx.RIGHT,4)
             if mode=='3D overview':self.therm_3d_button=button
         self.therm_step_models=wx.CheckBox(visual_host,label='STEP models')
-        self.therm_step_models.SetValue(True)
+        self.therm_step_models.SetValue(False)
         self.therm_step_models.SetToolTip('Load actual saved STEP models with KiCad and FreeCAD when running. Missing models remain footprint outlines.')
         self.therm_step_models.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
         switch.Add(self.therm_step_models,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,5)
@@ -1068,7 +1079,7 @@ class QuickThermFrame(wx.Frame):
         self._therm_input_page.FitInside()
         self.main_panel.Layout()
         self._invalidate_thermal(event)
-        self.therm_status.SetLabel('Select dissipating components, then enter their power and Rθ.' if manual else
+        self.therm_status.SetLabel('Select dissipating components and enter power. Package resistances are optional for board screening.' if manual else
                                    'Map saved power and thermal-resistance footprint fields, then select components.')
 
 
@@ -1197,6 +1208,13 @@ class QuickThermFrame(wx.Frame):
     def on_quick_therm(self,event=None):
         if self._busy:return
         environment=('air','vacuum','forced_air','potting','sealed')[self.therm_env.GetSelection()]
+        from .screening_setup import requires_multilayer,missing_power_message
+        if self.therm_model_kind.GetSelection()!=2 and requires_multilayer(
+                environment,self.therm_time_enabled.GetValue(),bool(self._component_storage),
+                bool(self._package_contacts),bool(self._copper_loss_import)):
+            self.therm_model_enabled.SetValue(True)
+            self.therm_model_kind.SetSelection(1)
+            self._therm_controls()
         references=[self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount()) if self.therm_refs.IsChecked(i)]
         sinks={ref:self.virtual_heatsinks[ref] for ref in references if ref in self.virtual_heatsinks}
         unsinked=set(references)-set(sinks)
@@ -1221,7 +1239,8 @@ class QuickThermFrame(wx.Frame):
                     (not power_only and ('theta_jc_k_per_w' if ref in sinks else kind) not in effective.get(ref,{}))]
                 if missing:
                     self.on_manual_setup()
-                    self.status.SetLabel('Missing power or required heat-path resistance: '+', '.join(missing[:12]))
+                    self.status.SetLabel(missing_power_message(missing) if power_only else
+                                         'Missing power or required heat-path resistance: '+', '.join(missing[:12]))
                     return
             except ValueError as exc:
                 self.on_manual_setup();self.status.SetLabel(str(exc));return
@@ -1229,7 +1248,7 @@ class QuickThermFrame(wx.Frame):
             self.therm_status.SetLabel('Map power and RθJA/RθJB for selected parts, plus RθJC for virtual heatsinks.');return
         try:
             request={'action':'quick_therm','board_path':self.board_path,'environment':environment,
-                     'ambient_c':float(self.therm_ambient.GetValue()),'references':references,
+                     'ambient_c':parse_temperature(self.therm_ambient.GetValue()),'references':references,
                      'expected_source_sha256':self.inventory.get('source_sha256'),
                      'heatsinks':sinks,
                      'board_power_only':board_power_only,
@@ -1370,7 +1389,7 @@ class QuickThermFrame(wx.Frame):
         def fmt(key):return '—' if temperature.get(key) is None else f"{temperature[key]:.3g} °C"
         self.therm_analytics.SetLabel('Estimated junctions  ·  Min '+fmt('min')+'  ·  Max '+fmt('max')+
             '  ·  Mean '+fmt('mean')+'  ·  Median '+fmt('median')+
-            f"  ·  Power {stats.get('power_w',{}).get('solved_total',0):.3g} W"+
+            f"  ·  Included power {result.get('total_scoped_power_w',0):.3g} W"+
             '  ·  Hottest '+str(stats.get('hottest_reference') or '—')+
             '  ·  Limits '+bundle.get('temperature_limits',{}).get('status','UNKNOWN'))
         _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
@@ -1409,7 +1428,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_status.SetLabel((
             f"{coverage.get('power_sources',0)} power sources modeled{board}. "
             f"Junction estimates: {coverage['solved']}/{coverage['scoped']} with declared RθJB."
-            if (network or {}).get('model') == 'CalculiX 3D steady conduction' else
+            if network and 'power_sources' in coverage else
             f"{coverage['solved']}/{coverage['scoped']} selected components solved{board}. "
             +('Incomplete mapped fields; inspect the report.' if coverage['excluded'] else
               'Layer-resolved steady-state screen; inspect assumptions.' if (network or {}).get('layers') else

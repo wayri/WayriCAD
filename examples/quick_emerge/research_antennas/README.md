@@ -1,5 +1,55 @@
 # Published antenna benchmarks
 
+## AESA 3D steering and beam shaping
+
+**[Open the dedicated interactive AESA 3D viewer](images/aesa-vnext/interactive-steering.html)**
+
+Choose **Steering theta: 0, 30 or 60 degrees** and **Uniform / Binomial amplitude**.
+The play control cycles the three independently calculated steering states.
+Orbit, zoom and hover over original angular samples; the companion dB cut and
+4x4 amplitude map show how the beam changes. This is not the WLAN gallery.
+
+![Actual AESA 3D viewer, uniform amplitude at 30-degree steering](images/aesa-vnext/viewer-uniform-30.png)
+
+![Actual AESA 3D viewer, binomial amplitude at 30-degree steering](images/aesa-vnext/viewer-binomial-30.png)
+
+The model is a 3 GHz, 40 mm-pitch 4x4 isotropic array. Binomial weights are an
+analytical design extension, not the paper's excitation. The broader main beam
+and changed sidelobes are calculated, not painted onto a rotated surface.
+Both front and mirror rear lobes are retained; no element pattern, polarization,
+mutual coupling, active feed loss or realized gain is predicted.
+
+In the **unreleased source plugin**, load `verho-2023-aesa-4x4.json`, open Setup,
+set scan theta/phi and **Ideal AESA amplitude taper**, then Run. Choose
+**3D > Show results > 3D radiation**. Old cut-only results need rerunning.
+These controls are not installed in the published v4.7.0 binaries yet.
+
+Rebuild this offline report without EMerge or a FEM solve:
+
+```text
+python tools/build_aesa_steering_viewer.py
+```
+
+The adjacent `array-results.json.gz` retains all six calculations;
+`provenance.json` records UTC time, code and numerical hashes. The report opens
+locally in a browser; GitHub's Markdown preview does not execute its plots.
+
+## Solved 3D radiation lobes and interactive plots
+
+![Solved 2.45 GHz WLAN radiation lobes with numeric relative-field scale](images/dense/wlan-radiation-3d.png)
+
+**[Interactive results: 3D lobes, fields, S-parameters and polarization](images/dense/interactive-results.html)**
+is a self-contained offline HTML report. Download it and open it in a browser;
+GitHub's README and source preview cannot execute the interactive plots.
+Rotate the 3D lobes by dragging, zoom with the wheel, and hover to read original
+theta/phi samples and relative E. Field probes include X/Y/Z in mm and E in
+V/m; network probes include frequency in GHz and complex S11.
+
+The surface is the actual broad WLAN pattern, not an illustrative narrow beam.
+Its radius and colour are normalized relative E, not gain in dBi or efficiency.
+All charts have numeric scales. The underlying screening solve has not
+established mesh convergence or agreement with the paper.
+
 These portable Quick EMerge setups reproduce dimensioned antenna geometries
 from open academic papers. They are examples and regression benchmarks, not
 pre-qualified flight hardware. Open a setup from **Files > Open setup**, review
@@ -12,8 +62,43 @@ the geometry and assumptions, then run it in an isolated EMerge runtime.
 | `liu-2020-cubesat-yagi.json` | Liu et al. (2020) | Planar CubeSat printed Yagi and balanced coplanar feed |
 | `verho-2023-aesa-4x4.json` | Verho et al. (2023) | 3 GHz 4x4 scan law and steering error |
 | `kabir-2023-cubesat-sx.json` | Kabir et al. (2023) | Stacked S/X-band CubeSat shared aperture, isolation and circular polarization |
+| `cheh-lin-2023-siw-dra.json` | Cheh Lin et al. (2023) | Assumption-bearing via-fenced SIW and dielectric resonator reconstruction |
+| `ma-2024-siw-horn.json` | Ma et al. (2024) | Assumption-bearing 60 GHz PCB SIW-horn reconstruction |
+
+The two new [paper reconstructions](PAPER_RECONSTRUCTIONS.md) include audited
+geometry, source-derived setup files, explicit unknowns and CLI/GUI procedures.
+They are not declared reproductions of the papers' measured performance.
+The SIW/DRA case includes a real three-frequency FEM screening and an
+[offline interactive report](images/paper-vnext/cheh-lin-2023-siw-dra/interactive-results.html).
+The horn has no accepted FEM result: its corrected mesh completed, but the
+factorization was stopped for system-disk safety. See the guide for the exact
+settings, assumptions, mesh warning and evidence boundaries.
 
 ## Evidence boundaries
+
+### Native viewer coverage
+
+The in-development source viewer exposes full-wave angular samples for the
+WLAN, Yagi, dual-feed patch and S/X cases under **3D > Show results > 3D
+radiation**. Run or load a result, not just its setup. New AESA runs now produce
+a spherical ideal array-factor surface, including the model's mirror back
+lobe; older cut-only AESA results require a rerun. Scan theta/phi changes
+require a new calculation. No full-wave array coupling is inferred.
+
+![Native ideal AESA 3D lobes at 30-degree scan](images/aesa-vnext/30/3d-radiation.png)
+
+Compare [broadside](images/aesa-vnext/0/3d-radiation.png) and
+[60-degree scan](images/aesa-vnext/60/3d-radiation.png). These are separately
+calculated closed-form array factors, not full-wave multiport simulations.
+
+**3D polarization** displays saved complex +Z Ex/Ey as an equal-scale ellipse.
+It is unavailable when the result lacks those components. This is not a full
+polarization pattern or a measured antenna certification.
+
+To capture the actual native scenes from any saved result, use a wx/VTK desktop
+interpreter: `python tools/capture_antenna_native_views.py result.json --output
+captures`. The tool exports available views and records hashes; it does not
+invent missing fields. See the [plugin viewer guide](../../../quick_emerge_plugin/README.md#in-development-3d-antenna-viewer-update).
 
 The `research` block in every result records the title, DOI, source dimensions,
 published targets and the implemented model scope. `publication_comparison`
@@ -73,50 +158,53 @@ solver and paper propagation conventions are independently reconciled.
 ## Actual WLAN screening results (2026-11-10)
 
 These are **native Quick EMerge 4.7.0 captures from a new Yang WLAN full-wave
-solve**, not mockups or the historical synthetic fixture below. The 2D images
-are window captures; the 3D images are direct native-framebuffer exports,
-avoiding window-compositor text artifacts without retouching the image/data.
-EMerge 3.0.0b9 / SuperLU solved 2.35, 2.45 and 2.55 GHz on a 4,429-tetrahedron
-screening mesh. Field samples are a 41 x 41 grid at Z = 2 mm, at 2.45 GHz.
+solve**, not mockups or the historical synthetic fixture below. Charts are
+tightly framed 220-DPI original-data exports, not shrunken full-window captures.
+The design-open image is a native window capture; geometry images use the
+native framebuffer. Scientific 3D field/radiation plots use scaled axes and
+220-DPI original-data exports, without smoothing the numerical samples.
+EMerge 3.0.0b9 / SuperLU solved 21 frequencies from 2.35 to 2.55 GHz, spaced
+10 MHz apart, on a 9,240-tetrahedron mesh. Field samples are an actual 161 x 161
+grid at Z = 2 mm, at 2.45 GHz; no upscaling or blur of the old 41 x 41 data.
 Only one Z plane was solved; the 3D field image does not imply a volume solve.
 
 **This screening run fails the paper matching target.** It is execution and
 visualization evidence, not paper agreement, mesh convergence, gain/efficiency
 validation or antenna qualification. Do not infer a resonance or bandwidth
-from the lines connecting three frequency samples.
+from connecting lines or this limited frequency interval alone.
 
 ### Actual antenna design in the plugin
 
-![Yang WLAN design open in native Quick EMerge](images/wlan-design-open.png)
+![Yang WLAN design open in native Quick EMerge](images/dense/wlan-design-open.png)
 
 This is the real registry-backed preview open in the plugin, not the unrelated
 saved context board. The simulated geometry includes the feed, branched printed
 radiator and partial bottom ground on the 16 x 29 mm FR4 substrate.
 
-![Actual WLAN top orthographic design view](images/wlan-design-2d.png)
+![Actual WLAN top orthographic design view](images/dense/wlan-design-2d.png)
 
 Top/orthographic camera projection of the native 3D model. This uses the native
 3D viewport because the current software 2D research fallback shows only the
 substrate. It is not evidence that that fallback has been fixed.
 
-![Actual WLAN isometric design view](images/wlan-design-3d.png)
+![Actual WLAN isometric design view](images/dense/wlan-design-3d.png)
 
 Isometric geometry-only view separates the radiator and lower ground visually.
 This is the simulated geometry, not a photograph of manufactured hardware.
 
 ### S-parameters
 
-![Actual WLAN S11 screening result](images/wlan-s-parameters.png)
+![Actual WLAN S11 screening result](images/dense/wlan-s-parameters.png)
 
 Original S11 samples in dB versus GHz. Values remain well above -10 dB;
 the failed comparison is retained rather than replaced with an ideal curve.
 
-![Actual WLAN S11 phase](images/wlan-s-phase.png)
+![Actual WLAN S11 phase](images/dense/wlan-s-phase.png)
 
-Native phase analysis of the same three complex S11 samples. Connecting lines
+Phase analysis of the same 21 original complex S11 samples. Connecting lines
 do not add frequency resolution or establish a group-delay/phase-band response.
 
-![Actual WLAN Smith-chart analysis](images/wlan-smith.png)
+![Actual WLAN Smith-chart analysis](images/dense/wlan-smith.png)
 
 The Smith chart uses the original complex reflection samples referenced to
 50 ohm. The large distance from the center is consistent with the poor match;
@@ -124,40 +212,44 @@ it is not a tuned or optimized design result.
 
 ### Solved field slice
 
-![Actual WLAN E-magnitude slice at 2.45 GHz and Z 2 mm](images/wlan-field-slice.png)
+![Actual WLAN E-magnitude slice at 2.45 GHz and Z 2 mm](images/dense/wlan-field-slice.png)
 
 E magnitude in V/m from the original solved grid. The visible pixel structure
 is sampling resolution, not manufactured spatial detail.
+Thin white contours project the actual top-copper geometry onto the Z = 2 mm
+field plane; they do not modify or smooth its samples.
 
-![Actual WLAN 3D field display](images/wlan-field-3d.png)
+![Actual WLAN 3D field display](images/dense/wlan-field-3d.png)
 
-Native 3D display of the same solved-plane samples; inspect the legend/readout
+Scaled 3D display of the same solved-plane samples; inspect the legend/readout
 for quantity and units. It is not a set of independently solved depth slices.
 
 ### Radiation pattern
 
-![Actual WLAN XZ polar radiation cut](images/wlan-radiation-2d.png)
+![Actual WLAN XZ polar radiation cut](images/dense/wlan-radiation-2d.png)
 
 XZ cut at 2.45 GHz, using the sampled opposite azimuth planes. Radius is
 relative E magnitude normalized to the global stored-sample maximum, not dBi.
 
-![Actual WLAN native 3D radiation visualization](images/wlan-radiation-3d.png)
+![Actual WLAN native 3D radiation visualization](images/dense/wlan-radiation-3d.png)
+
+![Side view of the same solved radiation lobes](images/dense/wlan-radiation-side.png)
 
 The 3D surface uses the actual stored angular samples and the same relative-E
 normalization. A smooth-looking surface does not establish mesh convergence.
 
 ### Boresight polarization analysis
 
-![Actual solved WLAN Jones-vector polarization analysis](images/wlan-polarization.png)
+![Actual solved WLAN Jones-vector polarization analysis](images/dense/wlan-polarization.png)
 
 This figure is **post-processed from the saved solver Ex/Ey**, not a screenshot
 of a native polarization panel that the plugin does not currently expose.
-At +Z and 2.45 GHz, axial ratio is **50.156 dB**, indicating nearly linear
+At +Z and 2.45 GHz, axial ratio is **92.518 dB**, indicating nearly linear
 polarization, not circular polarization. The equal-axis ellipse deliberately
 looks almost like a line; its tiny minor axis is not exaggerated.
 
-Normalized Stokes values are approximately S1/S0 = -0.999965,
-S2/S0 = 0.005586 and S3/S0 = -0.006212. The sign convention is
+Normalized Stokes values are approximately S1/S0 = -0.999995,
+S2/S0 = 0.003270 and S3/S0 = -0.00004733. The sign convention is
 `S3 = -2 Im(Ex conj(Ey))`; no RHCP/LHCP mapping is claimed. This is one direction
 at one frequency, not polarization bandwidth, cross-polarization discrimination
 over a hemisphere or a flight polarization requirement check. The provenance
@@ -165,15 +257,15 @@ contains the original complex components and the calculated values.
 
 ### Evidence and reproduction
 
-- [Numerical samples](images/wlan-screening-samples.json) retain the actual
+- [Numerical samples (gzip JSON)](images/dense/wlan-screening-samples.json.gz) retain the actual
   config, S-parameters, fields, radiation, research metadata and failed checks.
   The original local source-path block is omitted for privacy; this is portable
   numerical evidence, not a custody-complete GUI load/export file.
-- [Capture provenance](images/provenance.json) records result/sample/image
+- [Capture provenance](images/dense/provenance.json) records result/sample/image
   hashes, backend, plugin, Python, wx and VTK versions. Images contain only a
   generic context filename; no numerical/image data were redacted or retouched.
 - From the repository root, run
-  `python tools/capture_research_antenna_results.py solve`, then run
+  `python tools/capture_research_antenna_results.py solve --dense`, then run
   `python tools/capture_research_antenna_results.py capture` with a complete
   desktop wx/Matplotlib/VTK interpreter. Use a qualified EMerge interpreter for
   `solve`. Default run/evidence paths are on the checkout's drive; select D: or
@@ -181,7 +273,14 @@ contains the original complex components and the calculated values.
   Existing run evidence is protected: use a new `--run-dir` for another solve,
   and pass that same directory to `capture`.
   Run `python tools/capture_research_antenna_results.py verify` to check the
-  numerical-evidence digest, angular data and all eleven image hashes.
+  numerical-evidence digest, angular data and all twelve image hashes.
+- For the offline hover viewer, install the optional documentation dependency
+  `plotly==6.3.1` in your development environment, then run
+  `python tools/build_antenna_gallery_viewer.py`. Open the generated
+  `images/dense/interactive-results.html` locally. It embeds Plotly.js once
+  and needs no server or network access. It verifies the numerical source hash
+  before embedding the original samples. This dependency is not required by
+  KiCad or the plugin itself.
 - See the [Yang paper](https://doi.org/10.3390/s16070983), the
   [dated validation record](VALIDATION.md), and the individual recipe below.
   These screenshots cover WLAN only; no paper-specific screenshots for the
@@ -189,18 +288,18 @@ contains the original complex components and the calculated values.
 
 ## Historical UI reference captures
 
-![Native Quick EMerge geometry workspace](../../../quick_emerge_plugin/help-minimal-workspace-4.0.1.png)
+[Historical native capture: Native Quick EMerge geometry workspace](../../../quick_emerge_plugin/help-minimal-workspace-4.0.1.png)
 
 **Preview geometry:** use Setup to configure the study, Preview to review its
 geometry/ports, and Fit plus the 2D/3D controls to inspect the model before Run.
 
-![Native Quick EMerge original-sample field display](../../../quick_emerge_plugin/help-antenna-field-4.0.1.png)
+[Historical native capture: Native Quick EMerge original-sample field display](../../../quick_emerge_plugin/help-antenna-field-4.0.1.png)
 
 **Inspect solved fields:** read the selected quantity, units, frequency and Z
 before interpreting colors. This capture shows coarse original samples, not a
 smoothed reconstruction or a convergence-qualified field.
 
-![Native Quick EMerge radiation-pattern inspection](../../../quick_emerge_plugin/help-antenna-radiation-2d-4.0.1.png)
+[Historical native capture: Native Quick EMerge radiation-pattern inspection](../../../quick_emerge_plugin/help-antenna-radiation-2d-4.0.1.png)
 
 **Inspect radiation:** check the angular cut and frequency, then use the original
 sample readout and report export. Normalized pattern shape is not realized gain.

@@ -55,6 +55,12 @@ def preview_geometry(config):
     if study=='research_antenna':
         from .research_antennas import get_template
         geometry=get_template(a['research_template'])['geometry']
+        if geometry['kind']=='paper_siw_dra':
+            from .siw_dra_geometry import geometry_spec
+            return geometry_spec()
+        if geometry['kind']=='paper_siw_horn':
+            from .siw_horn_geometry import geometry_spec
+            return geometry_spec()
         return {'unit':'mm', **geometry}
     if study=='waveguide':
         w,h,l=a['waveguide_width_mm'],a['waveguide_height_mm'],a['waveguide_length_mm']

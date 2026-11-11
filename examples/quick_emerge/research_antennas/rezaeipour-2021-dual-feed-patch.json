@@ -37,6 +37,7 @@
       "study": "research_antenna",
       "research_template": "rezaeipour-2021-dual-feed-patch",
       "research_excitation": "auto",
+      "research_array_taper": "uniform",
       "array_count_x": 2,
       "array_count_y": 1,
       "array_pitch_x_mm": 60.0,

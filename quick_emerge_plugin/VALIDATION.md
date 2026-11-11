@@ -1,5 +1,50 @@
 # Quick EMerge validation evidence
 
+## Dependency migration: 2026-11-11
+
+The in-development source targets the current stable PyPI pair **EMerge 3.0.4**
+and **emsutil 1.1.6**. EMerge's v3.0.4 tag resolves to
+`4b17fb0648b29ab0bdc19090eb7bf82e7b4cb1cd`. Verification uses an isolated
+Windows Python 3.11 candidate with NumPy 2.2.6, SciPy 1.17.1 and Gmsh 4.15.2.
+It overlays the existing scientific environment without changing that working
+environment or installing into KiCad. All candidate files and temporary data
+are on a separate volume; the low-capacity system drive is not an install target.
+
+- Stable solver selection uses `em.solvers.SuperLU` and the corresponding
+  public classes; the removed `EMSolver` enum is retained only for older beta
+  compatibility.
+- The native 3.0.4 transient driver reproduces a free/total-DOF reshape error.
+  The workaround is explicitly bounded to 3.0.4 and the previously verified
+  3.0.0b9, not silently applied to future versions. At 2.1 s the tiny thermal
+  slab gives 297.690091 K versus the independent 297.771540 K reference,
+  inside the pre-existing 0.5 K compatibility tolerance. This does not
+  qualify general thermal accuracy or convergence.
+- `pip check` passes after installing the declared CAD/DXF extras and MKL.
+  Optional accelerated solvers are not qualified by a SuperLU check.
+- Update detection includes emsutil-only updates, prefers stable EMerge
+  releases, rejects yanked/incompatible utility releases, verifies both
+  installed package identities, and preserves the working runtime on failure.
+- The final end-to-end gate passed all **22 real compatibility checks**,
+  including the import/export consumer readback, in approximately 159 seconds.
+  The local certificate is `.validation/emerge304-qualification.json`, with
+  adapter signature
+  `270a6630ccd5178afd894dae660ae70281ccccf56f79271835941d4d0d3c9c13`.
+  Its scope is API compatibility smoke solves, not numerical accuracy or
+  convergence. Upstream's finite-conductor DoF-splitting warning remains
+  visible; the gate is not a qualification of that algorithm's general accuracy.
+- The source regression run on the new pair reports **257 passed, 97 skipped**.
+  The final focused backend/update/qualification tests report **40 passed**,
+  including exact dependency-pair certificate rejection. Skips are not native
+  GUI or KiCad compatibility passes. Documentation and whitespace checks pass.
+
+The failed migration attempts and their logs remain local evidence, not accepted
+certificates. Earlier antenna plots and scientific samples retain their original
+3.0.0b9 provenance; dependency updates do not retroactively recompute them.
+This migration is a source update, not a republished 4.7.0 binary or a new
+installed KiCad release.
+
+## Historical host evidence: 2026-10-29
+
 Development evidence recorded **2026-10-29 on Windows**. This document separates
 the current source from the published 3.6.43-beta.1 package. Compatibility
 checks are not numerical or hardware qualification. No production PCB was
@@ -7,7 +52,7 @@ modified. An isolated development candidate was registered in the running
 KiCad 10.0.6 host and launched through its native WayriCAD picker. This proves
 the originating-editor development launch, not installed PCM activation.
 
-## Current runtime and certificate
+## Historical runtime and certificate
 
 The reused isolated solver is Python **3.11.9**, EMerge **3.0.0b9**, NumPy 2.2.6,
 SciPy 1.17.1, Matplotlib 3.11.2, Gmsh 4.15.2, emcad 0.2.0, ezdxf 1.4.5,

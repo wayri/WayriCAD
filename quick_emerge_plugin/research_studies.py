@@ -25,6 +25,15 @@ def solve_rectangular_array_factor(np, config, backend_info):
     phi_target = float(advanced["scan_phi_deg"])
     phase = rectangular_array_phases(template["id"], theta_target, phi_target)
     weights = np.asarray([complex(*pair) for pair in phase["weights_ri"]])
+    taper=advanced.get('research_array_taper','uniform')
+    if taper not in ('uniform','binomial'):
+        raise ValueError('Unsupported ideal array amplitude taper')
+    amplitudes=np.ones(len(weights))
+    if taper=='binomial':
+        ax=np.asarray([math.comb(geometry['count_x']-1,i) for i in range(geometry['count_x'])],float)
+        ay=np.asarray([math.comb(geometry['count_y']-1,i) for i in range(geometry['count_y'])],float)
+        amplitudes=np.outer(ay/ay.max(),ax/ax.max()).ravel()
+        weights=weights*amplitudes
     frequency = geometry["frequency_ghz"] * 1e9
     wavelength = 299792458.0 / frequency
     k0 = 2.0 * math.pi / wavelength
@@ -41,6 +50,13 @@ def solve_rectangular_array_factor(np, config, backend_info):
     magnitude /= max(float(magnitude.max()), 1e-30)
     peak_index = int(np.argmax(magnitude))
     peak_theta = float(theta_deg[peak_index])
+    # Evaluate the same isotropic-element law over the sphere, not a revolved cut.
+    sphere_theta = np.deg2rad(np.arange(0, 181, 2))
+    sphere_phi = np.deg2rad(np.arange(0, 361, 2))
+    tt, pp = np.meshgrid(sphere_theta, sphere_phi, indexing='ij')
+    spherical_field = np.zeros(tt.shape, dtype=complex)
+    for (x, y), weight in zip(positions, weights):
+        spherical_field += weight * np.exp(1j*k0*np.sin(tt)*(x*np.cos(pp)+y*np.sin(pp)))
     result = {
         "schema": 1,
         "backend": backend_info,
@@ -53,6 +69,14 @@ def solve_rectangular_array_factor(np, config, backend_info):
         "s_parameters": {},
         "research": template,
         "research_sha256": template_digest(template),
+        "radiation": {
+            "frequency_hz": frequency,
+            "theta_rad": sphere_theta.tolist(), "phi_rad": sphere_phi.tolist(),
+            "norm_e": (np.abs(spherical_field)/float(amplitudes.sum())).tolist(),
+            "quantity": "Ideal isotropic-element array factor",
+            "model": "analytical-array-factor-not-full-wave",
+            "normalization": "unit coherent sum; viewer normalizes to sampled maximum",
+        },
         "array_factor": {
             "theta_deg": theta_deg.tolist(),
             "normalized_magnitude": magnitude.tolist(),
@@ -62,11 +86,13 @@ def solve_rectangular_array_factor(np, config, backend_info):
             "scan_error_deg": peak_theta - theta_target,
             "progressive_phase_x_deg": phase["phase_x_deg"],
             "progressive_phase_y_deg": phase["phase_y_deg"],
-            "weights_ri": phase["weights_ri"],
+            "weights_ri": _complex_pairs(weights),
+            "amplitude_taper": taper,
+            "element_amplitudes": amplitudes.tolist(),
             "element_count": geometry["count_x"] * geometry["count_y"],
         },
         "assumptions": [
-            "Isotropic identical elements with equal amplitude",
+            "Isotropic identical elements; amplitude taper: "+taper,
             "Published 40 mm pitch and 3 GHz scan law",
             "No mutual coupling, element pattern, varactor/PIN state error, feed loss or fabrication loss",
             "Measured gain is retained as source evidence and is not predicted by this array-factor result",
@@ -74,6 +100,12 @@ def solve_rectangular_array_factor(np, config, backend_info):
     }
     from .research_validation import compare_with_publication
     result["publication_comparison"] = compare_with_publication(result)
+    if taper!='uniform':
+        result['assumptions'].append('Binomial taper is an analytical design extension, not a reproduced paper excitation.')
+        result['publication_comparison']['overall']='insufficient'
+        result['publication_comparison']['checks'].append({
+            'check':'amplitude-taper source agreement','status':'insufficient',
+            'detail':'Binomial amplitude weighting is a design extension; not the paper excitation.'})
     return result
 
 

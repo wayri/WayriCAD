@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from types import SimpleNamespace
 import math
+import textwrap
 import time
 import numpy as np
 import wx
@@ -146,7 +147,32 @@ class SceneViewport(wx.Panel):
     def _advanced_geometry(self, descriptor, region=None, config=None):
         if descriptor.get('unit') != 'mm': raise ValueError('Scene geometry must use mm')
         kind=descriptor['kind']
-        if kind in ('dual_feed_square_patch','yang_wlan_monopole','liu_cubesat_yagi','kabir_sx_shared_aperture','rectangular_array_factor'):
+        if kind=='research_solids':
+            if self.options.get('show_context', True):
+                for solid in descriptor.get('dielectrics', []):
+                    b=solid['bounds_mm']; cube=vtk.vtkCubeSource()
+                    cube.SetBounds(b[0], b[3], b[1], b[4], b[2], b[5]); cube.Update()
+                    self._actor(cube.GetOutput(), (.16,.58,.62) if solid.get('er',1)>5 else (.14,.5,.32), .18)
+            if self.options.get('copper', True):
+                for sheet in descriptor.get('sheets', []):
+                    points=sheet['vertices_mm']
+                    if sheet.get('holes_mm'):
+                        shape={'outer_mm':[[p[0],p[1]] for p in points],
+                               'holes_mm':[[list(p[:2]) for p in ring] for ring in sheet['holes_mm']]}
+                        mesh=scene_data.polygon(shape, points[0][2])
+                    else: mesh=scene_data.face(points)
+                    self._actor(mesh, (.82,.6,.25), .7)
+                for via in descriptor.get('vias', []):
+                    source=vtk.vtkCylinderSource(); source.SetRadius(via['radius_mm'])
+                    source.SetHeight(via['z1_mm']-via['z0_mm']); source.SetResolution(20)
+                    transform=vtk.vtkTransform()
+                    transform.Translate(via['x_mm'],via['y_mm'],(via['z0_mm']+via['z1_mm'])/2)
+                    transform.RotateX(90)
+                    mesh=vtk.vtkTransformPolyDataFilter(); mesh.SetInputConnection(source.GetOutputPort()); mesh.SetTransform(transform); mesh.Update()
+                    self._actor(mesh.GetOutput(), (.82,.6,.25))
+            if self.options.get('ports', True):
+                for start,end in descriptor.get('ports', []): self._line(start,end,(.94,.25,.39),4)
+        elif kind in ('dual_feed_square_patch','yang_wlan_monopole','liu_cubesat_yagi','kabir_sx_shared_aperture','rectangular_array_factor'):
             parts,ports=scene_data.research_scene(descriptor)
             for category,shape,z,color,opacity in parts:
                 if self.options.get(category,True): self._actor(scene_data.polygon(shape,z),color,opacity)
@@ -210,10 +236,13 @@ class SceneViewport(wx.Panel):
         if mode=='log': lut.SetScaleToLog10()
         for i in range(256): lut.SetTableValue(i,*cmap(i/255))
         lut.Build(); bar=vtk.vtkScalarBarActor(); bar.SetLookupTable(lut); bar.SetTitle(title); bar.SetNumberOfLabels(4); bar.SetWidth(.12); bar.SetHeight(.65)
+        bar.UnconstrainedFontSizeOn()
         bar.GetTitleTextProperty().ShadowOff(); bar.GetLabelTextProperty().ShadowOff()
         foreground=(.87,.91,.94) if self.dark else (.15,.21,.27)
         bar.GetTitleTextProperty().SetColor(*foreground);bar.GetTitleTextProperty().SetFontSize(12)
         bar.GetLabelTextProperty().SetColor(*foreground);bar.GetLabelTextProperty().SetFontSize(11)
+        for prop in (bar.GetTitleTextProperty(),bar.GetLabelTextProperty()):
+            prop.BoldOff(); prop.ItalicOff()
         if self.name=='3D radiation':
             bar.UnconstrainedFontSizeOn();bar.SetTitle('Relative |E|')
             bar.SetPosition(.89,.18);bar.SetWidth(.09);bar.SetHeight(.62)
@@ -259,21 +288,27 @@ class SceneViewport(wx.Panel):
         a=self.arguments
         if self.name=='3D setup':
             region=a if 'substrate' in a and 'copper' in a else None
-            descriptor=scene_data.preview_geometry(a) if region is None else None
+            descriptor=a.get('scene_geometry') or (scene_data.preview_geometry(a) if region is None else None)
             if descriptor: self._advanced_geometry(descriptor,config=a)
             else: self._geometry(a if region is None else {},region)
         elif self.name=='3D fields':
             descriptor=a.get('scene_geometry')
             if descriptor: self._advanced_geometry(descriptor,a.get('region'),a['config'])
-            else: self._geometry(a['config'],a.get('region'))
+            elif not self.options.get('archive_only'): self._geometry(a['config'],a.get('region'))
             if self.options.get('field',True):
                 if 'thermal' in a: self._field(a['thermal'],thermal=True)
                 elif 'field' in a:
                     field=a['field']; volume=field.get('display_volume')
-                    if self.options.get('field_view','Plane')=='Volume' and volume: self._volume(volume)
+                    if field.get('display_vectors') is not None:
+                        from .field_vectors import native
+                        native(self, field['display_vectors'])
+                    elif self.options.get('field_view','Plane')=='Volume' and volume: self._volume(volume)
                     else: self._field(field)
         elif self.name=='3D radiation':
             if self.options.get('field',True) and 'radiation' in a: self._radiation(a['radiation'])
+        elif self.name=='3D polarization':
+            from .polarization_view import native
+            native(self, a)
         self._markers()
         self._labels(a)
         if reset:
@@ -290,8 +325,12 @@ class SceneViewport(wx.Panel):
                 field=arguments['thermal']; label=f"Temperature [K] | Z={field['z_mm']:g} mm | time={field['time_s']:g} s | substrate only"
             else:
                 field=arguments['field']; label=f"{field.get('display_quantity', '|E|')} [{field.get('display_unit', 'V/m')}] | Z={field['z_mm']:g} mm | {field['frequency_hz']/1e9:g} GHz | solver excitation"
+        elif self.name=='3D polarization':
+            label='Saved +Z boresight polarization | normalized Ex/Ey | not a spatial field or full angular map'
         else:
             label='Relative far-field |E|: normalized radius; not gain, efficiency or physical distance'
+            if arguments.get('radiation', {}).get('frequency_hz'):
+                label+=f" | {arguments['radiation']['frequency_hz']/1e9:g} GHz"
             if 'radiation' not in arguments: label='Radiation surface is available for the patch model.'
         if self.name=='3D fields':
             sampled=arguments.get('thermal',arguments.get('field'))
@@ -299,8 +338,13 @@ class SceneViewport(wx.Panel):
             if self.options.get('field_view','Plane')=='Volume' and volume:
                 label+='\n'+f"{len(volume['x_mm'])}×{len(volume['y_mm'])}×{len(volume['z_mm'])} original volume samples"
             elif sampled:label+='\n'+plane_sampling_label(sampled)
+            if sampled and sampled.get('display_vectors') is not None:
+                vectors=sampled['display_vectors']
+                label+=f" | Re{{phasor exp(j phase)}} at {vectors['phase_deg']:g} deg | {len(vectors['positions'])} original positions, stride {vectors['stride']}\nVisual arrow scale={vectors['arrow_scale_mm_per_unit']:.4g} mm/({vectors['unit']}); not physical displacement or transient FEM"
         elif self.name=='3D radiation' and 'radiation' in arguments:
             label+='\n'+angular_sampling_label(arguments['radiation'])
+            if arguments['radiation'].get('model')=='analytical-array-factor-not-full-wave':
+                label+=' | IDEAL ARRAY FACTOR; isotropic elements, no full-wave coupling'
         descriptor=arguments.get('scene_geometry',{}) if isinstance(arguments,dict) else {}
         if self.name=='3D setup' and not descriptor and 'config' not in arguments and 'substrate' not in arguments:
             descriptor=scene_data.preview_geometry(arguments) or {}
@@ -313,20 +357,42 @@ class SceneViewport(wx.Panel):
         if descriptor.get('kind')=='patch_array': label += ' | finite patch array'
         if descriptor.get('kind') in ('dual_feed_square_patch','yang_wlan_monopole','liu_cubesat_yagi','kabir_sx_shared_aperture'): label += ' | published research geometry'
         if descriptor.get('kind')=='rectangular_array_factor': label += ' | conceptual element markers; array-factor study'
+        if descriptor.get('kind')=='research_solids': label += ' | paper-derived geometry; documented assumptions, not qualified reproduction'
         if self.name=='3D fields' and self.options.get('field_view','Plane')=='Volume' and arguments.get('field',{}).get('display_volume'):
             label += ' | volume original samples'
         if self.options.get('mesh',False): label += ' | sample grid'
         self.scope_caption = label
-        if self.name not in ('3D setup','3D radiation'):
-            text.SetInput(label); text.SetPosition(12,12); prop=text.GetTextProperty(); prop.SetFontSize(13)
+        if self.name!='3D setup':
+            # VTK interprets vertical bars as table-column delimiters.
+            caption=label.replace('|E|','E magnitude').replace(' | ','; ')
+            width=max(45,int(self.GetClientSize().width/7)-5)
+            caption='\n'.join(textwrap.fill(line,width=width) for line in caption.splitlines())
+            text.SetInput(caption); text.SetPosition(12,12); prop=text.GetTextProperty(); prop.SetFontSize(13)
             prop.SetColor(*((.87,.91,.94) if self.dark else (.15,.21,.27))); self.scene.AddViewProp(text)
         axes=vtk.vtkAxesActor(); axes.SetTotalLength(10,10,10); axes.SetXAxisLabelText('X [mm]'); axes.SetYAxisLabelText('Y [mm]'); axes.SetZAxisLabelText('Z [mm]')
-        if self.name=='3D radiation':
+        if self.name in ('3D radiation','3D polarization'):
             axes.SetXAxisLabelText('X'); axes.SetYAxisLabelText('Y'); axes.SetZAxisLabelText('Z'); axes.SetTotalLength(.2,.2,.2)
         # Orientation marker is overlaid in display coordinates, independent of scene bounds.
         if not hasattr(self,'orientation'):
             self.orientation=vtk.vtkOrientationMarkerWidget(); self.orientation.SetInteractor(self.window); self.orientation.SetViewport(0,.78,.16,1)
         self.orientation.SetOrientationMarker(axes); self.orientation.SetEnabled(1); self.orientation.InteractiveOff()
+        if self.name in ('3D fields', '3D radiation', '3D polarization'):
+            cube = vtk.vtkCubeAxesActor2D()
+            cube.SetBounds(-1, 1, -1, 1, -1, 1) if self.name=='3D polarization' else cube.SetBounds(self.scene.ComputeVisiblePropBounds())
+            cube.SetCamera(self.scene.GetActiveCamera())
+            cube.SetFlyModeToOuterEdges(); cube.SetFontFactor(.6)
+            cube.SetNumberOfLabels(3); cube.SetLabelFormat('%.3g')
+            units = 'mm' if self.name=='3D fields' else 'relative' if self.name=='3D radiation' else 'normalized field'
+            for axis in ('X', 'Y', 'Z'):
+                title=axis+' ['+units+']'
+                if self.name=='3D polarization':
+                    title={'X':'Ex / sqrt(S0)','Y':'Ey / sqrt(S0)','Z':'+Z propagation reference'}[axis]
+                getattr(cube, 'Set'+axis+'Label')(title)
+            color = (.87,.91,.94) if self.dark else (.15,.21,.27)
+            cube.GetProperty().SetColor(*color)
+            for prop in (cube.GetAxisTitleTextProperty(), cube.GetAxisLabelTextProperty()):
+                prop.SetColor(*color); prop.SetFontSize(12); prop.ShadowOff(); prop.BoldOff(); prop.ItalicOff()
+            self.scene.AddViewProp(cube)
 
     def clear(self):
         self.scene.RemoveAllViewProps(); self.data_actor=None; self.renderer=self.arguments=None; self.picking=[]; self.markers=[]; self.selection=self.profile=None
@@ -369,6 +435,9 @@ class SceneViewport(wx.Panel):
             self.scene.ResetCamera(bounds)
         else:
             self.scene.ResetCamera()
+        if self.name in ('3D radiation', '3D polarization'):
+            camera = self.scene.GetActiveCamera()
+            camera.SetParallelScale(camera.GetParallelScale()*1.25)
 
     def fit(self): self._fit_scene(); self.refresh_canvas()
     def fit_region(self): self._fit_scene(focus=False); self.refresh_canvas()
@@ -397,6 +466,10 @@ class SceneViewport(wx.Panel):
         picker=vtk.vtkCellPicker(); picker.PickFromListOn(); picker.AddPickList(self.data_actor)
         picker.SetTolerance(14/math.hypot(width,height))
         if not picker.Pick(x,y,0,self.scene) or picker.GetPointId()<0: return None
+        source_ids=self.data_actor.GetMapper().GetInput().GetPointData().GetArray('original_vector_index')
+        if source_ids is not None:
+            index=int(source_ids.GetTuple1(picker.GetPointId()))
+            return self.picking[index] if 0<=index<len(self.picking) else None
         position=np.asarray(picker.GetPickPosition())
         distance=np.sum((self._sample_points-position)**2,axis=1)
         index=int(np.argmin(distance))

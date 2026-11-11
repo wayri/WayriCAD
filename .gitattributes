@@ -9,6 +9,11 @@ docs/examples/pocket-kivi/* -text whitespace=cr-at-eol
 
 # Research numerical evidence and capture receipts retain their recorded bytes.
 examples/quick_emerge/research_antennas/images/*.json -text whitespace=cr-at-eol
+examples/quick_emerge/research_antennas/images/**/*.json -text whitespace=cr-at-eol
+# Generated offline viewers embed upstream Plotly/shader text verbatim.
+# Preserve capture bytes; trailing shader whitespace is not hand-authored code.
+examples/quick_emerge/research_antennas/images/*.html -text whitespace=cr-at-eol,-blank-at-eol
+examples/quick_emerge/research_antennas/images/**/*.html -text whitespace=cr-at-eol,-blank-at-eol
 
 # The pinned WebView release is verified by byte hash; never rewrite line endings.
 portable_web_export_plugin/vendor/kicad-webview/* -text

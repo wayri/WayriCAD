@@ -20,6 +20,11 @@ equivalence. Reopen and rerun after source, rules or converter changes.
 
 ## Capabilities
 
+- Discover protocol-labelled nets with bounded fuzzy/wildcard/regex matching,
+  then screen supported saved-copper sections with corrective suggestions.
+  Includes RGMII, SGMII, DDR, PCI/PCIe, SerDes and GTH/GTY/GTX/GTP.
+  See [Protocol discovery: GUI, CLI, safeguards and limits](PROTOCOL_SCANNING.md).
+
 - Inspect connected trace/via/zone paths or terminal-defined filled-zone/plane corridors, with actual copper previews.
 - Identify candidate grounds and verify adjacent reference-copper coverage, or select a reference layer explicitly.
 - Estimate section DC resistance, supported transmission-line L/C/Z0, isolated via terms and plane-overlap capacitance. The board microstrip and centered-stripline models now use the corrected EMerge cross-section equations.

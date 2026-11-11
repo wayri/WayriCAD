@@ -14,8 +14,9 @@ from .advanced import (configure_solver, dielectric, assign_conductor, conductor
                        air_region, outer_boundary, field_payload, physics_assumptions)
 
 
-SUPPORTED_VERSION = '3.0.0b9'
-UPSTREAM_REVISION = '446232037d175a596606c6c9ea986e372560566f'
+SUPPORTED_VERSION = '3.0.4'
+SUPPORTED_EMSUTIL_VERSION = '1.1.6'
+UPSTREAM_REVISION = '4b17fb0648b29ab0bdc19090eb7bf82e7b4cb1cd'
 
 
 def atomic_json(path, value):
@@ -42,9 +43,17 @@ def runtime_info(*, qualifying=False):
     if Version(version).major < 3:
         raise RuntimeError(f'Quick EMerge requires EMerge 3+ (tested baseline {SUPPORTED_VERSION}); selected environment has {version}.')
     certificate = runtime_certificate(sys.prefix)
+    try:
+        emsutil_version=importlib.metadata.version('emsutil')
+    except importlib.metadata.PackageNotFoundError:
+        raise RuntimeError('emsutil is missing from the selected solver Python; rerun dependency setup.') from None
     if version != SUPPORTED_VERSION and not qualifying and (not certificate or certificate['version'] != version):
         raise RuntimeError(f'EMerge {version} has not passed compatibility checks for this plugin. Use dependency setup to qualify an isolated runtime (baseline {SUPPORTED_VERSION}).')
-    return {'backend': 'EMerge', 'version': version, 'adapter_revision': UPSTREAM_REVISION}
+    if not qualifying and (version!=SUPPORTED_VERSION or emsutil_version!=SUPPORTED_EMSUTIL_VERSION) and (
+            not certificate or certificate['version']!=version or certificate.get('packages',{}).get('emsutil')!=emsutil_version):
+        raise RuntimeError(f'emsutil {emsutil_version} has not passed compatibility checks; rerun dependency setup.')
+    return {'backend': 'EMerge', 'version': version, 'emsutil_version':emsutil_version,
+            'adapter_revision': UPSTREAM_REVISION}
 
 
 def build_geometry(em, np, c):
@@ -160,6 +169,10 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
         model, air, ports, widths, thickness = build_geometry(em, np, c)
         bbox = [-c['substrate_x_mm']/2, -c['substrate_y_mm']/2, c['substrate_x_mm']/2, c['substrate_y_mm']/2]
     progress('Generating finite-element mesh.', flush=True)
+    if os.environ.get('WAYRICAD_GMSH_VERBOSE')=='1':
+        import gmsh
+        gmsh.option.setNumber('General.Terminal',1)
+        gmsh.option.setNumber('General.Verbosity',4)
     model.generate_mesh()
     check_mesh_budget(model, c)
     directions = getattr(model, '_quick_port_directions', [em.ZAX] * len(ports))
@@ -205,6 +218,9 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
               'config': c, 'config_sha256': config_digest(c),
               'frequencies_hz': frequencies.tolist(), 's_parameters': s,
               'field': fields, 'assumptions': physics_assumptions(c)}
+    result['discretization']={'tetrahedra':int(model.mesh.n_tets),
+                              'field_grid':c['field_grid'], 'field_layers':c['advanced']['field_layers'],
+                              'convergence_qualified':False}
     result['port_count'] = len(ports)
     if c['advanced']['study'] == 'research_antenna':
         from .research_antennas import get_template, template_digest
@@ -295,6 +311,8 @@ def run_request(request_path, *, qualifying=False):
     if source_identity(request['source']['path']) != request['source']:
         raise ValueError('PCB changed during simulation; result cannot be associated with its reviewed context.')
     result['source'] = request['source']
+    from datetime import datetime, timezone
+    result['completed_at_utc']=datetime.now(timezone.utc).isoformat()
     json.dumps(result, allow_nan=False)
     write_touchstone(request_path.parent, result)
     if result.get('exports'):
