@@ -1,6 +1,6 @@
 {
   "schema": "wayricad.vendor-catalog/v1",
-  "retrieved": "2026-11-04",
+  "retrieved": "2026-11-11",
   "notes": "Starter catalogue. Profiles are conditional source-based screening inputs, not fabrication approval; missing rules remain unknown. Vendor names without profiles require confirmation.",
   "profiles": [
     {
@@ -3663,6 +3663,109 @@
         }
       ],
       "notes": "Specific to FR4 two-layer Fusion service. Solder-mask dam varies with mask color and selected option; unknown cases require vendor confirmation."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "oshpark-prototype-4l-1oz",
+      "name": "OSH Park prototype - 4 layers - 1 oz outer / 0.5 oz inner",
+      "vendor": "OSH Park",
+      "service": "4 Layer Prototype",
+      "revision": "Source accessed 2026-11-11",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [1],
+        "inner_copper_oz": [0.5],
+        "layers": [4],
+        "copper_basis": "vendor_order_option",
+        "material": "FR408-HR",
+        "thickness_mm": [1.6],
+        "finish": ["ENIG"],
+        "notes": "Published nominal stackup: outer copper is clad plus plated; inner copper is clad. Order labels are retained without inferring a common physical foil basis. Confirm the current stackup and quote."
+      },
+      "sources": [
+        {"id": "oshpark-4l", "url": "https://docs.oshpark.com/services/four-layer/", "retrieved": "2026-11-11", "verified": "2026-11-11", "title": "OSH Park 4 Layer Prototype Service"}
+      ],
+      "rules": [
+        {"id": "track-width", "title": "Minimum routed track width", "category": "DRC", "backend": "native_drc", "constraint": "track_width", "unit": "mm", "minimum": 0.127, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Copper Specifications: 5 mil; exact conversion."},
+        {"id": "copper-clearance", "title": "Minimum copper clearance", "category": "DRC", "backend": "native_drc", "constraint": "clearance", "unit": "mm", "minimum": 0.127, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Trace Spacing: 5 mil. Separate drill-to-inner-copper requirement remains manual."},
+        {"id": "annular-ring", "title": "Minimum annular ring", "category": "DRC", "backend": "native_drc", "constraint": "annular_width", "unit": "mm", "minimum": 0.1016, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Drill Specifications: 4 mil; confirm fabrication drill interpretation."},
+        {"id": "circuit-edge", "title": "Copper to nominal board edge", "category": "DRC", "backend": "native_drc", "constraint": "edge_clearance", "unit": "mm", "minimum": 0.381, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Board Edge Keepout: 15 mil from nominal edge."},
+        {"id": "mechanical-drill", "title": "Minimum drill size", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.254, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Drill Specifications: 10 mil. Verify tool versus finished hole and tolerances; not mapped to generic native hole_size."},
+        {"id": "inner-drill-clearance", "title": "Plated drill to internal copper", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.254, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Plated Drill to Internal Layer Copper Clearance: 10 mil. Review unconnected internal via rings and planes; ordinary copper clearance does not cover this requirement."},
+        {"id": "mask-dam", "title": "Minimum solder mask web", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.1016, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Material Specs: 4 mil minimum web."},
+        {"id": "drill-slot", "title": "Minimum drill slot width", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.508, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "20 mil applies only to drill slots, not routed interior cutouts."},
+        {"id": "via-process", "title": "Confirm through-via process", "category": "DFM", "backend": "manual", "constraint": null, "unit": null, "minimum": null, "maximum": null, "source_ids": ["oshpark-4l"], "notes": "Blind, buried and filled/plated via-in-pad are unavailable. Tenting does not guarantee a filled hole or flat surface."},
+        {"id": "assembly-review", "title": "Review assembly process separately", "category": "DFA", "backend": "manual", "constraint": null, "unit": null, "minimum": null, "maximum": null, "source_ids": [], "notes": "Fabrication limits do not establish assembler acceptance. Review BOM, placement, polarity, tooling and inspection with the selected assembler."}
+      ],
+      "notes": "Conditional screening only. Stackup, nominal dimensions and the selected order require confirmation. No compliance certification or complete fabrication coverage is asserted."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "oshpark-prototype-6l-1oz",
+      "name": "OSH Park prototype - 6 layers - 1 oz outer / 0.5 oz inner",
+      "vendor": "OSH Park",
+      "service": "6 Layer Prototype",
+      "revision": "Source accessed 2026-11-11",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [1],
+        "inner_copper_oz": [0.5],
+        "layers": [6],
+        "copper_basis": "vendor_order_option",
+        "material": "FR408-HR",
+        "thickness_mm": [1.6],
+        "finish": ["ENIG"],
+        "notes": "Published nominal stackup distinguishes outer clad plus plated copper from inner clad copper. We preserve order-option weights, not an inferred shared starting or finished foil weight. Confirm the current order."
+      },
+      "sources": [
+        {"id": "oshpark-6l", "url": "https://docs.oshpark.com/services/six-layer/", "retrieved": "2026-11-11", "verified": "2026-11-11", "title": "OSH Park 6 Layer Prototype Service"}
+      ],
+      "rules": [
+        {"id": "track-width", "title": "Minimum routed track width", "category": "DRC", "backend": "native_drc", "constraint": "track_width", "unit": "mm", "minimum": 0.127, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "Copper Specifications: 5 mil; exact conversion."},
+        {"id": "copper-clearance", "title": "Minimum copper clearance", "category": "DRC", "backend": "native_drc", "constraint": "clearance", "unit": "mm", "minimum": 0.127, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "Trace Spacing: 5 mil. Drill-to-inner-copper clearance remains a separate manual requirement."},
+        {"id": "annular-ring", "title": "Minimum annular ring", "category": "DRC", "backend": "native_drc", "constraint": "annular_width", "unit": "mm", "minimum": 0.1016, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "Drill Specifications: 4 mil; confirm fabrication drill interpretation."},
+        {"id": "circuit-edge", "title": "Copper to nominal board edge", "category": "DRC", "backend": "native_drc", "constraint": "edge_clearance", "unit": "mm", "minimum": 0.381, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "Board Edge Keepout: 15 mil from nominal edge."},
+        {"id": "mechanical-drill", "title": "Minimum drill size", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.2032, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "Drill Specifications: 8 mil. Tool versus finished diameter and tolerances require confirmation; not mapped to generic hole_size."},
+        {"id": "inner-drill-clearance", "title": "Plated drill to internal copper", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.254, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "10 mil. Review unconnected via rings and planes; ordinary native copper clearance is not this check."},
+        {"id": "mask-dam", "title": "Minimum solder mask web", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.1016, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "Material Specs: 4 mil minimum web."},
+        {"id": "drill-slot", "title": "Minimum drill slot width", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.508, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "20 mil for drill slots only; not interior milling."},
+        {"id": "via-process", "title": "Confirm through-via process", "category": "DFM", "backend": "manual", "constraint": null, "unit": null, "minimum": null, "maximum": null, "source_ids": ["oshpark-6l"], "notes": "No blind, buried or filled/plated via-in-pad. Tenting does not guarantee a filled hole or flat surface."},
+        {"id": "assembly-review", "title": "Review assembly process separately", "category": "DFA", "backend": "manual", "constraint": null, "unit": null, "minimum": null, "maximum": null, "source_ids": [], "notes": "Review BOM, placement, polarity, tooling and inspection with the selected assembler; fabrication rules do not establish assembly acceptance."}
+      ],
+      "notes": "Conditional screening only. Confirm nominal stackup and order acceptance. No certification or complete fabrication coverage is asserted."
+    },
+    {
+      "schema": "wayricad.vendor-profile/v1",
+      "id": "oshpark-2l-2oz-08mm",
+      "name": "OSH Park - 2 layers - 2 oz - 0.8 mm",
+      "vendor": "OSH Park",
+      "service": "2 Layer 2oz 0.8mm",
+      "revision": "Source accessed 2026-11-11",
+      "process": {
+        "board_type": "rigid",
+        "copper_oz": [2],
+        "layers": [2],
+        "copper_basis": "vendor_order_option",
+        "material": "FR4",
+        "thickness_mm": [0.8],
+        "finish": ["ENIG"],
+        "notes": "Nominal 2 oz order option; no starting-to-finished copper conversion is assumed. Published core construction is Ventec VT-47. Confirm stackup and quote."
+      },
+      "sources": [
+        {"id": "oshpark-2oz", "url": "https://docs.oshpark.com/services/two-layer-hhdc/", "retrieved": "2026-11-11", "verified": "2026-11-11", "title": "OSH Park 2 Layer 2oz 0.8mm Service"}
+      ],
+      "rules": [
+        {"id": "track-width", "title": "Minimum routed track width", "category": "DRC", "backend": "native_drc", "constraint": "track_width", "unit": "mm", "minimum": 0.1524, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Copper Specifications: 6 mil; exact conversion."},
+        {"id": "copper-clearance", "title": "Minimum copper clearance", "category": "DRC", "backend": "native_drc", "constraint": "clearance", "unit": "mm", "minimum": 0.1524, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Trace Spacing: 6 mil; exact conversion."},
+        {"id": "annular-ring", "title": "Minimum annular ring", "category": "DRC", "backend": "native_drc", "constraint": "annular_width", "unit": "mm", "minimum": 0.127, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Drill Specifications: 5 mil; confirm fabrication drill interpretation."},
+        {"id": "circuit-edge", "title": "Copper to nominal board edge", "category": "DRC", "backend": "native_drc", "constraint": "edge_clearance", "unit": "mm", "minimum": 0.381, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Board Edge Keepout: 15 mil from nominal board edge."},
+        {"id": "mechanical-drill", "title": "Minimum drill size", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.254, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Drill Specifications: 10 mil. Confirm tool versus finished diameter and tolerances, not mapped to native hole_size."},
+        {"id": "mask-dam", "title": "Minimum solder mask web", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.1016, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Material Specs: 4 mil minimum web."},
+        {"id": "drill-slot", "title": "Minimum drill slot width", "category": "DFM", "backend": "manual", "constraint": null, "unit": "mm", "minimum": 0.508, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "20 mil applies to drill slots only; routed cutouts use different milling tools."},
+        {"id": "via-process", "title": "Confirm through-via process", "category": "DFM", "backend": "manual", "constraint": null, "unit": null, "minimum": null, "maximum": null, "source_ids": ["oshpark-2oz"], "notes": "Blind, buried and filled/plated via-in-pad are unavailable. Review tenting and flatness separately."},
+        {"id": "assembly-review", "title": "Review assembly process separately", "category": "DFA", "backend": "manual", "constraint": null, "unit": null, "minimum": null, "maximum": null, "source_ids": [], "notes": "Review BOM, placement, polarity, tooling and inspection with the selected assembler; fabrication limits are not assembly acceptance."}
+      ],
+      "notes": "Conditional screening only; nominal thickness is not a tolerance guarantee. Confirm process and order. No certification or complete fabrication coverage is asserted."
     }
   ],
   "vendors": [
@@ -3857,7 +3960,7 @@
         "https://docs.oshpark.com/services/"
       ],
       "status": "profiles_available",
-      "notes": "Two-layer 1 oz FR4 prototype profile; mixed-copper 4/6-layer options need separate scope."
+      "notes": "Separate profiles cover two-layer 1 oz prototype, two-layer 2 oz/0.8 mm, and four/six-layer prototypes with 1 oz outer and 0.5 oz inner copper. Select the exact service and confirm the quote; coverage remains partial."
     },
     {
       "id": "sierra-circuits",

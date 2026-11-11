@@ -18,6 +18,31 @@ CLI scope: JSON manufacturing audit; native DRC remains a separate release gate.
 
 ## Capabilities
 
+### New in 4.8.2
+
+- Searchable **Vendor process library**: 24 process presets and 28 supplier
+  directory entries. Filter by the current board's layer count, inspect exact
+  service/copper/material scope and source dates, and import/export custom JSON
+  profiles without replacing bundled IDs. Listing a supplier is not approval
+  for its whole capability range.
+- The release manager opens the same library through **DFM / DFA and vendors**.
+- Process fields have supported-value dropdowns. Incompatible layer counts are
+  rejected before native DRC, including headless runs.
+- Failed or cancelled reruns clear previous results. Native board loading and
+  preview extraction stay on the GUI thread. A preview failure retains completed
+  CLI evidence and is disclosed separately in the UI and exported report.
+- Native courtyard, solder-mask, silkscreen and routing-end findings link to
+  engineering review items, object identities and suggested corrections. These
+  are **partial negative evidence**, not complete DFA automation.
+- Sort finding columns without losing row-to-object identity. Double-click a
+  finding to cross-probe its saved objects; live source-hash guards still apply.
+- [Dedicated offline DFM/DFA help](dfm_help.html) and headless
+  `python -m manufacturing_readiness_plugin.dfm_cli` commands.
+
+The added OSH Park 4-layer, 6-layer and 2 oz/0.8 mm presets were checked against
+official service pages on 2026-11-11. Other presets retain their original source
+dates and must be reconfirmed against the current quotation.
+
 - Open the separate **DFM / DFA Studio** action for persistent checklists,
   process-scoped vendor presets, optional checks after saved changes, linked
   native findings and HTML/PDF evidence. See the [workflow and coverage](DFM_DFA.md).

@@ -13,6 +13,7 @@ import time
 
 from .checklists import canonical_context, compile_native_rules, validate_profile
 from .verification import drc_evidence, find_cli
+from .assembly_checks import PROVIDERS, apply_assembly_findings
 
 
 _NATIVE_PROVIDERS = {
@@ -41,7 +42,8 @@ def _vendor_project(data, profile, preview):
             raise ValueError('Project DRC settings must be objects.')
         compiled = set(preview['compiled_rule_ids'])
         providers = sorted({provider for rule in profile['rules'] if rule['id'] in compiled
-                            for provider in _NATIVE_PROVIDERS[rule['constraint']]})
+                            for provider in _NATIVE_PROVIDERS[rule['constraint']]} |
+                           {provider for rule in profile['rules'] for provider in PROVIDERS.get(rule['id'], ())})
         previous = {name: severities.get(name) for name in providers}
         for name in providers:
             severities[name] = 'error'
@@ -154,6 +156,14 @@ def audit_snapshot(board_path, profile, context, *, cli=None, cancelled=None, pr
         raise ValueError('This profile has native vendor rules; use vendor DRC for this run.')
     board_path = Path(board_path).resolve()
     files, source_sha = source_inputs(board_path, context)
+    from wayricad_runtime.schematic_sexpr import parse
+    root = parse(files[board_path.name].decode('utf-8-sig'))
+    layers = root.nodes('layers')
+    if root.tag != 'kicad_pcb' or len(layers) != 1:
+        raise ValueError('The saved PCB has no unambiguous layer table.')
+    copper_count = sum(layer.val(2) in ('signal', 'power', 'mixed', 'jumper') for layer in layers[0].children)
+    if copper_count != context['layers']:
+        raise ValueError(f'Saved PCB has {copper_count} copper layers, but the selected process specifies {context["layers"]}. Choose a compatible process.')
     cli = Path(cli) if cli else find_cli()
     if cli is None:
         raise ValueError('KiCad CLI is unavailable. Configure the matching KiCad installation.')
@@ -177,6 +187,9 @@ def audit_snapshot(board_path, profile, context, *, cli=None, cancelled=None, pr
         try:
             process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=error_stream,
                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        except OSError as exc:
+            error_stream.close()
+            raise ValueError('Could not start KiCad CLI: ' + str(cli) + '. ' + str(exc)) from exc
         except BaseException:
             error_stream.close()
             raise
@@ -211,11 +224,14 @@ def audit_snapshot(board_path, profile, context, *, cli=None, cancelled=None, pr
         native_diagnostics = diagnostics.read_text(encoding='utf-8', errors='replace').strip()
         if native_diagnostics:
             raise ValueError('Native DRC returned diagnostics; rules cannot be accepted: ' + native_diagnostics[:2000])
+        if process.returncode not in (0, 5):
+            raise ValueError(f'KiCad CLI exited with code {process.returncode}. Check the board version, matching CLI installation and custom-rule syntax. No checks were accepted.')
         if not output.is_file() or output.stat().st_size > 32 * 1024 * 1024:
             raise ValueError('Native DRC did not produce a bounded JSON report. Check CLI permissions and rule syntax.')
         evidence = drc_evidence(output, process.returncode)
         report = json.loads(output.read_text(encoding='utf-8'))
         results, findings = classify_native_results(profile, preview, report, process.returncode)
+        results = apply_assembly_findings(results, findings)
     if source_inputs(board_path, context)[1] != source_sha:
         raise ValueError('PCB, project or custom rules changed during checking. Run again.')
     return dict(schema='wayricad.dfm-run/v1', source_sha256=source_sha,

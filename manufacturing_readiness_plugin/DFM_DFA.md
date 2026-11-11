@@ -1,5 +1,17 @@
 # DFM / DFA Studio
 
+See the [guided offline help](dfm_help.html) and [headless command guide](DFM_CLI.md).
+Since 4.8.2, the vendor browser selects an exact service, filters by board layer
+count and imports/exports custom profiles without replacing bundled IDs. Save
+the complete checklist to retain a custom process across sessions.
+
+Native board loading and geometry extraction run on the GUI thread. A failed
+preview does not erase completed CLI evidence; reports disclose that omission.
+Failed/cancelled reruns clear old evidence. Saved-board layer preflight applies
+to both GUI and CLI runs. Courtyard, mask, silk and routing-end findings can
+mark a related engineering requirement FAIL as partial negative evidence;
+clean native output never automatically passes the broader manual requirement.
+
 The manufacturing package exposes two separate PCB-editor actions:
 
 - **Manufacturing Readiness Manager** retains the existing saved-project audit,
@@ -9,8 +21,8 @@ The manufacturing package exposes two separate PCB-editor actions:
 
 ## Manufacturer presets and applicability
 
-The [source catalogue](vendor_catalog.json) currently contains **21 process
-presets and 28 manufacturer directory entries**: 20 presets have native rules;
+The [source catalogue](vendor_catalog.json) currently contains **24 process
+presets and 28 manufacturer directory entries**: 23 presets have native rules;
 the PCBWay recommendation checklist is manual. These are different coverage
 counts: a directory entry without a preset has no runnable numerical rules.
 Use **Vendors…** to inspect coverage and source references. PC Process and

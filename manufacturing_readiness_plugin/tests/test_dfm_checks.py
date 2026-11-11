@@ -113,7 +113,7 @@ class SnapshotWorkerTests(unittest.TestCase):
         self.addCleanup(self.owner.cleanup)
         self.directory = Path(self.owner.name)
         self.board = self.directory / 'source.kicad_pcb'
-        self.board.write_text('original PCB', encoding='utf-8')
+        self.board.write_text('(kicad_pcb (layers (0 "F.Cu" signal) (31 "B.Cu" signal)))', encoding='utf-8')
         self.board.with_suffix('.kicad_pro').write_text('{}', encoding='utf-8')
         self.board.with_suffix('.kicad_dru').write_text('(version 1)\n# original custom rules\n', encoding='utf-8')
         self.created = []

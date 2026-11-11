@@ -7,7 +7,7 @@ from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release
 from .verification import capture_inputs,VerificationSnapshot,find_cli,drc_evidence
 from .guided_ui import add_workflow, mark_primary
 
-VERSION="4.8.1"
+VERSION="4.8.2"
 STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","UNKNOWN":"#d4a62a","INFO":"#3399cc"}
 
 class ReadinessMeter(wx.Panel):
@@ -63,6 +63,9 @@ class ManufacturingFrame(wx.Frame):
         root.Add(self.tabs,1,wx.EXPAND|wx.ALL,8);p.SetSizer(root)
     def profile_page(self,parent):
         p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL);g=wx.FlexGridSizer(0,2,7,10);g.AddGrowableCol(1,1);self.fields={}
+        vendors=wx.Button(p,label='Sourced vendor library / DFM / DFA')
+        vendors.Bind(wx.EVT_BUTTON,self.open_dfm)
+        r.Add(vendors,0,wx.ALL,14)
         for label,key,value in (("Profile name","name",self.profile.name),("Minimum track (mm)","minimum_track_mm",str(self.profile.minimum_track_mm)),("Minimum clearance (mm)","minimum_clearance_mm",str(self.profile.minimum_clearance_mm)),("Routed copper to edge (mm)","minimum_routed_edge_mm",str(self.profile.minimum_routed_edge_mm)),("Minimum drill (mm)","minimum_drill_mm",str(self.profile.minimum_drill_mm)),("Minimum annular ring (mm)","minimum_annular_ring_mm",str(self.profile.minimum_annular_ring_mm)),("Maximum via aspect ratio","maximum_via_aspect_ratio",str(self.profile.maximum_via_aspect_ratio)),("Maximum copper layers","maximum_layers",str(self.profile.maximum_layers))):c=wx.TextCtrl(p,value=value);self.fields[key]=c;g.Add(wx.StaticText(p,label=label));g.Add(c,1,wx.EXPAND)
         r.Add(g,0,wx.EXPAND|wx.ALL,14);buttons=wx.BoxSizer(wx.HORIZONTAL);load=wx.Button(p,label="Load Profile JSON…");load.Bind(wx.EVT_BUTTON,self.load);save=wx.Button(p,label="Save Profile JSON…");save.Bind(wx.EVT_BUTTON,self.save);buttons.Add(load,0,wx.RIGHT,8);buttons.Add(save);r.Add(buttons,0,wx.ALL,14);p.SetSizer(r);return p
     def audit_page(self,parent):
@@ -72,6 +75,9 @@ class ManufacturingFrame(wx.Frame):
         r.Add(source,0,wx.LEFT|wx.RIGHT|wx.TOP,10)
         row=wx.BoxSizer(wx.HORIZONTAL)
         self.actions={}
+        vendors=wx.Button(p,label='DFM / DFA and vendors')
+        vendors.Bind(wx.EVT_BUTTON,self.open_dfm)
+        row.Add(vendors,0,wx.RIGHT,7)
         for label,handler,tip in [('Audit saved design',self.audit,'Capture saved files and check manufacturing limits'),('Run DRC',self.run_drc,'Verify the audited snapshot with KiCad'),('Run jobset',self.run_jobset,'Run the selected optional jobset after DRC'),('Export release…',self.package,'Package the exact verified snapshot and generated artifacts')]:
             button=wx.Button(p,label=label);button.SetToolTip(tip);button.Bind(wx.EVT_BUTTON,handler)
             if handler==self.audit:button.SetDefault()
@@ -87,23 +93,35 @@ class ManufacturingFrame(wx.Frame):
         self.log=wx.TextCtrl(p,style=wx.TE_MULTILINE|wx.TE_READONLY);r.Add(self.log,1,wx.EXPAND|wx.ALL,10);p.SetSizer(r);return p
     def current_profile(self):
         f=self.fields;return FabricatorProfile(f['name'].GetValue(),float(f['minimum_track_mm'].GetValue()),float(f['minimum_clearance_mm'].GetValue()),float(f['minimum_drill_mm'].GetValue()),float(f['minimum_annular_ring_mm'].GetValue()),float(f['maximum_via_aspect_ratio'].GetValue()),int(f['maximum_layers'].GetValue()),float(f['minimum_routed_edge_mm'].GetValue()))
+    def open_dfm(self,_event):
+        try:
+            if not self.board.GetFileName() or not Path(self.board.GetFileName()).is_file():
+                raise ValueError('Save the PCB before opening the vendor process workspace.')
+            from .dfm_ui import DFMFrame
+            DFMFrame(self,self.board).Show()
+        except Exception as exc:wx.MessageBox(str(exc),'DFM / DFA could not open',wx.OK|wx.ICON_ERROR,self)
     def load(self,_e):
         with wx.FileDialog(self,"Load profile",wildcard="JSON (*.json)|*.json",style=wx.FD_OPEN|wx.FD_FILE_MUST_EXIST) as d:
             if d.ShowModal()!=wx.ID_OK:return
-            self.profile=load_profile(d.GetPath());[self.fields[k].SetValue(str(v)) for k,v in vars(self.profile).items()]
+            try:
+                self.profile=load_profile(d.GetPath());[self.fields[k].SetValue(str(v)) for k,v in vars(self.profile).items()]
+            except (ValueError,OSError,TypeError) as exc:wx.MessageBox(str(exc),'Profile could not load',wx.OK|wx.ICON_ERROR,self)
     def save(self,_e):
         with wx.FileDialog(self,"Save profile",wildcard="JSON (*.json)|*.json",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:
-            if d.ShowModal()==wx.ID_OK:save_profile(d.GetPath(),self.current_profile())
+            if d.ShowModal()==wx.ID_OK:
+                try:save_profile(d.GetPath(),self.current_profile())
+                except (ValueError,OSError,TypeError) as exc:wx.MessageBox(str(exc),'Profile could not save',wx.OK|wx.ICON_ERROR,self)
     def invalidate(self,event=None):
         if self.snapshot:self.snapshot.drc=False;self.snapshot.jobset=False
         self.checks=[]
+        if hasattr(self,'audit_table'):self.audit_table.DeleteAllItems();self.meter.update([])
         self.refresh_actions()
         self.guide.set_step(0,'Inputs changed. Save the design, then repeat Audit Saved Design and verification.')
         if event:event.Skip()
 
     def refresh_actions(self):
         if not hasattr(self,'actions'):return
-        passing=bool(self.snapshot and self.checks and not any(c.status=='FAIL' for c in self.checks))
+        passing=bool(self.snapshot and self.checks and all(c.status in ('PASS','N/A') for c in self.checks))
         self.actions['audit'].Enable(not self.busy)
         self.actions['run_drc'].Enable(passing and not self.busy)
         self.actions['run_jobset'].Enable(bool(passing and self.snapshot.drc and self.snapshot.job_name) and not self.busy)
@@ -169,8 +187,11 @@ class ManufacturingFrame(wx.Frame):
         def work():
             error=None;details={};passed=False
             try:
+                if self.closing:return
                 flags={'creationflags':subprocess.CREATE_NO_WINDOW} if os.name=='nt' else {}
-                self.process=subprocess.Popen(cmd,cwd=snapshot.root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,**flags)
+                self.process=subprocess.Popen(cmd,cwd=snapshot.root,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding='utf-8',errors='replace',**flags)
+                if self.closing:
+                    self.process.terminate();self.process.communicate();return
                 try:stdout,stderr=self.process.communicate(timeout=300)
                 except subprocess.TimeoutExpired:
                     self.process.kill();self.process.communicate();raise ValueError('KiCad CLI exceeded five minutes and was stopped.')

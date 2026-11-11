@@ -12,6 +12,7 @@ from . import checklists
 from .dfm_checks import audit_snapshot, source_inputs
 from .dfm_present import BASIS_LABELS, FAMILIES, describe, displayed_status, evidence_entries, family
 from .common_checklist import with_common_checks
+from .vendor_catalog import load_catalog, import_custom_profile
 
 def context_label(key, value):
     if isinstance(value, list): value = value[0]
@@ -137,9 +138,16 @@ class DFMFrame(wx.Frame):
         self.input_checklists = set()
         self.cancel = threading.Event(); self.closing = False; self.process = None
         self.pending_change = False
-        self.catalog = json.loads(Path(__file__).with_name('vendor_catalog.json').read_text(encoding='utf-8'))
+        self.sort_column = None; self.sort_reverse = False
+        self.catalog = load_catalog()
         self.profiles = [with_common_checks(row) for row in self.catalog['profiles']]
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
+        from .guided_ui import add_workflow
+        from wayricad_runtime.help import open_help
+        self.guide = add_workflow(panel, root, 'DFM / DFA Studio',
+            'Review an exact supplier process, run saved-design checks, resolve findings and retain evidence.',
+            ('Process', 'Check', 'Review', 'Report'),
+            lambda event: open_help(self, Path(__file__).with_name('dfm_help.html')))
         row = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(wx.StaticText(panel, label='Vendor / service'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         self.profile = wx.Choice(panel, choices=[item['name'] for item in self.profiles]); self.profile.SetSelection(0)
@@ -153,7 +161,7 @@ class DFMFrame(wx.Frame):
                            ('inner_copper_oz', 'Inner copper oz'), ('layers', 'Layers'), ('material', 'Material'),
                            ('thickness_mm', 'Thickness mm'), ('finish', 'Finish')]:
             labels.append(wx.StaticText(panel, label=label))
-            control = wx.TextCtrl(panel, size=(155 if key == 'copper_basis' else 95 if key not in ('board_type', 'finish') else 130, -1))
+            control = wx.ComboBox(panel, size=(155 if key == 'copper_basis' else 95 if key not in ('board_type', 'finish') else 130, -1))
             self.context_fields[key] = control; controls.append(control)
             control.Bind(wx.EVT_TEXT, self.invalidate)
         for index in range(8): scope.AddGrowableCol(index, 1)
@@ -183,6 +191,8 @@ class DFMFrame(wx.Frame):
         self.table = wx.ListCtrl(left, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for index, (name, width) in enumerate([('Status', 85), ('Category', 65), ('Rule / finding', 300), ('Measured / required', 240)]): self.table.InsertColumn(index, name, width=width)
         self.table.Bind(wx.EVT_LIST_ITEM_SELECTED, self.selected)
+        self.table.Bind(wx.EVT_LIST_COL_CLICK, self.sort_rows)
+        self.table.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.cross_probe)
         left_layout.Add(self.table, 1, wx.EXPAND); left.SetSizer(left_layout)
         right = wx.Panel(split); right_layout = wx.BoxSizer(wx.VERTICAL)
         self.layer_choice = wx.Choice(right, choices=['All layers']); self.layer_choice.SetSelection(0)
@@ -203,6 +213,7 @@ class DFMFrame(wx.Frame):
         self.profile.Bind(wx.EVT_CHOICE, self.choose_profile)
         self.Bind(wx.EVT_CLOSE, self.close)
         self.timer = wx.Timer(self); self.Bind(wx.EVT_TIMER, self.tick, self.timer); self.timer.Start(2000)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.destroying)
         self.signature = None; self.choose_profile()
 
     def context(self):
@@ -211,7 +222,10 @@ class DFMFrame(wx.Frame):
             if key not in process: continue
             value = self.context_fields[key].GetValue().strip()
             if key == 'copper_basis': value = {label: basis for basis, label in BASIS_LABELS.items()}.get(value, value)
-            result[key] = int(value) if key == 'layers' else float(value) if key in ('copper_oz', 'inner_copper_oz', 'thickness_mm') else value
+            try:
+                result[key] = int(value) if key == 'layers' else float(value) if key in ('copper_oz', 'inner_copper_oz', 'thickness_mm') else value
+            except ValueError as exc:
+                raise ValueError('Enter a valid ' + key.replace('_', ' ') + ' using the supported process choices.') from exc
         return result
 
     def choose_profile(self, _event=None):
@@ -219,6 +233,8 @@ class DFMFrame(wx.Frame):
         process = self.document['profile']['process']
         for key, control in self.context_fields.items():
             value = process.get(key)
+            choices = value if isinstance(value, list) else [value] if value is not None else []
+            control.Set([context_label(key, item) for item in choices])
             control.ChangeValue(context_label(key, value))
             control.Enable(key in process)
         self.context_fields['layers'].ChangeValue(str(self.board.GetCopperLayerCount()))
@@ -227,13 +243,23 @@ class DFMFrame(wx.Frame):
         self.confirm.SetToolTip(scope_notes or 'Confirm the selected process against the saved PCB and supplier quote.')
         self.scope_dirty = False; self.update_run_caption()
         self.confirm.SetValue(False); self.refresh_rows()
+        self.guide.set_step(0, self.document['profile']['vendor'] + ' / ' + self.document['profile']['service'])
 
     def vendors(self, _event):
         if self.busy: return
-        from .vendor_catalog_ui import choose_vendor
-        name = choose_vendor(self, self.catalog)
-        if name:
-            index = next((index for index, profile in enumerate(self.profiles) if profile['vendor'] == name), None)
+        from .vendor_catalog_ui import choose_process
+        identifier, catalog = choose_process(self, self.catalog, layers=self.board.GetCopperLayerCount())
+        for profile in catalog['profiles']:
+            current = next((row for row in self.profiles if row['id'] == profile['id']), None)
+            if current and checklists.profile_digest(with_common_checks(profile)) != checklists.profile_digest(with_common_checks(current)):
+                self.notice.SetLabel('Conflicting profile ID: ' + profile['id'] + '. Import it with a new custom ID.'); return
+        self.catalog = catalog
+        existing = {profile['id'] for profile in self.profiles}
+        for profile in self.catalog['profiles']:
+            if profile['id'] not in existing:
+                self.profiles.append(with_common_checks(profile)); self.profile.Append(profile['name'])
+        if identifier:
+            index = next((index for index, profile in enumerate(self.profiles) if profile['id'] == identifier), None)
             if index is not None: self.profile.SetSelection(index); self.choose_profile()
 
     def invalidate(self, _event=None):
@@ -274,6 +300,8 @@ class DFMFrame(wx.Frame):
         self.rows = [item for item in entries if query in json.dumps(item, ensure_ascii=False).casefold()
                      and (selected_family == FAMILIES[0] or family(item) == selected_family)
                      and (self.severity_choice.GetSelection() == 0 or displayed_status(item) == self.severity_choice.GetStringSelection())]
+        if self.sort_column is not None:
+            self.rows.sort(key=lambda item: self.row_values(item)[self.sort_column].casefold(), reverse=self.sort_reverse)
         self.table.DeleteAllItems()
         for item in self.rows:
             rule = item.get('rule', {}); status = displayed_status(item)
@@ -288,6 +316,18 @@ class DFMFrame(wx.Frame):
                              + f' · {len((self.bundle or {}).get("findings", []))} native findings'
                              + (' · STALE / not checked' if state['stale'] else ''))
 
+    @staticmethod
+    def row_values(item):
+        rule = item.get('rule', {})
+        limits = [f'{key} {rule[key]} {rule.get("unit") or ""}' for key in ('minimum', 'maximum') if rule.get(key) is not None]
+        return (displayed_status(item), rule.get('category', 'Native'),
+                rule.get('title', item.get('message', '')), ' · '.join(limits) or item['message'])
+
+    def sort_rows(self, event):
+        column = event.GetColumn()
+        self.sort_reverse = not self.sort_reverse if column == self.sort_column else False
+        self.sort_column = column; self.refresh_rows()
+
     def run(self, _event=None):
         if self.busy: return
         if not self.confirm.GetValue():
@@ -295,12 +335,16 @@ class DFMFrame(wx.Frame):
         try:
             profile, context = deepcopy(self.document['profile']), self.context()
             preview = checklists.compile_native_rules(profile, context)
+            if self.board.GetCopperLayerCount() != context['layers']:
+                raise ValueError('The saved PCB layer count does not match this process. Choose a compatible vendor/service or layer option.')
             project_drc = not bool(preview['compiled_rule_ids'])
             self.document['selected_context'] = deepcopy(context)
         except (ValueError, OSError) as exc: self.notice.SetLabel(str(exc)); return
+        self.clear_view(); self.document['run'] = None; self.refresh_rows()
         self.busy = True; self.cancel.clear(); self.run_button.Disable(); self.profile.Disable()
         self.pending_change = False
         self.notice.SetLabel('Checking a private saved-design copy; PCB editing remains available.')
+        self.guide.set_step(1, 'Native checks running on a private snapshot')
         def worker():
             result = scene = error = None
             def active_process(process):
@@ -310,20 +354,6 @@ class DFMFrame(wx.Frame):
             try:
                 result = audit_snapshot(self.path, profile, context, cancelled=self.cancel.is_set, process_hook=active_process, project_drc=project_drc)
                 if self.cancel.is_set(): raise InterruptedError('Vendor checks cancelled.')
-                from wayricad_runtime.board_render import extract_board
-                import pcbnew
-                from wayricad_runtime.saved_board import load_board, assert_current, provenance
-                saved = load_board(self.path, pcbnew=pcbnew)
-                if saved is None: raise ValueError('Could not load the current saved board for the preview.')
-                if saved.GetCopperLayerCount() != context['layers']:
-                    raise ValueError('The saved PCB layer count does not match the selected manufacturing process.')
-                from .dfm_dimensions import track_width_dimensions
-                identifiers = {item['uuid'] for finding in result['findings'] for item in finding.get('items', []) if item.get('uuid')}
-                result['dimensions'] = track_width_dimensions(saved.GetTracks(), identifiers, pcbnew.ToMM)
-                scene = extract_board(saved)
-                assert_current(saved)
-                record = provenance(saved)
-                if record is not None: result['saved_board_provenance'] = record
             except Exception as exc: error = str(exc)
             wx.CallAfter(self.finished, result, scene, error, checklists.profile_digest(profile), context)
         threading.Thread(target=worker, daemon=True).start()
@@ -331,15 +361,42 @@ class DFMFrame(wx.Frame):
     def finished(self, result, scene, error, profile_sha, context):
         if self.closing: return
         self.busy = False; self.run_button.Enable(); self.profile.Enable()
-        if error: self.notice.SetLabel(error); return
+        if error:
+            self.clear_view(); self.notice.SetLabel(error); self.notice.SetToolTip(error)
+            self.guide.set_step(0, 'Check failed or cancelled; no result accepted')
+            return
         try: current_context = self.context()
         except ValueError:
             self.notice.SetLabel('Process inputs changed during checking; results were discarded.'); return
         if checklists.profile_digest(self.document['profile']) != profile_sha or current_context != context:
             self.notice.SetLabel('Inputs changed during checking; results were discarded.'); return
-        if self.current_sha(fresh=True) != result['source_sha256']:
+        try: current_sha = self.current_sha(fresh=True)
+        except (OSError, ValueError) as exc:
+            self.notice.SetLabel('Saved inputs unavailable: ' + str(exc)); return
+        if current_sha != result['source_sha256']:
             self.pending_change = True
             self.notice.SetLabel('Saved source changed during checking; run again.'); return
+        # Native SWIG objects never enter the worker thread. Preview failure
+        # must not erase valid CLI evidence, and is reported independently.
+        preview_error = None
+        if scene is None:
+            try:
+                import pcbnew
+                from wayricad_runtime.board_render import extract_board
+                from wayricad_runtime.saved_board import load_board, assert_current, provenance
+                from .dfm_dimensions import track_width_dimensions
+                saved = load_board(self.path, pcbnew=pcbnew)
+                if saved is None: raise ValueError('Saved board could not be loaded.')
+                scene = extract_board(saved)
+                ids = {item['uuid'] for finding in result['findings'] for item in finding.get('items', []) if item.get('uuid')}
+                result['dimensions'] = track_width_dimensions(saved.GetTracks(), ids, pcbnew.ToMM)
+                assert_current(saved)
+                record = provenance(saved)
+                if record is not None: result['saved_board_provenance'] = record
+            except Exception as exc:
+                scene = {}; preview_error = str(exc)
+                result['preview_warning'] = preview_error
+        result.setdefault('dimensions', dict(items=[], omitted=0))
         self.document = checklists.record_run(self.document, result['source_sha256'], result['results'])
         self.scope_dirty = False
         self.bundle = result; self.canvas.scene = scene; self.canvas.ids = []
@@ -347,7 +404,9 @@ class DFMFrame(wx.Frame):
         self.layer_ids = [None, *scene.get('layers', {})]
         self.layer_choice.Set(['All layers', *scene.get('layers', {}).values()]); self.layer_choice.SetSelection(0)
         self.canvas.visible_layers = None
-        self.notice.SetLabel(result['notice']); self.notice.SetToolTip(result['notice']); self.refresh_rows()
+        notice = result['notice'] if not preview_error else 'Checks completed; board preview unavailable: ' + preview_error
+        self.notice.SetLabel(notice); self.notice.SetToolTip(notice); self.refresh_rows()
+        self.guide.set_step(2, 'Review findings and unresolved manual requirements')
 
     def tick(self, _event):
         try:
@@ -435,12 +494,22 @@ class DFMFrame(wx.Frame):
         with wx.FileDialog(self, 'Load checklist', wildcard='Checklist JSON (*.json)|*.json', style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as dialog:
             if dialog.ShowModal() != wx.ID_OK: return
             try:
-                try: self.document = checklists.load_checklist(dialog.GetPath())
+                try: document = checklists.load_checklist(dialog.GetPath())
                 except ValueError:
-                    self.document = checklists.new_checklist(with_common_checks(checklists.load_profile(dialog.GetPath())))
+                    document = checklists.new_checklist(with_common_checks(checklists.load_profile(dialog.GetPath())))
+                profile = document['profile']
+                index = next((i for i, row in enumerate(self.profiles) if row['id'] == profile['id']), None)
+                if index is not None and checklists.profile_digest(profile) != checklists.profile_digest(self.profiles[index]):
+                    raise ValueError('Profile ID conflicts with an existing process. Use a distinct custom ID before loading different rules.')
+                catalog = self.catalog
+                if not any(row['id'] == profile['id'] for row in catalog['profiles']):
+                    catalog = import_custom_profile(catalog, json.dumps(profile))
+                self.document = document; self.catalog = catalog
                 self.clear_view()
                 self.input_checklists.add(Path(dialog.GetPath()).resolve())
-                profile = self.document['profile']; self.profiles.append(profile); self.profile.Append(profile['name']); self.profile.SetSelection(len(self.profiles)-1)
+                if index is None:
+                    index = len(self.profiles); self.profiles.append(profile); self.profile.Append(profile['name'])
+                self.profile.SetSelection(index)
                 selected_context = self.document.get('selected_context', {})
                 for key, control in self.context_fields.items():
                     value = selected_context.get(key, profile['process'].get(key)); control.ChangeValue(context_label(key, value)); control.Enable(key in profile['process'])
@@ -465,11 +534,20 @@ class DFMFrame(wx.Frame):
                 from .dfm_report import export_report
                 identifiers = {identifier for row in self.all_rows if row['status'] == 'FAIL' for identifier in row.get('object_ids', [])}
                 export_report(dialog.GetPath(), self.path, self.context(), self.bundle, self.document, self.all_rows,
-                              board_png=self.canvas.report_png(identifiers), protected_sources=self.input_checklists)
+                              board_png=self.canvas.report_png(identifiers) if self.canvas.scene else None, protected_sources=self.input_checklists)
             except Exception as exc: self.notice.SetLabel(str(exc))
 
     def close(self, _event):
         self.closing = True; self.cancel.set(); self.timer.Stop()
         if self.process is not None and self.process.poll() is None:
-            self.process.terminate()
+            try: self.process.terminate()
+            except OSError: pass
         self.Destroy()
+
+    def destroying(self, event):
+        if event.GetEventObject() is self:
+            self.closing = True; self.cancel.set(); self.timer.Stop()
+            if self.process is not None and self.process.poll() is None:
+                try: self.process.terminate()
+                except OSError: pass
+        event.Skip()

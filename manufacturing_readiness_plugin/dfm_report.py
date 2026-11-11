@@ -39,6 +39,8 @@ def export_report(path, board_path, context, bundle, checklist, entries=None, *,
     title = 'DFM / DFA · ' + board_path.stem
     html = '<!doctype html><html><head><meta charset="utf-8"><title>'+escape(title)+'</title></head><body><h1>'+escape(title)+'</h1>'
     html += '<p>'+escape(str(board_path))+'</p><p>'+escape(checklist['profile']['name'])+'</p><p>'+escape(bundle['notice'])+'</p>'
+    if bundle.get('preview_warning'):
+        html += '<p><strong>Board preview unavailable:</strong> '+escape(bundle['preview_warning'])+'</p>'
     html += '<h2>Source revision</h2><table><tr><th>Evidence</th><th>Value</th></tr>'
     revision_rows = [('KiCad version', bundle.get('kicad_version', 'Unknown')),
                      ('PCB SHA-256', bundle['board_sha256']),

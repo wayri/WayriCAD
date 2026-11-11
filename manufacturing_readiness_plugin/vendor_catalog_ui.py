@@ -1,6 +1,7 @@
 """Show sourced preset coverage separately from the manufacturer directory."""
 from __future__ import annotations
 import wx
+from .vendor_process_ui import choose_process
 
 
 def choose_vendor(parent, catalog):

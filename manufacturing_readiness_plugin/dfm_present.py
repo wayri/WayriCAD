@@ -57,6 +57,9 @@ def describe(entry, profile):
             lines.append(str(item.get('description', item.get('uuid', 'Item'))) + location)
     elif entry.get('object_ids'):
         lines += ['', 'Board item identities:', *entry['object_ids']]
+    if finding:
+        from .assembly_checks import corrective_action
+        lines += ['', 'Suggested review / correction:', corrective_action(finding)]
     sources = {source['id']: source for source in profile['sources']}
     for identifier in rule.get('source_ids', []):
         source = sources[identifier]

@@ -93,11 +93,17 @@ def audit_metrics(metrics: BoardMetrics, profile: FabricatorProfile) -> list[Rea
 
 
 def save_profile(path: str | Path, profile: FabricatorProfile) -> None:
+    validate_profile(profile)
     Path(path).write_text(json.dumps(asdict(profile), indent=2) + "\n", encoding="utf-8")
 
 
 def load_profile(path: str | Path) -> FabricatorProfile:
-    profile=FabricatorProfile(**json.loads(Path(path).read_text(encoding="utf-8")))
+    path=Path(path)
+    if path.stat().st_size>2*1024*1024:raise ValueError('Fabricator profile exceeds the 2 MiB document limit.')
+    data=json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(data,dict):raise ValueError('A fabricator profile must be a JSON object.')
+    try:profile=FabricatorProfile(**data)
+    except TypeError as exc:raise ValueError('Unrecognized fabricator profile fields. Vendor-process/checklist JSON belongs in DFM / DFA Studio.') from exc
     validate_profile(profile)
     return profile
 
