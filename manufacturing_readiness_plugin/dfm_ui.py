@@ -397,6 +397,12 @@ class DFMFrame(wx.Frame):
                 scene = {}; preview_error = str(exc)
                 result['preview_warning'] = preview_error
         result.setdefault('dimensions', dict(items=[], omitted=0))
+        try: preview_source_sha = self.current_sha(fresh=True)
+        except (OSError, ValueError) as exc:
+            self.clear_view(); self.notice.SetLabel('Saved inputs unavailable after preview: ' + str(exc)); return
+        if preview_source_sha != result['source_sha256']:
+            self.clear_view(); self.pending_change = True
+            self.notice.SetLabel('Saved source changed while preparing the preview; run again.'); return
         self.document = checklists.record_run(self.document, result['source_sha256'], result['results'])
         self.scope_dirty = False
         self.bundle = result; self.canvas.scene = scene; self.canvas.ids = []

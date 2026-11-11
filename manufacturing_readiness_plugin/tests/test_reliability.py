@@ -323,6 +323,18 @@ class NativeRecoveryTests(unittest.TestCase):
         self.frame.context_fields['copper_oz'].ChangeValue('unknown')
         with self.assertRaisesRegex(ValueError, 'copper oz'): self.frame.context()
 
+    def test_source_change_during_preview_is_not_accepted(self):
+        context = self.frame.context()
+        packet = dict(source_sha256='a'*64, findings=[], results=[],
+                      dimensions=dict(items=[], omitted=0), notice='Fixture')
+        with patch.object(self.frame, 'current_sha', side_effect=['a'*64, 'b'*64]):
+            self.frame.finished(packet, {}, None,
+                checklists.profile_digest(self.frame.document['profile']), context)
+        self.assertIsNone(self.frame.document['run'])
+        self.assertIsNone(self.frame.bundle)
+        self.assertTrue(self.frame.pending_change)
+        self.assertIn('changed while preparing', self.frame.notice.GetLabel())
+
     def test_destroying_parent_cancels_child_without_explicit_child_close(self):
         self.frame.close(None); self.wx.YieldIfNeeded()
         parent = self.wx.Frame(None)
