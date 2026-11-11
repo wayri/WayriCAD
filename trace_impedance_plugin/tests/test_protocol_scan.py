@@ -117,3 +117,31 @@ def test_cli_never_overwrites_protocol_inputs(tmp_path,monkeypatch):
     monkeypatch.setattr(cli,'analyze',lambda args:{'result':dict(status='screened',findings=[])})
     assert cli.main(['protocols','Example.kicad_pcb','--rules',str(config),'--output',str(config)])==1
     assert config.read_text()=='[]'
+
+
+def test_protocol_report_pair_rolls_back_and_checks_all_source_files(tmp_path,monkeypatch):
+    import json
+    from trace_impedance_plugin.bulk_ui import source_fingerprints
+    from trace_impedance_plugin.protocol_ui import export_report
+    from wayricad_runtime import report_ui
+    source=tmp_path/'Example.kicad_pcb';source.write_text('board')
+    document=dict(board=str(source),board_sha256=source_fingerprints(source)[str(source)],
+                  source_files=source_fingerprints(source),result=dict(schema='test',findings=[]))
+    target=tmp_path/'screen.html';evidence=target.with_suffix('.json')
+    export_report(target,document)
+    assert json.loads(evidence.read_text())==document
+    previous={target:target.read_bytes(),evidence:evidence.read_bytes()}
+    replace=report_ui.os.replace;calls=[]
+    def fail_second(src,dst):
+        calls.append(dst)
+        if len(calls)==2:raise OSError('simulated evidence publication failure')
+        return replace(src,dst)
+    with monkeypatch.context() as patcher:
+        patcher.setattr(report_ui.os,'replace',fail_second)
+        with pytest.raises(OSError,match='simulated'):
+            export_report(target,document)
+    assert all(path.read_bytes()==data for path,data in previous.items())
+    source.with_suffix('.kicad_pro').write_text('{}')
+    with pytest.raises(ValueError,match='changed'):
+        export_report(target,document)
+    assert all(path.read_bytes()==data for path,data in previous.items())

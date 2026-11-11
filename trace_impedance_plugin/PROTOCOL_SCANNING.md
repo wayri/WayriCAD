@@ -17,6 +17,8 @@ The frequency is an analysis input, not a bit rate inferred from a protocol name
 The target tolerance is an editable screening assumption, not a standards limit.
 Export writes HTML plus paired JSON evidence. Source PCB/project/rule changes
 invalidate the report and require a new scan.
+Paired publication uses the shared rollback mechanism: an I/O failure restores
+previous approved HTML/JSON outputs rather than leaving a mixed report pair.
 
 ## Families
 

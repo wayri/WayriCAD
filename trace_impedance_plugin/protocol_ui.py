@@ -51,10 +51,22 @@ def report_html(document):
     return '<!doctype html><meta charset="utf-8"><title>RLC protocol screen</title><style>body{font:15px system-ui;max-width:1400px;margin:24px auto;padding:12px}td,th{border-bottom:1px solid #ccd4da;padding:10px;text-align:left;vertical-align:top}table{border-collapse:collapse;width:100%}</style><h1>RLC protocol discovery and screening</h1><p>Read-only screening, not protocol compliance. Fuzzy matches require review. Differential coupling and device-specific timing remain unresolved where unsupported.</p>'+metadata+'<p>Source SHA-256: '+escape(document['board_sha256'])+'</p><table><thead><tr><th>Net</th><th>Candidate</th><th>Result</th><th>Evidence and corrective suggestions</th></tr></thead><tbody>'+''.join(rows)+'</tbody></table>'
 
 
+def export_report(path,document):
+    from .bulk_ui import verify_sources
+    from wayricad_runtime.report_ui import publish_documents,report_paths
+    from wayricad_runtime.report_context import organize_report
+    fingerprints=document['source_files']
+    verify_sources(fingerprints)
+    output,evidence=report_paths(path)
+    documents={output:organize_report(report_html(document),document),
+               evidence:json.dumps(document,ensure_ascii=False,allow_nan=False)+'\n'}
+    publish_documents(documents,sources=list(fingerprints),source_guard=lambda:verify_sources(fingerprints))
+    return {'html':str(output),'json':str(evidence)}
+
+
 def create_protocol_frame(parent):
     import wx
     from .bulk_ui import BulkController,source_fingerprints,verify_sources
-    from .cli import write_report
     class ProtocolFrame(wx.Frame):
         def __init__(self):
             super().__init__(parent,title='RLC Protocol Discovery',size=(1120,760))
@@ -129,10 +141,7 @@ def create_protocol_frame(parent):
                 with wx.FileDialog(self,'Export protocol screen',wildcard='HTML report (*.html)|*.html',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
                     if dialog.ShowModal()!=wx.ID_OK:return
                     target=Path(dialog.GetPath()).resolve().with_suffix('.html')
-                verify_sources(self.document['source_files'])
-                if target.with_suffix('.json') in [Path(name) for name in self.document['source_files']]:raise ValueError('Do not overwrite source files.')
-                write_report(target.with_suffix('.json'),self.document,self.source)
-                target.write_text(report_html(self.document),encoding='utf-8')
+                export_report(target,self.document)
             except Exception as exc:self.status.SetLabel(str(exc))
         def on_close(self,event):self.controller.close();self.Destroy()
     return ProtocolFrame()
