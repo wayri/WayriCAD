@@ -33,7 +33,23 @@ def main(argv=None, *, on_ready=None):
     parser.add_argument('--write-research-setup', nargs=2, metavar=('ID', 'JSON'))
     parser.add_argument('--array-scan', nargs=2, metavar=('ID', 'THETA_DEG'))
     parser.add_argument('--array-phi', type=float, default=0.0, metavar='DEG')
+    parser.add_argument('--write-fem-aesa-setup', type=Path, metavar='JSON')
+    parser.add_argument('--array-x', type=int, default=2)
+    parser.add_argument('--array-y', type=int, default=2)
+    parser.add_argument('--array-theta', type=float, default=0.0, metavar='DEG')
+    parser.add_argument('--array-taper', choices=('uniform', 'binomial'), default='uniform')
     args = parser.parse_args(argv)
+    if args.write_fem_aesa_setup:
+        from .backend import atomic_json
+        from .fem_array import fem_aesa_config
+        path = args.write_fem_aesa_setup.expanduser().resolve()
+        if path.suffix.lower() != '.json':
+            parser.error('--write-fem-aesa-setup destination must use a .json extension')
+        atomic_json(path, dict(schema=1, kind='wayricad-setup', plugin='quick-emerge',
+                              config=fem_aesa_config(args.array_x, args.array_y,
+                                                     args.array_theta, args.array_phi, args.array_taper)))
+        print(path)
+        return 0
     if args.list_research_antennas is not None:
         from .research_antennas import list_templates
         print(json.dumps(list_templates(args.list_research_antennas), indent=2))

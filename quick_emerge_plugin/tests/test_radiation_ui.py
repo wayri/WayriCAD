@@ -102,6 +102,48 @@ class RadiationWorkspaceTests(unittest.TestCase):
         self.assertIn('3D radiation', result_views(result, '3D'))
         self.assertGreater(len(self.frame.viewports['3D radiation'].picking), 10000)
 
+    def test_array_overview_shows_interactive_3d_and_scaled_2d_together(self):
+        from quick_emerge_plugin.research_studies import solve_rectangular_array_factor
+        from quick_emerge_plugin.research_antennas import example_config
+        from quick_emerge_plugin.model import source_identity
+        config=example_config('verho-2023-aesa-4x4')
+        config['advanced']['scan_theta_deg']=30
+        f=self.frame;f._apply_setup_config(config,self.board)
+        result=solve_rectangular_array_factor(np,config,{'backend':'Ideal array factor','version':1})
+        result['source']=source_identity(self.board)
+        original=copy.deepcopy(result)
+        f.install_result(result);f.show_radiation_overview();wx.Yield()
+        overview=f.radiation_overview
+        self.assertEqual(f.workspace_stack.GetSelection(),3)
+        self.assertTrue(overview.scene_view.IsShownOnScreen())
+        self.assertTrue(overview.cut_view.IsShownOnScreen())
+        self.assertEqual(overview.cut_view.axes().name,'polar')
+        self.assertEqual(overview.cut_view.axes().get_ylim(),(0,1.05))
+        self.assertIn('Ideal array factor',overview.caption.GetLabel())
+        self.assertIn('not dBi',overview.caption.GetLabel())
+        self.assertGreater(len(overview.scene_view.picking),10000)
+        overview.cut_choice.SetStringSelection('YZ cut');overview.change_cut();wx.Yield()
+        self.assertEqual(overview.cut_view.options['radiation_cut'],'YZ cut')
+        self.assertEqual(result,original)
+        row=overview.cut_view.picking[4]
+        from types import SimpleNamespace
+        overview._probe('Radiation pattern',SimpleNamespace(inaxes=True),row,True)
+        self.assertEqual(overview.scene_view.selection['theta_index'],row['theta_index'])
+        self.assertIn('relative |E|',overview.readout.GetLabel())
+        f.inputs['er'].SetValue('4.0');wx.Yield()
+        self.assertIsNone(overview.result)
+        self.assertIsNone(overview.scene_view.renderer)
+        self.assertIsNone(overview.cut_view.renderer)
+        self.assertFalse(f.radiation_overview_button.IsEnabled())
+
+    def test_overview_resize_stacks_views_on_narrow_window(self):
+        f=self.frame;f.install_result(self.result());f.show_radiation_overview();wx.Yield()
+        f.SetSize((980,700));wx.Yield()
+        overview=f.radiation_overview
+        if overview.GetClientSize().width < overview.FromDIP(850):
+            self.assertEqual(overview.splitter.GetSplitMode(),wx.SPLIT_HORIZONTAL)
+        self.assertIsNotNone(overview.cut_view.renderer)
+
     def test_both_views_and_dimension_switch_preserve_radiation_kind(self):
         f=self.frame;result=self.result();before=copy.deepcopy(result);f.install_result(result)
         f.select_view('Radiation pattern');wx.Yield()

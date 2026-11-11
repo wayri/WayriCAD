@@ -12,6 +12,7 @@ import hashlib
 import json
 
 import numpy as np
+from .network_keys import s_key
 
 
 def _numeric(values, dtype, name):
@@ -290,18 +291,18 @@ def from_result(result):
     if not isinstance(result, dict) or result.get('schema') not in (1, 2):
         raise ValueError('unsupported Quick EMerge result schema')
     count = result.get('port_count')
-    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 9:
-        raise ValueError('result port_count must be an integer from 1 to 9 (unambiguous Sij keys)')
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 16:
+        raise ValueError('result port_count must be an integer from 1 to 16')
     try:
         f = result['frequencies_hz']
         entries = result['s_parameters']
-        keys = {f'S{i+1}{j+1}' for i in range(count) for j in range(count)}
+        keys = {s_key(i+1, j+1) for i in range(count) for j in range(count)}
         if set(entries) != keys:
             raise ValueError('result must contain every Sij entry without extra entries')
         matrix = np.empty((len(f), count, count), dtype=complex)
         for i in range(count):
             for j in range(count):
-                pairs = _numeric(entries[f'S{i+1}{j+1}'], float, 'Sij RI samples')
+                pairs = _numeric(entries[s_key(i+1, j+1)], float, 'Sij RI samples')
                 if pairs.shape != (len(f), 2):
                     raise ValueError('Sij values must be aligned [real,imaginary] pairs')
                 # Preserve signed-zero RI samples exactly for numerical identity.

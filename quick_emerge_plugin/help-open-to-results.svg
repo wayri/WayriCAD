@@ -35,6 +35,6 @@
     <path d="M837 345V376H365V345" fill="none" stroke="#b77622" stroke-width="2" stroke-dasharray="6 4"/>
     <text x="600" y="407" text-anchor="middle" font-size="19" fill="#875515">Invalid geometry, solver failure or changed inputs? Correct Setup, then Preview again.</text>
     <rect x="24" y="437" width="1390" height="48" fill="#e3eff1"/>
-    <text x="40" y="468" font-size="19" fill="#17363f">Read-only PCB workflow. Denser display samples do not establish mesh convergence. Ideal AESA studies use an analytical path, not FEM.</text>
+    <text x="40" y="468" font-size="19" fill="#17363f">FEM arrays solve coupled physical ports; ideal array-factor mode is separate. More display samples do not establish convergence.</text>
   </g>
 </svg>

@@ -1,5 +1,51 @@
 # Quick EMerge validation evidence
 
+## Coupled FEM AESA and dual radiation view: 2026-11-11
+
+Source development after 4.8.0 adds 2–16 finite passive patch ports, fixed-phase
+scan steering, uniform/binomial taper, full S matrices with multi-digit keys,
+and active reflection/net accepted-power diagnostics. The native window adds
+simultaneous 3D radiation and a scaled 2D polar cut from the same stored samples.
+
+- **Real solver:** Windows Python 3.11.9, EMerge 3.0.4 / emsutil 1.1.6, SuperLU.
+  A two-port array with requested 30-degree steering at 4.5 GHz was solved at
+  4 and 5 GHz. The mesh contained **8,094 tetrahedra** under a 30,000 guard.
+  Fields/radiation were sampled at 5 GHz; combined/per-port complex-field
+  superposition relative error was **1.2874860582499027e-15**. This is API and
+  coherent-composition evidence, not mesh/boundary convergence or scan accuracy.
+- **16-port geometry:** the actual EMerge 4×4 geometry/commit path produced 16
+  distinct physical feed surfaces and 17 conductors including the shared ground.
+  This check did not mesh or solve the full 16-port structure.
+- **Network integrity:** analytical tests retain all 256 ordered S entries,
+  distinguish `S1_11` from `S11_1`, preserve legacy defaults/hashes, and verify
+  numeric Touchstone ordering, steering sign, taper normalization and active
+  power for matched/reflecting/coupled synthetic networks. Negative total
+  accepted power remains a warning. S caps/reciprocity correction are disabled
+  and recorded in array runs; the test is not field-energy closure.
+- **Native UI:** the standalone Windows Python 3.11.9 / wxPython 4.3.1 runtime
+  exercised side-by-side 3D/polar views, cut changes, shared original-sample
+  selection, narrow-window stacking and clearing on changed inputs. The focused
+  radiation/UI/numerical run passed **23 tests**. The KiCad-bundled Python could
+  not import the UI because its existing `wx.svg._nanosvg` module is missing;
+  that separate installation was not changed or counted as a pass.
+- **Images:** `help-fem-aesa-preview.png` is a direct native geometry-viewport
+  export, not solved lobes. The two `help-fem-aesa-radiation-*.png` images are
+  direct exports from the real paired viewports using the retained small FEM
+  result. Adjacent provenance records capture/configuration identities and
+  limits. No unrelated desktop contents or substituted numerical images ship.
+- **Final regression:** the complete Quick EMerge suite passed **352 tests**,
+  with **23 skips** and 19 existing VTK deprecation warnings. The separate opt-in
+  stable-runtime run passed **2 real tests** (small FEM solve and 16-port geometry).
+  Source documentation/image validation and whitespace checks passed. The full
+  suite's browser profile and test scratch were directed to the non-system
+  volume; no solver dependencies or plugins were installed into KiCad.
+
+The historical ideal Verho screenshots remain ideal array-factor results.
+MoM, active T/R circuitry, measured gain/efficiency and full 4×4 convergence are
+not established by this work. The previous 22-case runtime certificate records
+its earlier adapter signature; these source changes invalidate it for candidate
+activation until requalification. No new blanket 22-case certificate is claimed.
+
 ## Dependency migration: 2026-11-11
 
 The in-development source targets the current stable PyPI pair **EMerge 3.0.4**

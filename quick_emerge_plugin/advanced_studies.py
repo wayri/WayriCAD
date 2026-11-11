@@ -352,6 +352,13 @@ def build_array_geometry(em, np, c):
     a = c['advanced']
     model = em.Simulation('QuickEMergeFiniteArray')
     configure_solver(em, model, c)
+    # Never hide a mesh-induced non-passive response behind entry/column caps.
+    corrections = ('mw_cap_sp_single', 'mw_cap_sp_col', 'mw_recip_sp')
+    if not all(hasattr(model.settings, key) for key in corrections):
+        raise RuntimeError('Selected EMerge runtime cannot expose uncorrected array S parameters; qualify a supported runtime.')
+    for key in corrections:
+        setattr(model.settings, key, False)
+    model._quick_array_s_corrections = {key: False for key in corrections}
     sx, sy, th = (c[k]*.001 for k in ('substrate_x_mm','substrate_y_mm','thickness_mm'))
     em.geo.Box(sx,sy,th,position=(-sx/2,-sy/2,-th)).set_material(dielectric(em,c))
     w, length, feed, slot, inset = (c[k]*.001 for k in ('patch_width_mm','patch_length_mm','feed_width_mm','inset_width_mm','inset_length_mm'))

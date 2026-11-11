@@ -45,6 +45,8 @@
       "array_phase_x_deg": 0.0,
       "array_phase_y_deg": 0.0,
       "array_power_w": 1.0,
+      "array_excitation_mode": "progressive_phase",
+      "array_taper": "uniform",
       "patch_offset_y_mm": 0.0,
       "patch_feed_extension_mm": 0.0,
       "line_geometry": "microstrip",

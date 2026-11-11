@@ -35,6 +35,10 @@ ADVANCED_FIELDS = (
     _f('array_phase_x_deg', 'Progressive phase X', 0, unit='deg', studies=('array',), group='Array'),
     _f('array_phase_y_deg', 'Progressive phase Y', 0, unit='deg', studies=('array',), group='Array'),
     _f('array_power_w', 'Total incident array power', 1, unit='W', studies=('array',), group='Array'),
+    _f('array_excitation_mode', 'FEM array excitation', 'progressive_phase', 'choice',
+       choices=('progressive_phase', 'scan_angle'), studies=('array',), group='Array'),
+    _f('array_taper', 'FEM array amplitude taper', 'uniform', 'choice',
+       choices=('uniform', 'binomial'), studies=('array',), group='Array'),
     _f('patch_offset_y_mm', 'Patch center offset Y', 0, unit='mm', studies=('driven', 'optimization'), group='Patch feed'),
     _f('patch_feed_extension_mm', 'External patch feed length', 0, unit='mm', studies=('driven', 'optimization'), group='Patch feed'),
     _f('line_geometry', 'Line geometry', 'microstrip', 'choice', choices=('microstrip', 'stripline_via'), studies=('driven',), group='PCB template'),
@@ -60,8 +64,8 @@ ADVANCED_FIELDS = (
     _f('export_optycal', 'Export official Optycal far-field MsgPack', False, 'bool', studies=('driven','array'), group='Exports'),
     _f('solver_threads', 'Solver threads', 1, 'integer', group='Solver'),
     _f('sparta_mode', 'SPARTA compute mode', 'CPU', 'choice', choices=('CPU', 'GPU', 'HYBRID'), group='Solver'),
-    _f('scan_theta_deg', 'Scan / incidence theta', 0, unit='deg', studies=('research_antenna', 'periodic', 'scattering'), group='Excitation'),
-    _f('scan_phi_deg', 'Scan / incidence phi', 0, unit='deg', studies=('research_antenna', 'periodic', 'scattering'), group='Excitation'),
+    _f('scan_theta_deg', 'Scan / incidence theta', 0, unit='deg', studies=('research_antenna', 'periodic', 'scattering', 'array'), group='Excitation'),
+    _f('scan_phi_deg', 'Scan / incidence phi', 0, unit='deg', studies=('research_antenna', 'periodic', 'scattering', 'array'), group='Excitation'),
     _f('polarization_deg', 'Polarization', 0, unit='deg', studies=('periodic', 'scattering'), group='Excitation'),
     _f('scatter_radius_mm', 'PEC sphere radius', 5, unit='mm', studies=('scattering',), group='Scattering'),
     _f('incident_power_w_m2', 'Incident power density', 1, unit='W/m2', studies=('scattering',), group='Scattering'),
@@ -185,8 +189,12 @@ def validate_advanced(raw, config):
             if config['air_margin_mm'] <= stack_top or config['field_z_mm'] <= stack_top:
                 raise ValueError('S/X shared-aperture air margin and field plane must lie above the elevated PRS stack')
     if study == 'array':
-        if config['mode'] != 'patch' or not 1 <= a['array_count_x'] <= 3 or not 1 <= a['array_count_y'] <= 3 or not 2 <= a['array_count_x']*a['array_count_y'] <= 9:
-            raise ValueError('Finite arrays require the patch template and 2 to 9 elements (up to 3 per axis)')
+        if a['export_optycal'] and a['array_count_x']*a['array_count_y'] > 8:
+            raise ValueError('Optycal far-field export is limited to 8 actual ports; use native/HTML/Touchstone outputs for larger arrays')
+        if config['mode'] != 'patch' or not 1 <= a['array_count_x'] <= 4 or not 1 <= a['array_count_y'] <= 4 or not 2 <= a['array_count_x']*a['array_count_y'] <= 16:
+            raise ValueError('Finite FEM arrays require the patch template and 2 to 16 elements (up to 4 per axis)')
+        if a['array_count_x']*a['array_count_y'] > 9 and config['points'] > 81:
+            raise ValueError('Arrays above 9 ports are limited to 81 frequency solves; start with a narrow coarse sweep')
         for axis, size in (('x', 'patch_width_mm'), ('y', 'patch_length_mm')):
             pitch, count = a['array_pitch_'+axis+'_mm'], a['array_count_'+axis]
             if (count > 1 and pitch <= config[size]) or config[size]+(count-1)*pitch >= config['substrate_'+axis+'_mm']:

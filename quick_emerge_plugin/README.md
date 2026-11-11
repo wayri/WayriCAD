@@ -8,6 +8,12 @@ whole-board RF sign-off tool.
 
 ## Capabilities at a glance
 
+**Added in 4.8.1: [coupled FEM phased arrays / AESA](FEM_AESA.md).** Choose
+**FEM phased array / AESA** for actual passive patch geometry, 2–16 coupled ports,
+steering, uniform/binomial tapers, full S parameters and active-port power
+diagnostics. The ideal Verho array-factor mode remains a separate fast reference;
+older gallery images do not become FEM results retroactively.
+
 These are actual program captures and computed examples. Select an image for its
 full resolution; the [research gallery and run evidence](#published-antenna-examples-and-real-result-gallery)
 explain the inputs, numerical outcomes and limitations. Hosted images need internet.
@@ -74,7 +80,7 @@ antenna and line templates are optional separate studies; they do not import the
 board's copper.
 
 Quick EMerge is an independently installable testing beta in the
-[WayriCAD 4.8.0 release](https://github.com/wayri/WayriCAD/releases/tag/v4.8.0).
+[WayriCAD 4.8.1 release](https://github.com/wayri/WayriCAD/releases/tag/v4.8.1).
 See the [KiCad workflow help](help.html), [capability coverage](CAPABILITIES.md) and [validation evidence](VALIDATION.md)
 for implemented scope and its limits.
 
@@ -84,6 +90,31 @@ This bundled workspace capture is retained from 4.0.1 for offline orientation;
 the research gallery below contains newer result captures with provenance.
 
 ## Quick start
+
+### Coupled FEM AESA
+
+Select **Setup > FEM phased array / AESA**, review the 2×2 starting model,
+materials and ports, then **Preview > Run simulation**. For 4×4, set four
+elements on each axis and enlarge the substrate to fit. The
+[FEM AESA guide](FEM_AESA.md) includes a one-command 4×4 setup generator,
+equations, diagnostics and limits. Use 4.8.1 for this workflow; the older
+4.8.0 binaries predate it.
+
+After an array solve, **3D + 2D radiation** opens both views together inside the
+Quick EMerge window: an interactive 3D lobe and a scaled principal-plane polar
+cut from the same stored samples. Change XZ/YZ/azimuth with the cut selector;
+orbit, zoom and probe original samples. On narrow windows the views stack.
+The same button opens this overview for other completed antenna results.
+
+| Native 3D view | Native 2D cut |
+|---|---|
+| ![Actual coupled two-port FEM radiation surface at 5 GHz](help-fem-aesa-radiation-3d.png) | ![Actual XZ radiation cut from the same two-port FEM solution, with angular and relative-field scales](help-fem-aesa-radiation-2d.png) |
+
+These direct viewport exports use one **two-port, 8,094-tetrahedron** EMerge
+3.0.4 screening solve, not the ideal array-factor calculation and not a 4×4
+convergence study. The selected field frequency is 5 GHz; fixed steering phases
+were designed at the 4.5 GHz sweep midpoint. Relative field is not gain in dBi.
+[Capture provenance](help-fem-aesa-radiation.provenance.json).
 
 ### AESA 3D lobes: steering and beam shaping
 

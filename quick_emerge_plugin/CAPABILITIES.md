@@ -1,6 +1,9 @@
 # Quick EMerge capability coverage
 
-This inventory describes the capabilities available in 4.0.2. Upstream baseline: EMerge **3.0.0b9**, inspected at
+This inventory originated with 4.0.2. The finite-array row includes the newer
+4.8.1 [FEM AESA extension](FEM_AESA.md). Current runtime support is recorded
+in [setup](README.md#setup-and-launch) and [validation](VALIDATION.md).
+Historical baseline: EMerge **3.0.0b9**, inspected at
 [446232037d175a596606c6c9ea986e372560566f](https://github.com/FennisRobert/EMerge/commit/446232037d175a596606c6c9ea986e372560566f).
 The [upstream project metadata](https://github.com/FennisRobert/EMerge/blob/446232037d175a596606c6c9ea986e372560566f/pyproject.toml)
 requires Python 3.10-3.13. This is a bounded integration, not every upstream
@@ -15,7 +18,7 @@ API or arbitrary user-supplied EMerge scripting.
 | Periodic | Floquet periodic patch with incidence/polarization | Bounded unit-cell setup, not arbitrary periodic CAD or unrestricted higher-order diffraction. |
 | Scattering and CAD | PEC sphere/STEP and GDS, GDS+XML, Gerber+plated Excellon, ODB adapters; plane-wave excitation | Reviewed recipe, units/materials and source-file manifest required. Expert import path, not a complete visual import wizard. All four fabrication adapters executed real coarse scattering solves. |
 | Waveguide | Rectangular TE10 reference-plane study | Bounded geometry/mode. Independent cutoff/propagation reference checked; not a multimode port-design workbench. |
-| Finite arrays | Full multiport FEM response, progressive phase and coherent excitation/radiation | Up to nine ports. Independent complex-field superposition checked; coarse meshes do not qualify deep nulls, gain or efficiency. |
+| Finite arrays / FEM AESA | Full coupled FEM response, scan-angle or progressive-phase excitation, uniform/binomial taper, active reflection and accepted-power diagnostics | Development: 2–16 physical patch ports, up to 4 per axis. Fixed-phase steering, not true time delay or active electronics. Full matrix with unambiguous multi-digit port names. Coherent superposition checked; coarse meshes do not qualify nulls, gain or efficiency. |
 | Published antenna benchmarks | Data-only source registry; dual-feed polarized patch, WLAN monopole, CubeSat printed Yagi, ideal 4x4 AESA scan law, and stacked CubeSat S/X shared aperture; automatic sampled publication comparison | Citations and model omissions travel with results. Active bias networks, connectors, satellite chassis and deployment mechanics are not invented. Paper agreement still requires mesh, boundary, material and fixture convergence. |
 | Components/optimization | Ideal FEM mid-line shunt R/L/C; bounded parameter search using real solves | No populated component library or unrestricted optimizer. Search budget/mesh may limit the answer. |
 | Thermal | Steady/transient substrate conduction; dielectric RF-loss heating | Pinned-b9 compatibility adapter; independent slab/time-step references checked. No copper surface heating, general conjugate heat transfer or arbitrary multiphysics. |

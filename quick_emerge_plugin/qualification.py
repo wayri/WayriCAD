@@ -66,7 +66,8 @@ def check_result(result, config):
         if config['sweep'] == 'linear' and len(frequencies) != config['points']:
             raise ValueError('qualification frequency count mismatch')
         count = 0 if study == 'scattering' else (config['advanced']['array_count_x']*config['advanced']['array_count_y'] if study == 'array' else (2 if study in ('periodic','waveguide') else (1 if config['mode'] == 'patch' else 2)))
-        expected = {f'S{i}{j}' for i in range(1, count + 1) for j in range(1, count + 1)}
+        from .network_keys import s_key
+        expected = {s_key(i,j) for i in range(1, count + 1) for j in range(1, count + 1)}
         if set(result['s_parameters']) != expected:
             raise ValueError('qualification missing full port matrix')
         for samples in result['s_parameters'].values():

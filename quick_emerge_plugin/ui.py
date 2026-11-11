@@ -85,7 +85,7 @@ class QuickEMergeFrame(wx.Frame):
         from .advanced import ADVANCED_FIELDS
         from .workbench_layout import section
         self.study_ids = next(field['choices'] for field in ADVANCED_FIELDS if field['key']=='study')
-        labels={'driven':'Driven EM','research_antenna':'Published antenna benchmark','periodic':'Periodic / Floquet','scattering':'Scattering / RCS','thermal':'Thermal','optimization':'Parameter optimization'}
+        labels={'driven':'Driven EM','research_antenna':'Published antenna benchmark','array':'FEM phased array / AESA','periodic':'Periodic / Floquet','scattering':'Scattering / RCS','thermal':'Thermal','optimization':'Parameter optimization'}
         self.study.Set([labels.get(name,name.replace('_',' ').title()) for name in self.study_ids])
         self.study.SetSelection(0)
         self.study.Unbind(wx.EVT_CHOICE); self.study.Bind(wx.EVT_CHOICE, self.study_changed)
@@ -123,6 +123,10 @@ class QuickEMergeFrame(wx.Frame):
     def study_changed(self, event=None):
         if self.study_ids[max(0, self.study.GetSelection())] == 'research_antenna':
             self.research_template_changed()
+        elif self.study_ids[max(0, self.study.GetSelection())] == 'array':
+            from .fem_array import fem_aesa_config
+            self._apply_template_config(fem_aesa_config())
+            self.SetStatusText('FEM AESA: 2x2 passive patch starting model. Review Array, geometry and mesh; up to 4x4 / 16 coupled ports. Not the ideal paper scan-law mode.')
         else:
             self.invalidate(event)
 
@@ -130,6 +134,10 @@ class QuickEMergeFrame(wx.Frame):
         from .research_antennas import example_config
         template = self.advanced_inputs['research_template'].GetStringSelection()
         config = example_config(template)
+        self._apply_template_config(config, event)
+
+    def _apply_template_config(self, config, event=None):
+        self.study.SetSelection(self.study_ids.index(config['advanced']['study']))
         self.mode.SetSelection(0)
         self.sweep.SetSelection(0 if config['sweep'] == 'linear' else 1)
         for key, control in self.inputs.items():
@@ -160,6 +168,10 @@ class QuickEMergeFrame(wx.Frame):
         groups = {}
         for key, (row, field, group) in self.advanced_rows.items():
             show = not field.get('studies') or study in field['studies']
+            if study == 'array':
+                scan = self.advanced_inputs['array_excitation_mode'].GetStringSelection() == 'scan_angle'
+                if key in ('array_phase_x_deg', 'array_phase_y_deg'): show = not scan
+                if key in ('scan_theta_deg', 'scan_phi_deg'): show = scan
             row.Show(show); groups[group] = groups.get(group, False) or show
         for group, (pane, _, _) in self.advanced_groups.items():
             pane.Show(groups[group])
@@ -188,6 +200,8 @@ class QuickEMergeFrame(wx.Frame):
         mapping = {'3D': ['3D setup', '3D fields', '3D radiation'],
                    '2D': ['PCB enclosure', 'Field probes'],
                    'Charts': ['Array factor'] if self.result and self.result.get('array_factor') else ['S-parameters', 'Smith chart']}
+        if self.result and self.result.get('array', {}).get('power_accounting'):
+            mapping['Charts'].append('Array ports')
         self.workspace_stack.SetSelection(0)
         names = mapping[group]
         if group in ('2D', '3D'):
@@ -340,6 +354,19 @@ class QuickEMergeFrame(wx.Frame):
         self.viewports['Radiation pattern'].render(plots.radiation_polar,self.result,reset=True,options=options)
         self._spatial_readout('Radiation pattern')
 
+    def show_radiation_overview(self,event=None):
+        if not self.result:
+            self.SetStatusText('Run or load a completed antenna study with stored radiation first.');return
+        try:
+            self.select_view('3D radiation')
+            self.workspace_stack.SetSelection(3)
+            self.radiation_overview.Layout()
+            self.radiation_overview.render_result(self.result)
+            self.SetStatusText('3D lobes and 2D cut from the same stored angular samples; hover to probe, drag to orbit, wheel to zoom.')
+        except ValueError as exc:
+            self.workspace_stack.SetSelection(0)
+            self.SetStatusText(str(exc))
+
     def toggle_inspector(self, event=None, *, show=None):
         current = self.visual_splitter.IsSplit()
         show = not current if show is None else show
@@ -462,6 +489,13 @@ class QuickEMergeFrame(wx.Frame):
                 if isinstance(value, (str, int, float)):
                     rows.append((key.replace('_', ' '), value, ''))
         array_factor = result.get('array_factor')
+        if result.get('array', {}).get('power_accounting'):
+            array = result['array']
+            middle = array['power_accounting'][len(array['power_accounting'])//2]
+            rows.extend([('Array excitation', array['mode'], array['amplitude_taper']),
+                         ('Incident array power', middle['incident_power_w'], 'W'),
+                         ('Net accepted array power', middle['accepted_power_w'], 'W; radiation + loss'),
+                         ('Negative accepted-power warning', any(r['negative_total_accepted_power'] for r in array['power_accounting']), 'Inspect mesh / boundaries')])
         if array_factor:
             rows.extend([('Requested scan', array_factor['target_theta_deg'], 'deg'),
                          ('Predicted sampled peak', array_factor['predicted_peak_theta_deg'], 'deg'),
@@ -721,6 +755,9 @@ class QuickEMergeFrame(wx.Frame):
             self.report_preview.clear(message)
 
     def install_result(self, result):
+        was_overview = self.workspace_stack.GetSelection() == 3
+        self.radiation_overview.clear()
+        self.radiation_overview_button.Disable()
         from .field_display import field_for_display
         self.clear_inspection()
         self.result = result
@@ -757,6 +794,8 @@ class QuickEMergeFrame(wx.Frame):
             renderers.update({'S-parameters': plots.response, 'Smith chart': lambda figure, data, options: plots.smith(figure, data)})
         if result.get('array_factor'):
             renderers['Array factor'] = plots.array_factor
+        if result.get('array', {}).get('power_accounting'):
+            renderers['Array ports'] = plots.array_ports
         if self.inspection:
             renderers.update({'Field probes': plots.near_field, '3D fields': plots.near_field3d})
         from .radiation_pattern import radiation_status,available_cuts,sample_row
@@ -780,6 +819,7 @@ class QuickEMergeFrame(wx.Frame):
             rows=[row for row in rows if row is not None]
             self.viewports['3D radiation'].set_samples(rows)
             cuts=available_cuts(samples)
+            self.radiation_overview_button.Enable(bool(cuts))
             if cuts:
                 if self.radiation_cut.GetStringSelection() not in cuts: self.radiation_cut.SetStringSelection(cuts[0])
                 self.change_radiation_cut()
@@ -788,6 +828,8 @@ class QuickEMergeFrame(wx.Frame):
         self.refresh_field_views(reset=True)
         self.refresh_results()
         self.results_button.Enable(True)
+        if was_overview and self.radiation_overview_button.IsEnabled():
+            self.show_radiation_overview()
 
     def refresh_field_views(self, *, reset=False):
         if not self.result or not (self.result.get('field') or self.result.get('thermal')): return
@@ -1264,6 +1306,8 @@ class QuickEMergeFrame(wx.Frame):
         self.session.review = None
         self.result = None
         self._radiation_samples=None
+        self.radiation_overview.clear()
+        self.radiation_overview_button.Disable()
         self.network_output=self.network_chart_result=None
         self.region_plan = None
         self.update_model_sections()
@@ -1310,6 +1354,10 @@ class QuickEMergeFrame(wx.Frame):
 
     def running_state(self, running):
         self.running = running
+        if self.result is None:
+            self.radiation_overview.clear()
+        self.radiation_overview_button.Enable(bool(self.result) and not running
+            and getattr(self,'_radiation_samples',None) is not None)
         if hasattr(self, 'results_button'): self.results_button.Enable(self.result is not None and not running)
         busy = running or self.dependency_busy or self.region_busy or getattr(self,'network_busy',False)
         self.settings.Enable(not (running or self.region_busy or getattr(self,'network_busy',False)))
@@ -1354,7 +1402,10 @@ class QuickEMergeFrame(wx.Frame):
             self.timer.Stop()
             result = self.session.collect()
             self.install_result(result)
-            self.select_view('3D radiation') if self._radiation_samples is not None else self.select_view('S-parameters') if result.get('s_parameters') else self.select_view('Array factor') if result.get('array_factor') else self.select_view('3D fields')
+            if self.radiation_overview_button.IsEnabled() and (result.get('array') or result.get('array_factor')):
+                self.show_radiation_overview()
+            else:
+                self.select_view('3D radiation') if self._radiation_samples is not None else self.select_view('S-parameters') if result.get('s_parameters') else self.select_view('Array factor') if result.get('array_factor') else self.select_view('3D fields')
             self.details.SetSelection(0)
             self.SetStatusText(f'Completed • unqualified mesh • {self.session.run_dir.name}')
         except Exception as exc:

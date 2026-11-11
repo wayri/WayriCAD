@@ -5,6 +5,7 @@ import numpy as np
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 from .model import metrics, validate_config
+from .network_keys import s_key
 from .inspection import scale_limits
 from .field_display import plane_sampling_label, angular_sampling_label
 
@@ -69,8 +70,12 @@ def response(figure, result, options=None):
         key,scale,unit={'Magnitude':('magnitude_db',1,'dB'),'Phase':('phase_rad',180/np.pi,'deg'),'Group delay':('group_delay_s',1e9,'ns')}[quantity]
         values=analysis[key]
         for i in range(network.port_count):
-            for j in range(network.port_count):ax.plot(f,values[:,i,j]*scale,'o-',markersize=3,label=f'S{i+1}{j+1}')
+            for j in range(network.port_count):
+                if network.port_count > 9 and i != j: continue
+                ax.plot(f,values[:,i,j]*scale,'o-',markersize=3,label=s_key(i+1,j+1))
         ax.set_ylabel(quantity+' ['+unit+']')
+        if network.port_count > 9:
+            ax.set_title('Port reflections; full coupled matrix retained in result / Touchstone')
     elif quantity=='Impedance':
         values=analysis['input_impedance_ohm']
         for i in range(network.port_count):
@@ -86,6 +91,32 @@ def response(figure, result, options=None):
     if len(spacing):sampling+=f' · max Δf {np.max(spacing)/1e6:.5g} MHz'
     ax.set_title(result.get('network_view_label','Original network samples')+' | '+quantity+'\n'+sampling,loc='left',fontsize=10)
     figure.tight_layout(pad=1.5)
+
+
+def array_ports(figure, result, options=None):
+    """Display coupled active reflection and net accepted power without clamping."""
+    from .fem_array import power_accounting
+    from .network import from_result
+    weights = [complex(*value) for value in result['array']['excitation_weights']]
+    rows = power_accounting(from_result(result), weights)
+    f = np.asarray([row['frequency_hz'] for row in rows])/1e9
+    figure.clear()
+    reflection, power = figure.subplots(2, 1, sharex=True)
+    for port in range(len(weights)):
+        values = [row['active_reflection_ri'][port] for row in rows]
+        magnitudes = np.asarray([abs(complex(*v)) if v is not None else np.nan for v in values])
+        with np.errstate(divide='ignore'):
+            db = 20*np.log10(magnitudes)
+        reflection.plot(f, db, 'o-', ms=3, label=f'P{port+1}')
+    reflection.set(ylabel='Active reflection [dB]', title='Coupled FEM port response | b = S a')
+    reflection.axhline(0, color='#bd7032', linestyle='--', linewidth=.8)
+    reflection.legend(ncol=4, fontsize=7)
+    for key, label in [('incident_power_w','Incident'), ('outgoing_power_w','Outgoing'), ('accepted_power_w','Net accepted')]:
+        power.plot(f, [row[key] for row in rows], 'o-', label=label)
+    power.set(xlabel='Frequency [GHz]', ylabel='Power [W]')
+    power.legend(fontsize=8)
+    for ax in (reflection, power): ax.grid(alpha=.2)
+    figure.tight_layout()
 
 
 def array_factor(figure, result, options=None):
@@ -346,6 +377,16 @@ def advanced_geometry(figure, config, options=None):
     else:
         _plate(ax,-sx/2,-sy/2,sx,sy,-th/2,'#2a897d',.35)
         if study=='periodic':_plate(ax,-c['patch_width_mm']/2,-c['patch_length_mm']/2,c['patch_width_mm'],c['patch_length_mm'],0,'#c99c52')
+        if study=='array':
+            from .scene_data import preview_geometry
+            geometry = preview_geometry(c)
+            w,l,f,s,inset = (c[k] for k in ('patch_width_mm','patch_length_mm','feed_width_mm','inset_width_mm','inset_length_mm'))
+            _plate(ax,-sx/2,-sy/2,sx,sy,-th,'#b78a44')
+            for index,(x,y) in enumerate(geometry['centers_mm'],1):
+                for px,py,pw,pl in [(x-w/2,y-l/2+inset,w,l-inset),(x-w/2,y-l/2,w/2-f/2-s,inset),(x+f/2+s,y-l/2,w/2-f/2-s,inset),(x-f/2,y-l/2,f,inset)]:
+                    _plate(ax,px,py,pw,pl,0,'#c99c52')
+                ax.plot([x,x],[y-l/2,y-l/2],[-th,0],color='#d94770',linewidth=2)
+                ax.text(x,y-l/2,th,f'P{index}',fontsize=7)
         ax.set(xlim=(-sx*.6,sx*.6),ylim=(-sy*.6,sy*.6),zlim=(-th*2,th*2))
         ax.set_box_aspect((sx,sy,max(sx,sy)*.12))
     ax.set(xlabel='X [mm]',ylabel='Y [mm]',zlabel='Z [mm]',title=study.capitalize()+' geometry | explicit study model')

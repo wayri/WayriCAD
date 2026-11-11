@@ -1,0 +1,17 @@
+{
+  "captured_utc": "2026-11-11T07:23:51.067879+00:00",
+  "capture": "Direct exports from the two real native radiation-overview viewports; no desktop capture or redaction",
+  "source_result_sha256": "f30c63ae042727c269a514be2a7ad872815c6c04546bc57e868c9c2ec88bb7df",
+  "config_sha256": "7abb07faed6ad0a3b233d6352ee5477b480709f7374764afd101e87f1a47618d",
+  "backend": {
+    "backend": "EMerge",
+    "version": "3.0.4",
+    "emsutil_version": "1.1.6",
+    "adapter_revision": "4b17fb0648b29ab0bdc19090eb7bf82e7b4cb1cd"
+  },
+  "array_elements": 2,
+  "frequency_hz": 5000000000.0,
+  "tetrahedra": 8094,
+  "superposition_relative_error": 1.2874860582499027e-15,
+  "scope": "Coarse coupled two-port passive patch-array FEM execution evidence, not a 4x4 solve or convergence qualification"
+}

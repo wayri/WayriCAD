@@ -166,6 +166,23 @@ class WorkbenchTests(unittest.TestCase):
         self.assertIn('Fit needs validation',f.GetStatusBar().GetStatusText())
         self.assertIs(f.result,result)
 
+    def test_fem_array_preset_and_scan_controls(self):
+        f=self.frame
+        f.study.SetSelection(f.study_ids.index('array'));f.study_changed();wx.Yield()
+        c=f.config()
+        self.assertEqual(c['advanced']['study'],'array')
+        self.assertEqual(c['advanced']['array_count_x'],2)
+        self.assertEqual(c['advanced']['array_count_y'],2)
+        self.assertEqual(c['advanced']['array_excitation_mode'],'scan_angle')
+        self.assertEqual(c['substrate_x_mm'],80)
+        self.assertTrue(f.advanced_rows['scan_theta_deg'][0].IsShown())
+        self.assertFalse(f.advanced_rows['array_phase_x_deg'][0].IsShown())
+        f.advanced_inputs['array_excitation_mode'].SetStringSelection('progressive_phase')
+        f.invalidate();wx.Yield()
+        self.assertTrue(f.advanced_rows['array_phase_x_deg'][0].IsShown())
+        self.assertFalse(f.advanced_rows['scan_theta_deg'][0].IsShown())
+        self.assertIn('Array ports',f.viewports)
+
     def test_coupled_temperature_is_separate_from_em_quantities(self):
         f=self.frame;r=self.result();r['thermal']={'x_mm':[0,1,2],'y_mm':[0,2],'z_mm':0,'temperature_k':[[300,301,302],[303,304,305]],'time_s':0,'peak_k':305}
         f.install_result(r);self.assertEqual(f.inspection.unit,'V/m')

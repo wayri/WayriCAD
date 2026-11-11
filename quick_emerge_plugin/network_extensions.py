@@ -17,6 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from .network import SampledNetwork, _numeric
+from .network_keys import s_key
 
 
 UNITS={'R':'ohm','L':'H','C':'F'}
@@ -27,7 +28,7 @@ def serialize_network(network):
     return {'schema':1,'kind':'sampled-network','frequencies_hz':network.frequencies_hz.tolist(),
             'port_count':network.port_count,'port_names':list(network.port_names),
             'reference_impedance_ohm':network.z0_ohm.tolist(),'wave_convention':'real-reference-power',
-            's_parameters':{f'S{i+1}{j+1}':np.stack((network.s[:,i,j].real,network.s[:,i,j].imag),axis=-1).tolist() for i in range(network.port_count) for j in range(network.port_count)},
+            's_parameters':{s_key(i+1,j+1):np.stack((network.s[:,i,j].real,network.s[:,i,j].imag),axis=-1).tolist() for i in range(network.port_count) for j in range(network.port_count)},
             'network_sha256':network.digest(),'provenance':deepcopy(network.provenance)}
 
 

@@ -17,6 +17,7 @@ class WorkbenchPolicyTests(unittest.TestCase):
         frame = SimpleNamespace(closed=False, _solver_probe_generation=2,
             solver_probe_busy=True, solver_probe_python=None, solver_environment={},
             _solver_explicit=False, result=None, solver=solver,
+            radiation_overview=Mock(),radiation_overview_button=Mock(),
             session=SimpleNamespace(review={'reviewed':True}, preview=Mock()),
             region_plan={'source':'reviewed crop'}, running=False,
             region_busy=False, dependency_busy=False, running_state=Mock(), SetStatusText=Mock())
@@ -64,6 +65,8 @@ class WorkbenchPolicyTests(unittest.TestCase):
         frame.run_button.Enable.assert_called_once_with(False)
         frame.cancel_button.SetLabel.assert_called_once_with('Cancel')
         frame.cancel_button.SetToolTip.assert_called_once_with('Cancel dependency setup')
+        frame.radiation_overview.clear.assert_called_once_with()
+        frame.radiation_overview_button.Enable.assert_called_once_with(False)
 
     def test_results_backend_is_readable_without_dumping_metadata(self):
         table=Mock();table.InsertItem.return_value=0

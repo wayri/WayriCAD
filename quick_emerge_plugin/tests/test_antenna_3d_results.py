@@ -14,6 +14,9 @@ class Antenna3DTests(unittest.TestCase):
         from quick_emerge_plugin.model import config_digest
         config=example_config('verho-2023-aesa-4x4')
         config['advanced'].pop('research_array_taper')
+        # Reconstruct the actual historical record, before FEM controls existed.
+        config['advanced'].pop('array_excitation_mode')
+        config['advanced'].pop('array_taper')
         historical=hashlib.sha256(json.dumps(config,sort_keys=True,separators=(',',':'),allow_nan=False).encode()).hexdigest()
         self.assertEqual(config_digest(config),historical)
         config['advanced']['research_array_taper']='binomial'

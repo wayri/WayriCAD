@@ -13,11 +13,13 @@ from html import escape
 import hashlib
 import io
 import json
+import math
 from pathlib import Path
 import re
 
 from .model import config_digest, source_identity, validate_config
 from .network import from_result
+from .network_keys import s_key
 from .inspection import FieldInspection
 from .report_settings import active_settings
 
@@ -39,6 +41,22 @@ def result_digest(result):
     except (ValueError, TypeError) as exc:
         raise ValueError('Result contains nonfinite or non-JSON evidence') from exc
     return hashlib.sha256(payload.encode('utf-8')).hexdigest()
+
+
+def _array_evidence_equal(actual, expected):
+    """Allow roundoff when recomputing archived weights/power on another runtime."""
+    if isinstance(expected, bool) or expected is None or isinstance(expected, str):
+        return type(actual) is type(expected) and actual == expected
+    if isinstance(expected, (int, float)):
+        return (isinstance(actual, (int, float)) and not isinstance(actual, bool)
+                and math.isfinite(actual) and math.isclose(actual, expected, rel_tol=1e-10, abs_tol=1e-12))
+    if isinstance(expected, list):
+        return (isinstance(actual, list) and len(actual) == len(expected)
+                and all(_array_evidence_equal(a,b) for a,b in zip(actual,expected)))
+    if isinstance(expected, dict):
+        return (isinstance(actual, dict) and actual.keys() == expected.keys()
+                and all(_array_evidence_equal(actual[key],value) for key,value in expected.items()))
+    return False
 
 
 def validate_report_result(result, *, expected_config=None, expected_source=None, verify_source=True):
@@ -142,6 +160,15 @@ def validate_report_result(result, *, expected_config=None, expected_source=None
                 raise ValueError('Invalid radiation axes, magnitudes or frequency')
         except (KeyError,TypeError,OverflowError,ValueError) as exc:
             raise ValueError('Invalid radiation axes, magnitudes or frequency: '+str(exc)) from exc
+    if 'power_accounting' in result.get('array', {}):
+        from .fem_array import excitation, power_accounting
+        weights, metadata = excitation(config)
+        recorded = result['array']
+        pairs = [[float(v.real), float(v.imag)] for v in weights]
+        if (not _array_evidence_equal(recorded.get('excitation_weights'), pairs)
+                or not _array_evidence_equal({key:recorded.get(key) for key in metadata}, metadata)
+                or not _array_evidence_equal(recorded['power_accounting'], power_accounting(network, weights))):
+            raise ValueError('FEM array excitation or active-power evidence does not match its setup/network')
     return network
 
 
@@ -205,17 +232,19 @@ def _charts(network, analysis):
         ax = fig.subplots()
         for i in range(network.port_count):
             for j in range(network.port_count):
+                if network.port_count > 9 and i != j: continue
                 values = analysis['magnitude_db'][:,i,j]
                 ax.plot(freq, np.where(np.isfinite(values), values, np.nan), 'o-', ms=3,
-                        label=f'S{i+1}{j+1}')
-        ax.set(xlabel='Frequency [GHz]',ylabel='20 log10 |S| [dB]', title='Complete sampled S matrix')
+                        label=s_key(i+1,j+1))
+        ax.set(xlabel='Frequency [GHz]',ylabel='20 log10 |S| [dB]', title='Complete sampled S matrix' if network.port_count<=9 else 'Port reflections; complete matrix in evidence table')
         ax.grid(alpha=.2); ax.legend(ncol=min(4,network.port_count),fontsize=8)
         fig.tight_layout()
     def phase(fig):
         axes = fig.subplots(2,1,sharex=True)
         for i in range(network.port_count):
             for j in range(network.port_count):
-                axes[0].plot(freq,analysis['phase_rad'][:,i,j]*180/np.pi,'o-',ms=3,label=f'S{i+1}{j+1}')
+                if network.port_count > 9 and i != j: continue
+                axes[0].plot(freq,analysis['phase_rad'][:,i,j]*180/np.pi,'o-',ms=3,label=s_key(i+1,j+1))
                 axes[1].plot(freq,analysis['group_delay_s'][:,i,j]*1e9,'o-',ms=3)
         axes[0].set(ylabel='Unwrapped phase [deg]',title='Sampled phase and finite-difference delay')
         axes[1].set(xlabel='Frequency [GHz]',ylabel='Group delay [ns]')
@@ -229,7 +258,7 @@ def _charts(network, analysis):
         ax.axhline(0,color='#bacad1',lw=.6); ax.axvline(0,color='#bacad1',lw=.6)
         for i in range(network.port_count):
             v=network.s[:,i,i]
-            ax.plot(v.real,v.imag,'o-',ms=4,label=f'S{i+1}{i+1}; {network.z0_ohm[i]:g} ohm')
+            ax.plot(v.real,v.imag,'o-',ms=4,label=f'{s_key(i+1,i+1)}; {network.z0_ohm[i]:g} ohm')
         ax.set(xlabel='Real reflection coefficient',ylabel='Imaginary reflection coefficient',title='Reflection in the complex plane')
         ax.set_aspect('equal',adjustable='datalim'); ax.legend(fontsize=8); ax.grid(alpha=.2)
         fig.tight_layout()
@@ -393,6 +422,19 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
                    '<p>Magnitude uses 20 log10 |S|; return loss is its negative on the diagonal. Exact zeros are -infinity dB. No interpolated or fitted samples are added. Off-diagonal entries retain receiver/source direction.</p>'])
     if include_figures:
         chunks.append(_charts(network,analysis))
+    if snapshot.get('array', {}).get('power_accounting'):
+        from .plots import array_ports
+        a = snapshot['array']
+        chunks.extend(['<h3>Coupled FEM array excitation</h3>',
+                       '<p>Fixed phase-shifter weights in sqrt(W); b = S a. Accepted power includes radiation and loss. Individual active reflection can exceed one through coupling; no values are clamped. Zero-driven ports have undefined active reflection.</p>',
+                       _table(['Setting','Value'],[(key,a[key]) for key in ('mode','amplitude_taper','phase_reference_frequency_hz','progressive_phase_x_deg','progressive_phase_y_deg','steering_model')])])
+        if include_figures:
+            chunks.append(_figure('Active port reflection and total incident/outgoing/net accepted power from the coupled FEM network.', lambda f: array_ports(f,snapshot)))
+        chunks.append(_table(['Frequency [GHz]','Incident [W]','Outgoing [W]','Net accepted [W]','Negative accepted-power warning'],
+                             [(r['frequency_hz']/1e9,r['incident_power_w'],r['outgoing_power_w'],r['accepted_power_w'],r['negative_total_accepted_power']) for r in a['power_accounting']]))
+        chunks.append(_table(['Frequency [GHz]','Port','Incident real [sqrt(W)]','Incident imag [sqrt(W)]','Active reflection real','Active reflection imag','Port net [W]'],
+                             [(r['frequency_hz']/1e9,i+1,w[0],w[1],None if g is None else g[0],None if g is None else g[1],r['per_port_net_power_w'][i])
+                              for r in a['power_accounting'] for i,(w,g) in enumerate(zip(a['excitation_weights'],r['active_reflection_ri']))]))
     diagnostic_rows=[]
     for k,f in enumerate(network.frequencies_hz):
         diagnostic_rows.append([f/1e9,analysis['largest_singular_value'][k],analysis['passivity_excess'][k],analysis['reciprocity_error'][k]])
@@ -404,7 +446,7 @@ def build_html_report(result, *, expected_config=None, expected_source=None,
         for i in range(network.port_count):
             for j in range(network.port_count):
                 v=network.s[k,i,j]
-                rows.append([f/1e9,f'S{i+1}{j+1}',v.real,v.imag,analysis['magnitude_db'][k,i,j],analysis['phase_rad'][k,i,j]*180/3.141592653589793,analysis['group_delay_s'][k,i,j]*1e9])
+                rows.append([f/1e9,s_key(i+1,j+1),v.real,v.imag,analysis['magnitude_db'][k,i,j],analysis['phase_rad'][k,i,j]*180/3.141592653589793,analysis['group_delay_s'][k,i,j]*1e9])
     chunks.extend([_table(['Frequency [GHz]','Entry','Real','Imaginary','Magnitude [dB]','Phase [deg]','Delay [ns]'],rows),
                    '<p class="note">Phase and delay are unavailable at magnitude ≤ 1e-12. Delay is −dφ/d(2πf), using nonuniform central differences and one-sided endpoint differences. Samples may alias phase. Two samples give only a secant estimate.</p></details></section>',
                    '<section id="fields"><h2>Fields, radiation and retained probes</h2>'])

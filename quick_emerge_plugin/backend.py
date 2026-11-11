@@ -10,6 +10,7 @@ from pathlib import Path
 import tempfile
 
 from .model import config_digest, source_identity, validate_config
+from .network_keys import s_key
 from .advanced import (configure_solver, dielectric, assign_conductor, conductor_boundaries,
                        air_region, outer_boundary, field_payload, physics_assumptions)
 
@@ -202,15 +203,15 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
     for excitation in range(1, len(ports)+1):
         for port in range(1, len(ports)+1):
             values = np.asarray(data.scalar.grid.S(port, excitation)).reshape(-1)[ordering]
-            s[f'S{port}{excitation}'] = [[float(v.real), float(v.imag)] for v in values]
+            s[s_key(port, excitation)] = [[float(v.real), float(v.imag)] for v in values]
     frequency = float(frequencies[len(frequencies)//2])
     field = data.field.find(freq=frequency)
     research_weights = getattr(model, '_quick_excitation_weights', None)
     if research_weights is not None:
         field.set_excitations(*research_weights)
     if c['advanced']['study'] == 'array':
-        a = c['advanced']
-        weights = [np.sqrt(a['array_power_w']/len(ports))*np.exp(1j*np.deg2rad(ix*a['array_phase_x_deg']+iy*a['array_phase_y_deg'])) for iy in range(a['array_count_y']) for ix in range(a['array_count_x'])]
+        from .fem_array import excitation
+        weights, excitation_metadata = excitation(c)
         field.set_excitations(*weights)
     progress('Sampling near field and radiation.', flush=True)
     fields = field_payload(np, field, frequency, bbox, c)
@@ -233,9 +234,19 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
     if c['advanced']['study'] == 'array':
         result['model_scope'] = 'finite-patch-array-template'
         result['array'] = dict(port_centers_mm=model._quick_array_centers, incident_power_w=c['advanced']['array_power_w'], excitation_weights=[[float(w.real),float(w.imag)] for w in weights])
+        from .fem_array import power_accounting
+        from .network import from_result
+        result['array'].update(excitation_metadata)
+        result['array']['power_accounting'] = power_accounting(from_result(result), weights)
+        result['array']['s_parameter_corrections'] = model._quick_array_s_corrections
         result['scene_geometry'] = dict(kind='patch_array', unit='mm', centers_mm=model._quick_array_centers, patch_size=[c['patch_width_mm'],c['patch_length_mm']], substrate_size=[c['substrate_x_mm'],c['substrate_y_mm']], thickness=c['thickness_mm'])
         result['field']['excitation'] = 'Coherent finite array, weights and total incident power recorded in array metadata'
         result['assumptions'].append('Finite common-ground patch array; full mutual S coupling included; incident power is not accepted or radiated power')
+        result['assumptions'].extend([
+            'Passive inset-patch template, not a replica of the published active AESA element or phase-shifter network',
+            'Fixed incident-wave phases across the sweep; frequency-dependent beam squint is not compensated',
+            'Uncorrected S matrix; negative total accepted power flags numerical/passivity error and is not clamped',
+            'Active reflection includes all driven ports; accepted power includes radiation and material loss, not radiation alone'])
     if c['mode'] == 'pcb_line' and c['advanced']['line_geometry'] == 'stripline_via':
         result['model_scope'] = 'four-layer-via-template'
         result['scene_geometry'] = dict(kind='stripline_via', unit='mm', bounds=[-c['substrate_x_mm']/2,-c['substrate_y_mm']/2,-c['thickness_mm'],c['substrate_x_mm']/2,c['substrate_y_mm']/2,0], trace_width=c['line_width_mm'], line_length=c['line_length_mm'], layer_z_mm=[-c['thickness_mm'],-2*c['thickness_mm']/3,-c['thickness_mm']/3,0], via_radius=c['advanced']['via_radius_mm'], via_x_mm=[-c['line_length_mm']/4,c['line_length_mm']/4])
@@ -262,7 +273,7 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
         result['radiation'] = {'frequency_hz': frequency, 'theta_rad': theta.tolist(),
                                'phi_rad': phi.tolist(), 'norm_e': norm.tolist(),
                                'quantity': 'Far-field |E|; relative pattern, not gain or efficiency'}
-        if c['advanced']['study'] == 'research_antenna':
+        if c['advanced']['study'] in ('research_antenna', 'array'):
             from .research_antennas import axial_ratio_db, polarization_handedness
             phi_zero = int(np.argmin(np.abs(phi)))
             ex = complex(np.asarray(ff.Ex)[0, phi_zero])
@@ -335,7 +346,7 @@ def write_touchstone(directory, result):
         row = [f'{frequency:.17g}']
         pairs = [(response, excitation) for excitation in range(1,count+1) for response in range(1,count+1)] if count == 2 else [(response, excitation) for response in range(1,count+1) for excitation in range(1,count+1)]
         for response, excitation in pairs:
-            pair = result['s_parameters'][f'S{response}{excitation}'][index]
+            pair = result['s_parameters'][s_key(response, excitation)][index]
             if not all(math.isfinite(v) for v in pair):
                 raise ValueError('Non-finite S-parameter cannot be exported.')
             row.extend(f'{v:.17g}' for v in pair)

@@ -229,6 +229,10 @@ def build(frame, board):
     frame.more_button=button(frame.workspace,'More…',frame.show_workspace_more)
     frame.more_button.SetToolTip('Charts, result summary, probes, display settings and viewport controls')
     nav.Add(frame.more_button,0)
+    frame.radiation_overview_button=button(frame.workspace,'3D + 2D radiation',frame.show_radiation_overview)
+    frame.radiation_overview_button.SetToolTip('Show the same stored radiation result as interactive 3D lobes and a scaled 2D cut')
+    frame.radiation_overview_button.Disable()
+    nav.Add(frame.radiation_overview_button,0,wx.LEFT,5)
     frame.focus_button=button(frame.workspace,'Focus view',frame.focus_view,toggle=True)
     frame.focus_button.Hide()
     body.Add(nav,0,wx.EXPAND | wx.ALL,5)
@@ -263,7 +267,7 @@ def build(frame, board):
         frame.scene_viewport_class=SceneViewport;frame.render_backend='VTK hardware 3D'
     except ImportError:
         frame.scene_viewport_class=None
-    for name in ['3D setup','S-parameters','Smith chart','Array factor','Field probes','3D fields','3D radiation','3D polarization','Radiation pattern','PCB enclosure']:
+    for name in ['3D setup','S-parameters','Smith chart','Array factor','Array ports','Field probes','3D fields','3D radiation','3D polarization','Radiation pattern','PCB enclosure']:
         factory=frame.scene_viewport_class if name.startswith('3D') and frame.scene_viewport_class else PlotViewport
         page=factory(frame.tabs,name,frame._viewport_probe)
         if isinstance(page, PlotViewport): page.defer_hidden=True
@@ -311,6 +315,9 @@ def build(frame, board):
     report_rows.Add(frame.report_status,0,wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,14)
     frame.report_host=wx.Panel(report);frame.report_host.SetSizer(wx.BoxSizer(wx.VERTICAL));report_rows.Add(frame.report_host,1,wx.EXPAND | wx.ALL,12)
     report.SetSizer(report_rows);frame.workspace_stack.AddPage(report,'Report')
+    from .radiation_overview import RadiationOverview
+    frame.radiation_overview=RadiationOverview(frame.workspace_stack,frame._viewport_probe,frame.scene_viewport_class)
+    frame.workspace_stack.AddPage(frame.radiation_overview,'3D + 2D radiation')
     body.Add(frame.workspace_stack,1,wx.EXPAND);frame.workspace.SetSizer(body)
     frame.setup_width=frame.FromDIP(310)
     split.SetMinimumPaneSize(frame.FromDIP(270));split.SetSashGravity(0)

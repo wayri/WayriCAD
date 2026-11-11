@@ -81,6 +81,10 @@ def active_settings(result):
         if key == 'study' or group in ('Exports', 'Import') or (field['studies'] and study not in field['studies']):
             continue
         if key == 'sparta_mode' and c['solver'] != 'SPARTA': continue
+        if study == 'array':
+            scan = a['array_excitation_mode'] == 'scan_angle'
+            if key in ('array_phase_x_deg','array_phase_y_deg') and scan: continue
+            if key in ('scan_theta_deg','scan_phi_deg') and not scan: continue
         if group == 'Patch feed' and mode != 'patch': continue
         if group == 'PCB template' and mode != 'pcb_line': continue
         if key == 'via_radius_mm' and a['line_geometry'] != 'stripline_via': continue

@@ -106,6 +106,10 @@ def config_digest(config):
     # nondefault tapers must still invalidate previews and saved-result bindings.
     if normalized['advanced'].get('research_array_taper')=='uniform':
         normalized['advanced'].pop('research_array_taper')
+    # Preserve pre-FEM-AESA setup custody for the unchanged historical defaults.
+    for key, default in (('array_excitation_mode', 'progressive_phase'), ('array_taper', 'uniform')):
+        if normalized['advanced'].get(key) == default:
+            normalized['advanced'].pop(key)
     data = json.dumps(normalized, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
