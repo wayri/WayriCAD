@@ -18,7 +18,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
@@ -27,9 +27,9 @@
                         "macos",
                         "linux"
                     ],
-                    "download_sha256": "fd2e8beb8bd39cd3372274bf67127049d0fd5da81413a7409be9e37ba5f0a515",
+                    "download_sha256": "5a52d95b330897714de1cc98a552088b73256e079e4cba32e534a701a485c7d7",
                     "download_size": 1695403,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-bom-studio-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-bom-studio-4.8.1-PCM.zip",
                     "install_size": 3617568
                 }
             ]
@@ -52,13 +52,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "61a4ec3c35f2b929bf4824925cb139b5e579c761c84de0a2a353a399ef84ef9a",
+                    "download_sha256": "67100fa70d2b53f70e987f04c014d4c8bccfb58d2ddb03b35705fe2f9c2c82ad",
                     "download_size": 530152,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-bulk-label-editor-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-bulk-label-editor-4.8.1-PCM.zip",
                     "install_size": 1311273,
                     "platforms": [
                         "windows",
@@ -86,7 +86,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "kicad_version_max": "10.0",
@@ -96,9 +96,9 @@
                         "linux",
                         "macos"
                     ],
-                    "download_sha256": "0efc634614c2e6c36e5ceb89989044e50d739bfddd698369a81988999591e259",
+                    "download_sha256": "73b10fb74cdf13fbb753a2efbdc00fbc38dec98e44ea350dafcef9f97baaf426",
                     "download_size": 182439,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-component-arranger-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-component-arranger-4.8.1-PCM.zip",
                     "install_size": 316141
                 }
             ]
@@ -121,13 +121,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "edca6d831be515d4a58d75009db96b7be3fb9f2006303252c8dfea1ced43b016",
+                    "download_sha256": "02a5ad4e30e2914a1410c8a98a1f87eaa1d48aeb448d2c50ada6669cf2bf7457",
                     "download_size": 628406,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-copper-balancer-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-copper-balancer-4.8.1-PCM.zip",
                     "install_size": 1416408,
                     "platforms": [
                         "windows",
@@ -155,13 +155,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "d94b42e3a24c5e69dd63854a891fd0a6e0435d76305096425f3aff009fc4f68c",
+                    "download_sha256": "6dc6a192eebb85fe8e65ae41042fbc8c1b5018b969dba969b7459d7fe8ba996b",
                     "download_size": 668031,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-embed-3d-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-embed-3d-4.8.1-PCM.zip",
                     "install_size": 1698183,
                     "platforms": [
                         "windows",
@@ -189,13 +189,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "b0fbbc06ed397c24983e086cd6009da925427857cd3b9947379b71ff5aa0e01c",
-                    "download_size": 839404,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-extract-pins-4.8.0-PCM.zip",
+                    "download_sha256": "4aa9e84ebc979058769a8ab976452eb641d8a34253c5517fae9feb010a9a502b",
+                    "download_size": 839405,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-extract-pins-4.8.1-PCM.zip",
                     "install_size": 2214920,
                     "platforms": [
                         "windows",
@@ -223,13 +223,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "6eb78aaa554b20b29991aa991c65deaa535e24e28f5d70830ac693b63b3e204c",
+                    "download_sha256": "59bf3b0e2daeb482f313235b399fe9de0e0219723ac202b9ddece9ec0de64345",
                     "download_size": 1798718,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-fanout-generator-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-fanout-generator-4.8.1-PCM.zip",
                     "install_size": 2765495,
                     "platforms": [
                         "windows",
@@ -257,13 +257,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "e6d837c22526905963ab834cf68a23de20e796e7264dda96be1a0aa3baa776b3",
+                    "download_sha256": "785dfdb94c45913a62fe63179d4c1dd9663816efae135f0022ada58bcc17c794",
                     "download_size": 578520,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-harness-workbench-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-harness-workbench-4.8.1-PCM.zip",
                     "install_size": 1404188,
                     "platforms": [
                         "windows",
@@ -291,13 +291,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "95660f043963d99dab6d9c57415b81330e48d91902b9262a957c6fcda69a17ed",
+                    "download_sha256": "fe1243033af9d963063949b51834784c417b4db5b35555cab1b461e501d5e1a6",
                     "download_size": 585299,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-heater-designer-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-heater-designer-4.8.1-PCM.zip",
                     "install_size": 1424648,
                     "platforms": [
                         "windows",
@@ -325,7 +325,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "kicad_version_max": "10.0",
@@ -335,9 +335,9 @@
                         "linux",
                         "macos"
                     ],
-                    "download_sha256": "508a75035ec2be8d3a1003d794e8c1b5741a8f7704e872d2c0f7d84fb549d790",
+                    "download_sha256": "ecd54eb17c597c33179cc988f196244aff0b1e483e872939a979b3f161fc0947",
                     "download_size": 132531,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-layer-counter-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-layer-counter-4.8.1-PCM.zip",
                     "install_size": 176924
                 }
             ]
@@ -360,13 +360,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "9a07e160d6429475c1395d2311c37b2516d3ec67c847b593f2b3d6d744784f19",
+                    "download_sha256": "44ebd24bc8478e423b96bef13cd36fb63f83a99ba71eb18ff4fb7b26d9d1ff62",
                     "download_size": 531867,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-manufacturing-readiness-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-manufacturing-readiness-4.8.1-PCM.zip",
                     "install_size": 1506667,
                     "platforms": [
                         "windows",
@@ -394,13 +394,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "a3e131071da1c892cac1ee6bc18177631f02ddab123849c3e86ceded207f6805",
+                    "download_sha256": "33ec05ce1d2e84208617b2a50902091ee02bb54b5b675bbeed2951994408a416",
                     "download_size": 953838,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-mechanical-check-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-mechanical-check-4.8.1-PCM.zip",
                     "install_size": 1946070,
                     "platforms": [
                         "windows",
@@ -428,13 +428,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "b3684e4bc95ce9a302893a9a44181a33c279f1cd8f998679e849e93e46cbbe7b",
+                    "download_sha256": "08ff40886ce8d5c17b0813838846ba132074941e38122a5d09dc38af98a4c104",
                     "download_size": 1848272,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-planar-magnetics-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-planar-magnetics-4.8.1-PCM.zip",
                     "install_size": 2901124,
                     "platforms": [
                         "windows",
@@ -462,13 +462,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "c48bf174fb69cd721e84c40467ab4ec4b8dca7d02fa988fe38f7f1e3cfc5494d",
+                    "download_sha256": "5988d3845f339384ae54a85e8d3981892233bf62d0a9614595182a01475aac9a",
                     "download_size": 1054602,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-portable-web-export-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-portable-web-export-4.8.1-PCM.zip",
                     "install_size": 2931639,
                     "platforms": [
                         "windows",
@@ -496,7 +496,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "kicad_version_max": "10.0",
@@ -505,9 +505,9 @@
                         "windows",
                         "linux"
                     ],
-                    "download_sha256": "0080a203298c7f75ee6ea5b911408a533aed6b0cb8d091207f26f4294dc0d757",
+                    "download_sha256": "ac6855904bd662dab0b31dff883f7b3f64571ba4b456a32059d39bb36bd1cca6",
                     "download_size": 383999,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-project-fusion-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-project-fusion-4.8.1-PCM.zip",
                     "install_size": 1004536
                 }
             ]
@@ -530,13 +530,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "733f987707f30b6c38c75af3bb7891a8131de9b05e950abeef06ff45d47f4bf7",
+                    "download_sha256": "4c9947d30656cf97ff5f8f7ffc6285a957aab79d77d94dd133ab0f635d422850",
                     "download_size": 2350911,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-protocol-constraint-composer-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-protocol-constraint-composer-4.8.1-PCM.zip",
                     "install_size": 3957224,
                     "platforms": [
                         "windows",
@@ -548,7 +548,7 @@
         },
         {
             "name": "WayriCAD Quick EMerge (beta)",
-            "description": "Interactive EMerge 3+ antenna, published benchmark, and saved-PCB rule-area simulations (beta).",
+            "description": "Beta EM workbench: coupled FEM arrays, 3D/2D radiation, antenna benchmarks and saved-PCB regions.",
             "description_full": "Beta read-only electromagnetic workbench with antenna and PCB templates, source-backed polarized/WLAN/Yagi/AESA/CubeSat S-X benchmark studies, reviewed two-layer rule-area copper extraction, native interactive 3D/2D views, original-sample probes, S-parameters, radiation and HTML/PDF reports. Benchmark results embed citations, model limits and sampled publication comparisons; they do not establish convergence or hardware qualification. New studies use 81 frequency samples, an 81 x 81 field grid and two-degree radiation sampling. Offline KiCad-specific Help explains setup, ports and limitations. Documented material, boundary, network and bounded advanced study controls are included; this does not expose every upstream EMerge capability. Region studies omit components, general multilayer/via extraction and PCB outside the enclosure. An isolated dependency manager installs EMerge 3+ and qualifies updates before activation, retaining rollback. Requires a saved PCB, KiCad 10 native bindings and internet for initial setup.",
             "identifier": "com.github.wayri.wayricad.quick-emerge",
             "type": "plugin",
@@ -564,14 +564,14 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "bd054010976fa76973f9ed26344a14663d7d3b7b64bcd8fc5be8b08435884f69",
-                    "download_size": 1577941,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-quick-emerge-4.8.0-PCM.zip",
-                    "install_size": 2959031,
+                    "download_sha256": "cf269e4cf271ea40f5d3d3ad06a91cb412b13462a23a69927b35d06033e5430d",
+                    "download_size": 1839807,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-quick-emerge-4.8.1-PCM.zip",
+                    "install_size": 3263689,
                     "platforms": [
                         "windows",
                         "linux",
@@ -598,13 +598,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "06e58ad29c0210b146b66597a74bfab332184298b61c85f191f85806695a301a",
+                    "download_sha256": "71c991f6bbf6d9d1a4d6dc73e78580c6e5fbfbaf1c0334a84fe8f93d3867144a",
                     "download_size": 4628826,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-quick-pi-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-quick-pi-4.8.1-PCM.zip",
                     "install_size": 6786552,
                     "platforms": [
                         "windows",
@@ -632,13 +632,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "f785c17ee55009f043a9bdadf8447c63b7330087982da40af90d2214b39cc72b",
+                    "download_sha256": "5669ac89103e2159f04e2bf18ceb3c354a0efae73530011a642a34edaaeb82b8",
                     "download_size": 4420693,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-quick-therm-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-quick-therm-4.8.1-PCM.zip",
                     "install_size": 6352209,
                     "platforms": [
                         "windows",
@@ -666,13 +666,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "99faee1c6ff89d1589979c63875d50dbf2c85f258ec0157cb3703561039abbcd",
+                    "download_sha256": "7196a401b89a2d9fe89b2ef7f0a773732b8386705f0b5886a813c032d7923075",
                     "download_size": 2352673,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-review-comments-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-review-comments-4.8.1-PCM.zip",
                     "install_size": 4518021,
                     "platforms": [
                         "windows",
@@ -700,13 +700,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "28ec1fcc17ad44adcd578f71ce6752690ed1824e05c53507c8309eae8cf87a82",
+                    "download_sha256": "f6fc49f6b51d18357c63162e0dfb0734a51ae41d82e1af7bb10b1e0e540d6192",
                     "download_size": 1742035,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-signal-integrity-advisor-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-signal-integrity-advisor-4.8.1-PCM.zip",
                     "install_size": 3206070,
                     "platforms": [
                         "windows",
@@ -734,7 +734,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "kicad_version_max": "10.0",
@@ -744,9 +744,9 @@
                         "linux",
                         "macos"
                     ],
-                    "download_sha256": "c443d21e71bc9e59cf6762b84e43f41faa5ac7642cf86799b72a915a0df62121",
+                    "download_sha256": "ca60f1ef64871711e6ee6d1a2654826cdffc2a52b19aa9a3013fcabb10016784",
                     "download_size": 383225,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-silkscreen-label-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-silkscreen-label-4.8.1-PCM.zip",
                     "install_size": 609851
                 }
             ]
@@ -769,14 +769,14 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "722fb13efab6fa1c8f457f4377ea73d8b01c5e35e633ff320d6ea7402365dd41",
-                    "download_size": 24513481,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-suite-assistant-4.8.0-PCM.zip",
-                    "install_size": 37683718,
+                    "download_sha256": "dc191474f18f11fee4f042ad441ce740b1e7a0603dd1b66f97fcb0e9e6725166",
+                    "download_size": 24775927,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-suite-assistant-4.8.1-PCM.zip",
+                    "install_size": 37988376,
                     "platforms": [
                         "windows",
                         "linux",
@@ -803,13 +803,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "472a9ba7d0af35f610e68941a5b3c9443e8bc2fd81c8330069a94bfa092b5ece",
-                    "download_size": 818739,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-trace-impedance-4.8.0-PCM.zip",
+                    "download_sha256": "b9568c977bc495d2ecdce691f5dbcd30eb9672677f4f3336b5d961647ac871e5",
+                    "download_size": 818740,
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-trace-impedance-4.8.1-PCM.zip",
                     "install_size": 1781348,
                     "platforms": [
                         "windows",
@@ -837,7 +837,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "kicad_version_max": "10.0",
@@ -847,9 +847,9 @@
                         "linux",
                         "macos"
                     ],
-                    "download_sha256": "d9ad078e1c13e2334d19f05f7a381c04f1b50dd1b7db4ad2cfe24a9e42c392bf",
+                    "download_sha256": "1bba090b2f03672412046ea9f8540b5f267d8ffb9265443b0e7c01dabd31e593",
                     "download_size": 491553,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-trace-refiner-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-trace-refiner-4.8.1-PCM.zip",
                     "install_size": 639813
                 }
             ]
@@ -872,7 +872,7 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "kicad_version_max": "10.99",
@@ -881,9 +881,9 @@
                         "windows",
                         "linux"
                     ],
-                    "download_sha256": "dff0d33c7e1e32be893a04a609b5931fe7bcef86abdb115d0aaa9b197d697178",
+                    "download_sha256": "90a027bb8657b3f3231db3052f2ac74714c9773fe6c06435f079c405c5ba68cb",
                     "download_size": 117349,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-variant-manager-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-variant-manager-4.8.1-PCM.zip",
                     "install_size": 240328
                 }
             ]
@@ -906,13 +906,13 @@
             },
             "versions": [
                 {
-                    "version": "4.8.0",
+                    "version": "4.8.1",
                     "status": "testing",
                     "kicad_version": "10.0",
                     "runtime": "ipc",
-                    "download_sha256": "e1e694d824f1cb8289c00c168b14186c25ea621f94bc29caef76aabe9375ccaf",
+                    "download_sha256": "0b6e529a0060c97120c05e95aac0243305a9e7d7f4bf33d86d576196151fee0f",
                     "download_size": 538294,
-                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/WayriCAD-via-stitching-4.8.0-PCM.zip",
+                    "download_url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/WayriCAD-via-stitching-4.8.1-PCM.zip",
                     "install_size": 1326706,
                     "platforms": [
                         "windows",

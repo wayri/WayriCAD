@@ -9,13 +9,13 @@
         }
     },
     "packages": {
-        "sha256": "d9aebd2113cf5457597dec796488688097208300938c58e09e9dfb69b8732f92",
-        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1794366482",
-        "update_timestamp": 1794366482
+        "sha256": "9f676604fc92c483d3d179dde6783ab7748432e9604fdfbe0673c88eba0b7f35",
+        "url": "https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/pkgs.json?t=1794384189",
+        "update_timestamp": 1794384189
     },
     "resources": {
-        "url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.0/resources.zip",
+        "url": "https://github.com/wayri/WayriCAD/releases/download/v4.8.1/resources.zip",
         "sha256": "2f031e6363487c6f32b1168a6205178a8b47a98326a9236982bc340676b3ce21",
-        "update_timestamp": 1794366482
+        "update_timestamp": 1794384189
     }
 }
