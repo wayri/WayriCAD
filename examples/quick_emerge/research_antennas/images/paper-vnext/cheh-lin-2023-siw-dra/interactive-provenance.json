@@ -1,0 +1,34 @@
+{
+  "source_result_sha256": "2e5d230bfc2b2dba462b8bbb395e4a44a8e9df14352d8bf6fbf002a80ee60003",
+  "samples_sha256": "55255f52091e9eca704bfcd80676b45d95653bec93469674647b904b82c99b90",
+  "samples_file": "solved-samples.json.gz",
+  "exported_at_utc": "2026-11-10T18:16:09.616386+00:00",
+  "publication_comparison": {
+    "schema": 1,
+    "template_id": "cheh-lin-2023-siw-dra",
+    "overall": "insufficient",
+    "checks": [
+      {
+        "check": "published SIW/DRA matching band 1",
+        "status": "pass",
+        "best_frequency_hz": 1800000000.0,
+        "best_s_db": -22.529796872897137,
+        "criterion": "at least one sampled |Sii| <= -10 dB inside the published band"
+      },
+      {
+        "check": "published SIW/DRA matching band 2",
+        "status": "insufficient",
+        "detail": "No solved sample lies inside the published band."
+      },
+      {
+        "check": "source geometry assumptions and convergence",
+        "status": "insufficient",
+        "detail": "Paper-derived reconstruction with disclosed U-slot and via-lattice assumptions; not an exact author-CAD replica. Eq(7) width conflicts with Table1. Ideal feeds/posts, no adhesive or connector body. Agreement and convergence must be evaluated."
+      }
+    ],
+    "qualification": "comparison only; pass does not replace mesh, boundary, material and fixture convergence evidence"
+  },
+  "source_path_redacted": true,
+  "solver_log_sha256": "226f1ef32e52cfc858f6f53f807275f02bd9b7eed611c5b1fcedfb7f75f8f992",
+  "tetrahedra": 30011
+}

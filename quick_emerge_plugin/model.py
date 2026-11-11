@@ -51,7 +51,9 @@ def validate_config(raw):
             value = float(value)
         except (TypeError, ValueError, OverflowError):
             raise ValueError(f"{key} must be a finite number") from None
-        if not math.isfinite(value) or value < 0 or (value == 0 and key != "adaptive_steps"):
+        if key=='field_z_mm' and not math.isfinite(value):
+            raise ValueError('field_z_mm must be finite')
+        if not math.isfinite(value) or (key != 'field_z_mm' and (value < 0 or (value == 0 and key != "adaptive_steps"))):
             raise ValueError(f"{key} must be finite and positive")
         if key in ("points", "field_grid", "adaptive_steps", "max_tets"):
             lower, limit = {"points": (2, 200), "field_grid": (2, 201),
@@ -64,7 +66,7 @@ def validate_config(raw):
         raise ValueError("frequency start must be less than stop")
     if config["sweep"] == "adaptive" and config["points"] < 5:
         raise ValueError("adaptive sweep requires at least 5 points")
-    if config["field_z_mm"] >= config["air_margin_mm"]:
+    if not -config['thickness_mm']-config['air_margin_mm'] < config["field_z_mm"] < config["air_margin_mm"]:
         raise ValueError("field plane must lie inside the air region")
     if config["resolution"] > 1:
         raise ValueError("resolution must not exceed 1")
@@ -99,7 +101,12 @@ def source_identity(board_path):
 
 def config_digest(config):
     """Hash the canonical normalized configuration."""
-    data = json.dumps(validate_config(config), sort_keys=True, separators=(",", ":"), allow_nan=False)
+    normalized=validate_config(config)
+    # Uniform is the historical array excitation. Keep old result hashes valid;
+    # nondefault tapers must still invalidate previews and saved-result bindings.
+    if normalized['advanced'].get('research_array_taper')=='uniform':
+        normalized['advanced'].pop('research_array_taper')
+    data = json.dumps(normalized, sort_keys=True, separators=(",", ":"), allow_nan=False)
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 

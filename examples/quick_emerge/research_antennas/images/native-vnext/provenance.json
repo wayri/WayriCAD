@@ -1,0 +1,43 @@
+{
+  "source_result_sha256": "64ee1545e93f8742bb8b123c0aa3218b5681193ccb3bba54ae140d1830d161e9",
+  "config_sha256": "5fd5759d0ebd59d57f87a059b3aef4a48772e919c51ed374eb4b26e8774896d8",
+  "engine": {
+    "backend": "EMerge",
+    "version": "3.0.0b9",
+    "adapter_revision": "446232037d175a596606c6c9ea986e372560566f"
+  },
+  "captures": [
+    {
+      "file": "3d-setup.png",
+      "view": "3D setup",
+      "sha256": "d7f80bf8afae6cd631894254a5010407c03474782ddbbe4b6149e8d95a48d42f"
+    },
+    {
+      "file": "3d-fields.png",
+      "view": "3D fields",
+      "sha256": "4180baa71d05b3487d26d5230a3080f62d145db3704c1050ee890f2f45c85bf2"
+    },
+    {
+      "file": "3d-radiation.png",
+      "view": "3D radiation",
+      "sha256": "3bb9b78708971a47c177d1ac107c7f2290e34bcb5feafe2c6e5968ebad58d749"
+    },
+    {
+      "file": "3d-polarization.png",
+      "view": "3D polarization",
+      "sha256": "bd934258a595fc01e469eadf92ced34994fa7bc5d5305c61a8cab40ac2cf15ab"
+    },
+    {
+      "file": "3d-wave-phase-0.png",
+      "view": "3D phase vectors",
+      "phase_deg": 0,
+      "sha256": "71c03248f0cf4f97062ea615c2b6f7a49bb20a70a2af607ed5dba6171d24445a"
+    },
+    {
+      "file": "3d-wave-phase-90.png",
+      "view": "3D phase vectors",
+      "phase_deg": 90,
+      "sha256": "d2edc7fd52fdb06a2cb3b5128d4c7bd0aaeb7ab979fc90d4c68132b1be0401ce"
+    }
+  ]
+}

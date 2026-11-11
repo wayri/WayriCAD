@@ -1,4 +1,4 @@
-"""Pinned EMerge 3.0.0b9 thermal time-integration compatibility adapter.
+"""Version-bounded EMerge thermal time-integration compatibility adapter.
 
 The FEM assembly, Dirichlet elimination and output classes remain upstream's.
 This fixes only driver bookkeeping: free vs total DOFs, current DataEntry
@@ -9,6 +9,8 @@ same qualification checks before runtime activation.
 API provenance: EMerge commit 446232037d175a596606c6c9ea986e372560566f,
 heatconduction_3d.py and simjob.py, Copyright (C) 2025 Robert Fennis.
 https://github.com/FennisRobert/EMerge/blob/446232037d175a596606c6c9ea986e372560566f/src/emerge/_emerge/physics/heatconduction/heatconduction_3d.py
+The same free/total-DOF driver defect was reproduced in 3.0.4, commit
+4b17fb0648b29ab0bdc19090eb7bf82e7b4cb1cd; its relocated solver report type is used.
 SPDX-License-Identifier: GPL-2.0-or-later
 """
 import importlib.metadata
@@ -30,7 +32,8 @@ def slab_transient_peak(ambient, power_w, area_m2, thickness_m, conductivity,
 
 def run_transient(hc, duration, step, nthreads=1):
     import numpy as np
-    if importlib.metadata.version('emerge') != '3.0.0b9':
+    version=importlib.metadata.version('emerge')
+    if version not in ('3.0.0b9','3.0.4'):
         data = hc.run_transient(duration, step, stepping_algorithm='BackwardEuler', nthreads=nthreads)
         frames = list(data.field.iter())
         times = [float(frame.time) for frame in frames]
@@ -38,7 +41,10 @@ def run_transient(hc, duration, step, nthreads=1):
             raise RuntimeError('Upstream transient did not produce the requested terminal time; runtime qualification cannot accept it')
         return data, dict(method='upstream BackwardEuler', requested_terminal_time_s=duration,
                           time_s=times, peak_k=[float(np.max(frame.T)) for frame in frames], step_s=step)
-    from emerge._emerge.solver import SolveReport
+    if version=='3.0.4':
+        from emerge._emerge.solvers import SolveReport
+    else:
+        from emerge._emerge.solver import SolveReport
     hc._check_meshed()
     hc._initialize_field()
     hc._initialize_bc_data()
@@ -68,6 +74,6 @@ def run_transient(hc, duration, step, nthreads=1):
         hc.solveroutine.reset()
     hc.data.setreport(final_job.reports, **hc._params)
     hc._post_process_transient([final_job], np.asarray([duration]), materials)
-    return hc.data, dict(method='BackwardEuler; EMerge 3.0.0b9 driver compatibility adapter',
+    return hc.data, dict(method=f'BackwardEuler; EMerge {version} driver compatibility adapter',
                          time_s=times.tolist(), peak_k=peak, step_s=dt,
                          requested_terminal_time_s=duration)

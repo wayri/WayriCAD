@@ -1,0 +1,76 @@
+{
+  "capturedAtUtc": "2026-11-10T19:10:20.212Z",
+  "browser": "157.0.4341.42",
+  "method": "Actual full-page Edge captures; not mockups",
+  "htmlSha256": "13af480baae26aeebbceeb13cdf6a876eadf66c062cf777fc8c2a62249c43e3a",
+  "scope": "Closed-form ideal array factor, not full-wave FEM; no private paths in captures",
+  "captures": [
+    {
+      "file": "viewer-uniform-30.png",
+      "sha256": "ef569f87d345333a5b6d7077a4673ecb9a7294a8368a3bacfaa83139cb518233",
+      "steeringThetaDeg": 30,
+      "taper": "uniform"
+    },
+    {
+      "file": "viewer-binomial-30.png",
+      "sha256": "2e3cece3f925a0690660c94a1e07f51eee486416d6591cddddd254e9ea8b500c",
+      "steeringThetaDeg": 30,
+      "taper": "binomial"
+    }
+  ],
+  "verification": {
+    "states": [
+      {
+        "taper": "uniform",
+        "theta": "0",
+        "samples": 16471,
+        "axes": "X [relative E]",
+        "sum": 15.363133831073645
+      },
+      {
+        "taper": "uniform",
+        "theta": "30",
+        "samples": 16471,
+        "axes": "X [relative E]",
+        "sum": 959.6323279860877
+      },
+      {
+        "taper": "uniform",
+        "theta": "60",
+        "samples": 16471,
+        "axes": "X [relative E]",
+        "sum": 1004.0947419855582
+      },
+      {
+        "taper": "binomial",
+        "theta": "0",
+        "samples": 16471,
+        "axes": "X [relative E]",
+        "sum": 12.37579660407556
+      },
+      {
+        "taper": "binomial",
+        "theta": "30",
+        "samples": 16471,
+        "axes": "X [relative E]",
+        "sum": 1662.982676098768
+      },
+      {
+        "taper": "binomial",
+        "theta": "60",
+        "samples": 16471,
+        "axes": "X [relative E]",
+        "sum": 1534.642428567403
+      }
+    ],
+    "probe": [
+      154,
+      28,
+      0.7982889566685947,
+      -1.956797572190518
+    ],
+    "mobileOverflow": false,
+    "errors": [],
+    "remote": []
+  }
+}

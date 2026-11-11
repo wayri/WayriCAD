@@ -154,6 +154,12 @@ def execute(request):
                     "plated": pad.GetAttribute() == pcbnew.PAD_ATTRIB_PTH,
                     "drill_mm": drill,
                 })
+        try:
+            from .board_geometry import stackup
+            stackup(board,pcbnew,path.read_text(encoding='utf-8-sig'))
+            thermal_stackup={'available':True,'reason':'Explicit saved stackup'}
+        except (ValueError,AttributeError) as exc:
+            thermal_stackup={'available':False,'reason':str(exc)}
         if hashlib.sha256(path.read_bytes()).hexdigest() != before:
             raise ValueError("The board changed during inspection. Reload and run again.")
         assert_current(board)
@@ -170,6 +176,7 @@ def execute(request):
                 "properties": properties[fp.m_Uuid.AsString()],
             } for fp in components), key=lambda row: row["reference"]),
             "field_names": field_names, "mounting_holes": mounting_holes,
+            'thermal_stackup':thermal_stackup,
             "source_sha256": before,
             **source_evidence,
         }

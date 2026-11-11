@@ -713,13 +713,14 @@ def save_project_simulation(project_root, plugin, bundle, *, board_path, module_
 
 class ProjectResultActions:
     """Small native project-library controller shared by the three quick tools."""
-    def __init__(self, owner, parent, sizer, plugin, board_path, bundles, *, certify=True, status=None, module_file=None):
+    def __init__(self, owner, parent, sizer, plugin, board_path, bundles, *, certify=True, status=None, module_file=None, viewer_factory=None):
         import wx
         self.owner, self.plugin = owner, plugin
         self.project_root = Path(board_path).resolve().parent
         self.board_path, self.bundles, self.certify = Path(board_path).resolve(), bundles, certify
         self.status = status or (lambda text: None)
         self.module_file = module_file
+        self.viewer_factory = viewer_factory
         self.busy = False
         row = wx.WrapSizer(wx.HORIZONTAL)
         self.save = wx.Button(parent, label='Save simulation…')
@@ -822,7 +823,7 @@ class ProjectResultActions:
             path=dialog.GetPath()
         self.status('Loading the selected saved simulation without solving…')
         def show(loaded):
-            viewer=create_viewer(self.owner,loaded)
+            viewer=(self.viewer_factory or create_viewer)(self.owner,loaded)
             viewer.Show()
             self.status(binding_text(loaded['receipt']))
         self.task(lambda:load_result(self.project_root,path,plugin=self.plugin,chosen=True),show)

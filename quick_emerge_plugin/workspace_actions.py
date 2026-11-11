@@ -32,6 +32,9 @@ def result_views(result, dimension):
     samples,_ = radiation_status(result)
     if samples is not None and (dimension=='3D' or available_cuts(samples)):
         names.append('3D radiation' if dimension=='3D' else 'Radiation pattern')
+    from .polarization_view import available
+    if dimension == '3D' and available(result):
+        names.append('3D polarization')
     return names
 
 
@@ -140,9 +143,11 @@ def build_more_menu(frame):
     menu.AppendSeparator()
     from .radiation_pattern import radiation_status, available_cuts
     radiation,reason = radiation_status(frame.result)
-    for label,name in (('2D radiation pattern','Radiation pattern'),('3D radiation pattern','3D radiation')):
+    for label,name in (('2D radiation pattern','Radiation pattern'),('3D radiation pattern','3D radiation'),
+                       ('3D boresight polarization','3D polarization')):
         item = menu.Append(wx.ID_ANY,label)
-        item.Enable(radiation is not None and (name=='3D radiation' or bool(available_cuts(radiation))))
+        from .polarization_view import available
+        item.Enable(available(frame.result) if name=='3D polarization' else radiation is not None and (name=='3D radiation' or bool(available_cuts(radiation))))
         item.SetHelp(reason or 'Relative |E| from original stored angles; not gain or efficiency.')
         menu.Bind(wx.EVT_MENU,lambda event,name=name:frame.select_view(name),id=item.GetId())
     region = menu.Append(wx.ID_ANY, 'Fit full study region')

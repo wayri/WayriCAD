@@ -2,6 +2,36 @@
 
 ## Quick start
 
+**Simplified starting workflow (unreleased source update):** choose parts and
+enter their dissipated power and ambient, then Run. Board screening is enabled
+by default. A usable explicit saved stackup selects the copper-layer model;
+otherwise the first run uses an explicitly labelled thin-sheet screen without
+inventing layer thicknesses. Automatic mesh sizing is enabled. STEP models are
+optional visualization and are off by default, not a prerequisite for solving.
+
+Starting material/boundary assumptions remain editable in Setup: dielectric
+conductivity 0.3 W/(m K), copper 385 W/(m K), via plating 0.025 mm, emissivity
+0.9 and still air. These are illustrative inputs, not values measured or
+inferred for your board. Thin-sheet effective conductivity starts at 0.3 W/(m K)
+and does not resolve copper layers. Review these assumptions for quantitative work.
+
+For a partly populated board, **Components > Include known power** explicitly
+replaces the run scope with valid known powers, including true zero. Unknown
+power is excluded, never assigned zero. Every included source still needs power.
+Missing RthetaJB leaves **junction temperature unknown**, but does not block the
+board field. The status now separates modeled power sources from available
+junction estimates. Saved user-selected advanced models and values are retained.
+
+Native verification uses the unchanged public demo, only C1=0.25 W, C2=0.5 W
+and ambient=25 C, no package resistances. The automatic fallback screen
+converges with a 2.22e-16 W heat-balance residual; this is execution evidence,
+not measured temperature accuracy. Reproduce with a complete wx/Matplotlib
+desktop interpreter and the installed KiCad worker:
+
+```text
+python tools/verify_quick_therm_quick_start.py --worker-python "C:/Program Files/KiCad/10.0/bin/python.exe"
+```
+
 | Step | Action |
 | --- | --- |
 | 1. Prepare inputs | Save the PCB and use **Components** to choose parts and review their power inputs. |

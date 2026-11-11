@@ -10,6 +10,30 @@ optional runtime coverage. Skips are not passes.
 
 ## Completed checks
 
+### Refined sampling and replacement gallery, 2026-11-10
+
+The replacement gallery uses a new 9,240-tetrahedron solve with 21 actual
+frequencies over 2.35-2.55 GHz (10 MHz spacing) and a 161 x 161 field grid at
+Z = 2 mm. Mesh controls changed from 2.5 to 1.25 mm and resolution 0.35 to
+0.22. EMerge 3.0.0b9 / SuperLU completed the sweep in about 516 seconds.
+The 2D plots are direct 220-DPI data exports with readable axes and reduced
+empty frame space; the 3D views use a larger native framebuffer. The old data
+were not upscaled or blurred. Angular radiation sampling remains 2 degrees.
+
+At 2.45 GHz, S11 changed from -0.589195+j0.660815 to
+-0.575611+j0.678958, an absolute complex difference of 0.0226645.
+The nearly linear boresight axial ratio changed from 50.156 to 92.518 dB;
+the new normalized Stokes values are approximately -0.999995, 0.003270,
+-0.00004733. This large AR sensitivity near a degenerate line is **not
+convergence**. The matching check still fails; no claim of agreement with the
+paper is made. Larger boundaries and further mesh refinement remain required.
+
+The [replacement images and provenance](images/dense/provenance.json) and
+[gzip-compressed original numerical samples](images/dense/wlan-screening-samples.json.gz)
+are separate from the earlier coarse gallery preserved below. The helper's
+`verify` mode checks the compressed file's bytes, all image hashes and the
+axial ratio against an independent SVD of the real Jones-vector matrix.
+
 ### Native result capture run, 2026-11-10
 
 A fresh Yang WLAN screening run solved 2.35/2.45/2.55 GHz using EMerge 3.0.0b9

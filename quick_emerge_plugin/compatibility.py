@@ -31,6 +31,7 @@ def read_certificate(path, *, allow_stale=False):
         if (not isinstance(value, dict) or type(value.get('schema')) is not int
                 or value['schema'] != 1 or value.get('issuer') != CERTIFICATE_ISSUER
                 or not isinstance(value.get('version'), str) or not value['version'].strip()
+                or ('packages' in value and not isinstance(value['packages'],dict))
                 or not isinstance(value.get('adapter_signature'), str)
                 or (not allow_stale and value['adapter_signature'] != adapter_signature())):
             return None

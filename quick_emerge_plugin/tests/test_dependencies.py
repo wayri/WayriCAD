@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from quick_emerge_plugin import backend, compatibility, dependencies as dep
+_latest_emsutil_release=dep.latest_emsutil_release
 
 
 class DependencyTests(unittest.TestCase):
@@ -30,17 +31,21 @@ class DependencyTests(unittest.TestCase):
         self.latest, self.discover, self.run, self.disk, self.probe = [p.start() for p in self.patches]
         for p in self.patches:
             self.addCleanup(p.stop)
+        utility=patch.object(dep,'latest_emsutil_release',return_value=dep.SUPPORTED_EMSUTIL_VERSION)
+        utility.start();self.addCleanup(utility.stop)
 
     def certificate(self, folder, version, output=None):
         backend.atomic_json(output or folder/compatibility.CERTIFICATE_NAME,
                             dict(schema=1, issuer=compatibility.CERTIFICATE_ISSUER, version=version,
-                                 adapter_signature='stale' if self.bad_certificate else compatibility.adapter_signature()))
+                                 adapter_signature='stale' if self.bad_certificate else compatibility.adapter_signature(),
+                                 packages={'emsutil':dep.SUPPORTED_EMSUTIL_VERSION}))
 
     def metadata_probe(self, argv, **kwargs):
         python = Path(argv[0])
         folder = python.parent.parent
         certificate = json.loads((folder/compatibility.CERTIFICATE_NAME).read_text())
         version = self.installed_versions.get(folder.name, certificate['version'])
+        if 'emsutil' in str(argv[-1]): version=certificate.get('packages',{}).get('emsutil','')
         return SimpleNamespace(returncode=0, stdout=version+'\n')
 
     def runtime(self, name='old', version='3.0.0b9'):
@@ -130,6 +135,45 @@ class DependencyTests(unittest.TestCase):
         self.assertEqual(self.manager.ensure()['environment'], 'old')
         self.latest.assert_not_called()
         self.run.assert_not_called()
+
+    def test_emsutil_update_builds_candidate_when_emerge_is_unchanged(self):
+        self.runtime(version=dep.SUPPORTED_VERSION)
+        self.state(active='old',checked_at=0)
+        self.latest.return_value=dep.SUPPORTED_VERSION
+        def updated_runner(argv,**kwargs):
+            self.runner(argv,**kwargs)
+            if '--qualify-runtime' in [str(value) for value in argv]:
+                path=Path(argv[-1]);certificate=json.loads(path.read_bytes())
+                certificate['packages']['emsutil']='1.1.7';backend.atomic_json(path,certificate)
+        self.run.side_effect=updated_runner
+        with patch.object(dep,'latest_emsutil_release',return_value='1.1.7'):
+            result=self.manager.ensure()
+        self.assertNotEqual(result['environment'],'old')
+        self.assertEqual(result['emsutil_version'],'1.1.7')
+        self.assertEqual(self.manager._read_state()['previous'],'old')
+
+    def test_stable_emerge_is_preferred_over_future_prerelease(self):
+        self.assertEqual(dep.select_release({'releases':{'3.0.4':[{}],'3.1.0rc1':[{}]}}),'3.0.4')
+
+    def test_manual_fallback_pins_match_authoritative_versions(self):
+        requirements=Path(dep.__file__).with_name('requirements-solver.txt').read_text()
+        self.assertIn('emerge[cad]=='+dep.SUPPORTED_VERSION,requirements)
+        self.assertIn('emsutil=='+dep.SUPPORTED_EMSUTIL_VERSION,requirements)
+
+    def test_malformed_package_identity_is_not_a_valid_certificate(self):
+        folder=self.runtime()
+        path=folder/compatibility.CERTIFICATE_NAME
+        value=json.loads(path.read_bytes());value['packages']='invalid'
+        backend.atomic_json(path,value)
+        self.assertIsNone(compatibility.read_certificate(path))
+
+    def test_emsutil_metadata_filters_yanked_prerelease_and_incompatible_versions(self):
+        response=Mock();response.read.return_value=json.dumps({'releases':{
+            '1.1.6':[{}],'1.1.7':[{}],'1.1.8':[{'yanked':True}],
+            '1.1.9rc1':[{}],'1.2.0':[{}]}}).encode()
+        context=Mock();context.__enter__=Mock(return_value=response);context.__exit__=Mock(return_value=False)
+        with patch.object(dep.urllib.request,'urlopen',return_value=context):
+            self.assertEqual(_latest_emsutil_release(),'1.1.7')
 
     def stale_owned_runtime(self):
         folder = self.runtime()

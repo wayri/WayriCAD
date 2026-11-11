@@ -65,6 +65,7 @@ def _local_mkl_path():
 
 def _probe_pardiso(np, matrix, rhs, expected):
     library = _local_mkl_path()
+    legacy_beta = importlib.metadata.version('emerge') == '3.0.0b9'
     previous = os.environ.get('EMERGE_PARDISO_PATH')
     handle = None
     directory_handle = None
@@ -72,13 +73,24 @@ def _probe_pardiso(np, matrix, rhs, expected):
         os.environ['EMERGE_PARDISO_PATH'] = library
         if sys.platform == 'win32' and Path(library).is_file() and hasattr(os, 'add_dll_directory'):
             directory_handle = os.add_dll_directory(str(Path(library).resolve().parent))
-        from emerge._emerge.solve_interfaces.pardiso_interface import PardisoInterface
-        handle = PardisoInterface(nthreads=2)
-        for phase in ('symbolic', 'numeric'):
-            code = getattr(handle, phase)(matrix)
-            if code != 0:
-                raise RuntimeError(f'PARDISO {phase} failed with code {code}')
-        actual, code = handle.solve(matrix, rhs)
+        if legacy_beta:
+            from emerge._emerge.solve_interfaces.pardiso_interface import PardisoInterface
+            handle = PardisoInterface(nthreads=2)
+            for phase in ('symbolic', 'numeric'):
+                code = getattr(handle, phase)(matrix)
+                if code != 0:
+                    raise RuntimeError(f'PARDISO {phase} failed with code {code}')
+            actual, code = handle.solve(matrix, rhs)
+        else:
+            from emerge import solvers
+            if not solvers.Pardiso.available:
+                raise ImportError('PARDISO requires '+solvers.Pardiso.requires+
+                                  '; select SUPERLU or configure EMERGE_PARDISO_PATH')
+            handle = solvers.Pardiso('QuickEMergeProbe')
+            handle.set_nthreads(2)
+            handle.initialize()
+            actual, report = handle.solve(matrix, np.asarray(rhs).reshape(-1, 1), None)
+            code = report.exit_code
         if code != 0:
             raise RuntimeError(f'PARDISO solve failed with code {code}')
         result = _checked_solution(np, matrix, rhs, expected, actual)
@@ -87,7 +99,10 @@ def _probe_pardiso(np, matrix, rhs, expected):
     finally:
         try:
             if handle is not None:
-                handle.clear_memory()
+                if legacy_beta:
+                    handle.clear_memory()
+                else:
+                    handle.reset()
         finally:
             try:
                 if directory_handle is not None:

@@ -34,6 +34,22 @@ Constraint Studio retains the `protocol-constraints` package identifier.
 Use active metadata and the [plugin catalogue](README.md#all-27-plugins) when
 changing names or inventory; directory names do not always match product names.
 
+## Website and discoverability
+
+- The canonical landing page is <https://wayri.github.io/wayricad/> in the
+  separate `wayri/wayri.github.io` Jekyll repository. Its source is
+  `wayricad.html`; its curated directory lives in `_data/wayricad.json`.
+- Read [discoverability maintenance](docs/DISCOVERABILITY.md) before changing
+  public descriptions, catalogue links, search metadata or product naming.
+  Keep WayriCAD canonical; mention the former KiWay name only for recognition.
+- Recheck the actual checkout, dirty work and public release before making
+  inventory/version claims. Source changes are not installed/released changes.
+- Use descriptive task links and real sanitized screenshots; never fabricate
+  ratings, benchmarks, compatibility or search-ranking claims. Preserve model
+  limitations and distinguish preview, simulation and measurement.
+- Preserve unrelated site/layout edits. Record source checks, browser checks,
+  commits and deployment separately; local changes are not a live-site update.
+
 ## Local development
 
 Use Python 3.10 or newer and a virtual environment for source development:

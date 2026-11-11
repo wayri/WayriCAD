@@ -168,7 +168,8 @@ def solve_thermal(em, np, c, info, progress, region=None, em_field=None, port_co
     model = em.Simulation('QuickEMergeThermal')
     model.set_physics(microwave=False, heatconduction=True)
     configure_solver(em, model, c)
-    model.hc.solveroutine.set_solver(em.EMSolver[c['solver']])
+    from .advanced import solver_selection
+    model.hc.solveroutine.set_solver(solver_selection(em,c['solver']))
     material = em.Material(cond_thermal=a['thermal_conductivity_w_mk'],
                            density=a['density_kg_m3'], specific_heat=a['specific_heat_j_kgk'])
     if c['mode'] == 'pcb_region':

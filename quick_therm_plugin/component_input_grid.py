@@ -76,19 +76,22 @@ class ComponentInputPanel(wx.Panel):
         self._refreshing = False
         self._search_timer = wx.Timer(self)
         layout = wx.BoxSizer(wx.VERTICAL)
-        toolbar = wx.BoxSizer(wx.HORIZONTAL)
+        toolbar = wx.WrapSizer(wx.HORIZONTAL)
         self.search = wx.SearchCtrl(self, style=wx.TE_PROCESS_ENTER)
         self.search.SetDescriptiveText("Find reference, value or side")
         self.search.ShowCancelButton(True)
-        toolbar.Add(self.search, 1, wx.RIGHT, 8)
+        self.search.SetMinSize((220,-1))
+        toolbar.Add(self.search, 0, wx.RIGHT, 8)
         self.included_only = wx.CheckBox(self, label="Show included only")
         toolbar.Add(self.included_only, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         self.select_all_button = wx.Button(self, label="Select all")
         self.select_none_button = wx.Button(self, label="Select none")
         self.select_visible_button = wx.Button(self, label="Include visible")
+        self.known_power_button=wx.Button(self,label='Include known power')
+        self.known_power_button.SetToolTip('Replace run scope with parts having valid known dissipated power. Unknown sources are excluded, not assigned zero.')
         self.restore_button = wx.Button(self, label="Restore saved row")
         for button in (self.select_all_button, self.select_none_button,
-                       self.select_visible_button, self.restore_button):
+                       self.select_visible_button, self.known_power_button, self.restore_button):
             toolbar.Add(button, 0, wx.RIGHT, 4)
         layout.Add(toolbar, 0, wx.EXPAND | wx.BOTTOM, 6)
         self.scope = wx.StaticText(self)
@@ -126,6 +129,7 @@ class ComponentInputPanel(wx.Panel):
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGING, self._changing)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self._changed)
         self.grid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self._selected)
+        self.known_power_button.Bind(wx.EVT_BUTTON,self._include_known_power)
         self.Bind(wx.EVT_SIZE, self._size)
         self._update_scope()
 
@@ -175,6 +179,11 @@ class ComponentInputPanel(wx.Panel):
     def effective_values(self, selected_only=True, include_limits=True):
         self.commit_pending_edits(validate=False)
         return self.model.effective_values(selected_only, include_limits)
+
+    def _include_known_power(self,event=None):
+        self.commit_pending_edits(validate=False)
+        self.model.include_known_power()
+        self._refresh_rows();self._notify()
 
     def selected_references(self):
         return self.model.selected_references()

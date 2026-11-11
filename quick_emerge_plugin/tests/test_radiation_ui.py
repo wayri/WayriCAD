@@ -49,6 +49,59 @@ class RadiationWorkspaceTests(unittest.TestCase):
             field=dict(x_mm=[0,1,2],y_mm=[0,2],z_mm=1,frequency_hz=frequencies[1],norm_e_v_m=[[1,2,3],[4,5,6]]),
             radiation=radiation,assumptions=['Analytical UI fixture; not a FEM execution'])
 
+    def test_polarization_is_visible_only_with_saved_complex_components(self):
+        result = self.result()
+        result['radiation']['boresight_polarization'] = {'ex_ri': [1, 0], 'ey_ri': [0, 1]}
+        self.frame.install_result(result)
+        self.assertIn('3D polarization', result_views(result, '3D'))
+        self.frame.select_view('3D polarization'); wx.Yield()
+        self.assertEqual(self.frame.tabs.GetPageText(self.frame.tabs.GetSelection()), '3D polarization')
+        view = self.frame.viewports['3D polarization']
+        if hasattr(view, 'scene'):
+            self.assertGreaterEqual(view.scene.GetActors().GetNumberOfItems(), 2)
+            self.assertIn('not a spatial field', view.scope_caption)
+        else:
+            self.assertEqual(view.axes().name, '3d')
+
+    def test_phase_vectors_use_saved_components_and_stop_on_close(self):
+        result = self.result()
+        result['field']['e_real_v_m'] = np.ones((3, 2, 3)).tolist()
+        result['field']['e_imag_v_m'] = np.zeros((3, 2, 3)).tolist()
+        frame = self.frame
+        frame.install_result(result)
+        frame.field_view.SetSelection(2)
+        frame.refresh_field_views()
+        frame.select_view('3D fields'); wx.Yield()
+        initial = frame.viewports['3D fields'].arguments['field']['display_vectors']
+        view=frame.viewports['3D fields']
+        self.assertIn('instantaneous_vector', view.picking[0])
+        if hasattr(view, 'data_actor'):
+            self.assertIsNotNone(view.data_actor)
+            self.assertIsNotNone(view.data_actor.GetMapper().GetInput().GetPointData().GetArray('original_vector_index'))
+        frame.field_phase.SetValue(180); frame.refresh_field_views(); wx.Yield()
+        other = frame.viewports['3D fields'].arguments['field']['display_vectors']
+        np.testing.assert_allclose(other['vectors'], -initial['vectors'])
+        np.testing.assert_array_equal(other['positions'], initial['positions'])
+        frame.animate_phase.SetValue(True); frame.toggle_field_animation()
+        self.assertTrue(frame.phase_timer.IsRunning())
+        frame.animate_phase.SetValue(False); frame.toggle_field_animation()
+        self.assertFalse(frame.phase_timer.IsRunning())
+
+    def test_array_factor_exposes_native_3d_lobes(self):
+        from quick_emerge_plugin.research_studies import solve_rectangular_array_factor
+        from quick_emerge_plugin.research_antennas import example_config
+        from quick_emerge_plugin.model import source_identity
+        config = example_config('verho-2023-aesa-4x4')
+        config['advanced']['scan_theta_deg'] = 30
+        self.frame._apply_setup_config(config, self.board)
+        result = solve_rectangular_array_factor(np, config, {})
+        result['source'] = source_identity(self.board)
+        self.frame.install_result(result)
+        self.frame.select_view('3D radiation'); wx.Yield()
+        self.assertEqual(self.frame.tabs.GetPageText(self.frame.tabs.GetSelection()), '3D radiation')
+        self.assertIn('3D radiation', result_views(result, '3D'))
+        self.assertGreater(len(self.frame.viewports['3D radiation'].picking), 10000)
+
     def test_both_views_and_dimension_switch_preserve_radiation_kind(self):
         f=self.frame;result=self.result();before=copy.deepcopy(result);f.install_result(result)
         f.select_view('Radiation pattern');wx.Yield()

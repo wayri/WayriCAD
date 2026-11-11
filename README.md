@@ -11,9 +11,20 @@
 from 27 independently installable development packages. Processing runs locally after setup.
 KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 
+Explore the [WayriCAD website and searchable plugin directory](https://wayri.github.io/wayricad/)
+for screenshots, installation, CLI workflows and model limits. WayriCAD was
+formerly named KiWay; the maintained source and PCM feed use WayriCAD.
+
 [Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
+
+**Release 4.8.0:** RLC protocol discovery and evidence-bounded screening,
+simpler QuickTherm power/ambient setup, EMerge 3.0.4 / emsutil 1.1.6 adapter
+support, richer antenna field/polarization and AESA steering views, and a
+searchable product website. See [4.8.0 release notes](docs/RELEASE_NOTES_4.8.0.md)
+for verification and known limits, including the unresolved Constraint Studio
+startup assertion on the audited Windows native runtime.
 
 **Release 4.7.0:** Quick EMerge adds research antenna benchmarks and detailed
 [reproduction walkthroughs](examples/quick_emerge/research_antennas/README.md).
@@ -25,8 +36,8 @@ offline HTML review from selected saved schematic, PCB, BoM and supported 3D
 content, with an exact in-plugin preview and a headless CLI for controlled
 automation. See the [illustrated guide](portable_web_export_plugin/README.md).
 KiCad 10 remains the supported baseline; newer saved-board analysis is experimental.
-[Download 4.7.0](https://github.com/wayri/WayriCAD/releases/tag/v4.7.0) ·
-[Release notes and validation limits](docs/RELEASE_NOTES_4.7.0.md) · [Getting started](#getting-started)
+[Download 4.8.0](https://github.com/wayri/WayriCAD/releases/tag/v4.8.0) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.8.0.md) · [Getting started](#getting-started)
 
 - [Quick PI](quick_pi_plugin/README.md): infer and review VIN → MID → OUT paths,
   parallel devices and current pins in the editor; save independent named batch

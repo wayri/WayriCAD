@@ -263,7 +263,7 @@ def build(frame, board):
         frame.scene_viewport_class=SceneViewport;frame.render_backend='VTK hardware 3D'
     except ImportError:
         frame.scene_viewport_class=None
-    for name in ['3D setup','S-parameters','Smith chart','Array factor','Field probes','3D fields','3D radiation','Radiation pattern','PCB enclosure']:
+    for name in ['3D setup','S-parameters','Smith chart','Array factor','Field probes','3D fields','3D radiation','3D polarization','Radiation pattern','PCB enclosure']:
         factory=frame.scene_viewport_class if name.startswith('3D') and frame.scene_viewport_class else PlotViewport
         page=factory(frame.tabs,name,frame._viewport_probe)
         if isinstance(page, PlotViewport): page.defer_hidden=True

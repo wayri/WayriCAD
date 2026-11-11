@@ -126,10 +126,19 @@ class BackendTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'missing'):
                 backend.runtime_info()
         with patch.object(backend.importlib.metadata, 'version', return_value='2.3.0'):
-            with self.assertRaisesRegex(RuntimeError, '3.0.0b9'):
+            with self.assertRaisesRegex(RuntimeError, backend.SUPPORTED_VERSION):
                 backend.runtime_info()
-        with patch.object(backend.importlib.metadata, 'version', return_value='3.0.0b9'):
-            self.assertEqual(backend.runtime_info()['version'], '3.0.0b9')
+        with patch.object(backend.importlib.metadata, 'version', side_effect=lambda name: backend.SUPPORTED_VERSION if name=='emerge' else backend.SUPPORTED_EMSUTIL_VERSION):
+            self.assertEqual(backend.runtime_info()['version'], backend.SUPPORTED_VERSION)
+
+    def test_certificate_must_cover_exact_dependency_pair(self):
+        versions={'emerge':'3.1.0','emsutil':backend.SUPPORTED_EMSUTIL_VERSION}
+        certificate={'version':'3.1.0','packages':{'emsutil':'1.1.5'}}
+        with patch.object(backend.importlib.metadata,'version',side_effect=versions.__getitem__), \
+             patch('quick_emerge_plugin.compatibility.runtime_certificate',return_value=certificate):
+            with self.assertRaisesRegex(RuntimeError,'compatibility'):
+                backend.runtime_info()
+            self.assertEqual(backend.runtime_info(qualifying=True)['version'],'3.1.0')
 
     def test_stale_request_before_solve(self):
         root = Path(__file__).resolve().parents[2] / '.tmp'

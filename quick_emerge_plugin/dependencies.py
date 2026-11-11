@@ -15,7 +15,7 @@ import uuid
 
 from packaging.version import InvalidVersion, Version
 
-from .backend import atomic_json, SUPPORTED_VERSION
+from .backend import atomic_json, SUPPORTED_VERSION, SUPPORTED_EMSUTIL_VERSION
 from .compatibility import CERTIFICATE_NAME, adapter_signature, read_certificate, runtime_certificate
 
 
@@ -24,7 +24,7 @@ MIN_FREE_BYTES = 3 * 1024**3
 # The complete compatibility matrix includes a PML solve and CAD/export readback.
 # Keep an active runtime untouched while a slower candidate finishes this gate.
 QUALIFICATION_TIMEOUT = 1200
-SOLVER_EXTRAS = ('ezdxf>=1.4,<2', 'msgpack>=1.1,<2', 'msgpack-numpy>=0.4.8,<0.5')
+SOLVER_EXTRAS = (f'emsutil>={SUPPORTED_EMSUTIL_VERSION},<1.2', 'ezdxf>=1.4,<2', 'msgpack>=1.1,<2', 'msgpack-numpy>=0.4.8,<0.5')
 ENTRY = Path(__file__).with_name('__main__.py')
 
 
@@ -88,6 +88,23 @@ def latest_release():
     return select_release(json.loads(content))
 
 
+def latest_emsutil_release():
+    """Select a stable emsutil within EMerge 3.0.x's declared compatible series."""
+    request=urllib.request.Request('https://pypi.org/pypi/emsutil/json',
+                                   headers={'User-Agent':'WayriCAD-Quick-EMerge/0.1'})
+    with urllib.request.urlopen(request,timeout=20) as response:
+        content=response.read(8*1024*1024+1)
+    if len(content)>8*1024*1024: raise RuntimeError('emsutil package metadata exceeds the supported size.')
+    candidates=[]
+    for version,files in json.loads(content).get('releases',{}).items():
+        try: parsed=Version(version)
+        except InvalidVersion: continue
+        if Version(SUPPORTED_EMSUTIL_VERSION)<=parsed<Version('1.2') and not parsed.is_prerelease and not parsed.is_devrelease and any(not f.get('yanked',False) for f in files):
+            candidates.append(parsed)
+    if not candidates: raise RuntimeError('No compatible non-yanked stable emsutil release is available.')
+    return str(max(candidates))
+
+
 def select_release(metadata):
     candidates = []
     for version, files in metadata.get('releases', {}).items():
@@ -99,7 +116,8 @@ def select_release(metadata):
             candidates.append(parsed)
     if not candidates:
         raise RuntimeError('No non-yanked EMerge 3+ release is available.')
-    return str(max(candidates))
+    stable=[candidate for candidate in candidates if not candidate.is_prerelease]
+    return str(max(stable or candidates))
 
 
 def run_command(argv, *, log, cancel, timeout=1200, progress=lambda value: None):
@@ -207,7 +225,15 @@ class DependencyManager:
                                        capture_output=True, text=True, timeout=10,
                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
                 if probe.returncode == 0 and probe.stdout.strip() == cert['version']:
-                    return {'python': str(python), 'version': cert['version'], 'environment': name}
+                    utility=subprocess.run([str(python),'-I','-c',
+                        'import importlib.metadata as m; print(m.version("emsutil"))'],
+                        capture_output=True,text=True,timeout=10,
+                        creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+                    expected=cert.get('packages',{}).get('emsutil')
+                    if utility.returncode or not expected or utility.stdout.strip()!=expected:
+                        return None
+                    return {'python': str(python), 'version': cert['version'],
+                            'emsutil_version':expected,'environment': name}
             except (OSError, subprocess.TimeoutExpired):
                 pass
         return None
@@ -279,13 +305,14 @@ class DependencyManager:
             if active and not force and 0 <= time.time()-checked < CHECK_INTERVAL:
                 return {**active, 'message': 'Compatible managed runtime ready.'}
             try:
-                progress('Checking the latest EMerge 3+ release…')
+                progress('Checking the latest stable EMerge and compatible emsutil releases…')
                 version = latest_release()
-                if active and Version(version) <= Version(active['version']):
+                emsutil_version=latest_emsutil_release()
+                if active and Version(version) <= Version(active['version']) and Version(emsutil_version)<=Version(active['emsutil_version']):
                     state['checked_at'] = time.time()
                     atomic_json(self.home/'active.json', state)
                     return {**active, 'message': 'Managed runtime is up to date.'}
-                if (not force and active and state.get('rejected') == [version, adapter_signature()]):
+                if (not force and active and state.get('rejected') == [version, emsutil_version, adapter_signature()]):
                     return {**active, 'message': 'Latest release did not pass compatibility checks; retaining the working runtime.'}
             except Exception as exc:
                 if active:
@@ -294,6 +321,7 @@ class DependencyManager:
                     return {**active, 'message': f'Update check unavailable; retained {active["version"]}. {exc}'}
                 # Try the tested baseline after a transient metadata lookup failure.
                 version = SUPPORTED_VERSION
+                emsutil_version=SUPPORTED_EMSUTIL_VERSION
                 progress(f'Latest-release lookup failed ({exc}); trying the tested baseline {version}.')
             if cancel.is_set():
                 raise SetupCancelled('Dependency setup cancelled.')
@@ -304,11 +332,13 @@ class DependencyManager:
                 raise RuntimeError('Solver setup requires at least 3 GiB free for a new environment. Retry requalification or set WAYRICAD_QUICK_EMERGE_HOME to a drive with enough space.'+detail)
             try:
                 candidate = self._install(version, cancel, progress)
+                if Version(candidate['emsutil_version'])<Version(emsutil_version):
+                    raise RuntimeError('Candidate did not install the reviewed latest compatible emsutil release.')
             except Exception as exc:
                 if isinstance(exc, SetupCancelled):
                     raise
                 if active:
-                    state.update(checked_at=time.time(), rejected=[version, adapter_signature()])
+                    state.update(checked_at=time.time(), rejected=[version, emsutil_version, adapter_signature()])
                     atomic_json(self.home/'active.json', state)
                     return {**active, 'message': f'Update rejected; kept EMerge {active["version"]}. {exc}'}
                 if version == SUPPORTED_VERSION:
@@ -320,7 +350,7 @@ class DependencyManager:
             state = {'schema': 1, 'active': candidate['environment'], 'previous': state.get('active') if active else None,
                      'checked_at': time.time()}
             atomic_json(self.home/'active.json', state)
-            return {**candidate, 'message': f'EMerge {candidate["version"]} installed and compatibility checks passed.'}
+            return {**candidate, 'message': f'EMerge {candidate["version"]} / emsutil {candidate["emsutil_version"]} installed and compatibility checks passed.'}
 
     def _install(self, version, cancel, progress):
         if cancel.is_set():

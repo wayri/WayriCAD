@@ -124,6 +124,16 @@ def compare_with_publication(result):
         else:
             checks.append({"check": "boresight circular-polarization axial ratio", "status": "insufficient",
                            "detail": "The selected equal-phase state is linear; circular-polarization AR is not applicable."})
+    elif template_id == 'cheh-lin-2023-siw-dra':
+        for index, band in enumerate(research['published_targets']['measured_bands_ghz'], 1):
+            checks.append(_band_check(result, 1, band, f'published SIW/DRA matching band {index}'))
+        checks.append({'check': 'source geometry assumptions and convergence', 'status': 'insufficient',
+                       'detail': research['model_scope']})
+    elif template_id == 'ma-2024-siw-horn':
+        checks.append(_band_check(result, 1, research['published_targets']['simulated_band_ghz'],
+                                  'published SIW horn simulated matching band'))
+        checks.append({'check': 'source geometry assumptions and convergence', 'status': 'insufficient',
+                       'detail': research['model_scope']})
     else:
         raise ValueError("unsupported research benchmark: " + template_id)
     statuses = {check["status"] for check in checks}

@@ -140,8 +140,10 @@ class TraceFrame(wx.Frame):
         more.Bind(wx.EVT_BUTTON, self._more)
         self.bulk_button = wx.Button(panel, label="All nets / Bundles…")
         self.bulk_button.Bind(wx.EVT_BUTTON, self.open_bulk)
+        self.protocol_button=wx.Button(panel,label='Protocol scan...')
+        self.protocol_button.Bind(wx.EVT_BUTTON,self.open_protocols)
         row = wx.BoxSizer(wx.HORIZONTAL)
-        row.Add(self.bulk_button, 0, wx.ALL, 5); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(more, 0, wx.ALL, 5)
+        row.Add(self.protocol_button,0,wx.ALL,5);row.Add(self.bulk_button, 0, wx.ALL, 5); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(more, 0, wx.ALL, 5)
         self.measure_button.SetDefault()
         root.Add(row, 0, wx.ALIGN_RIGHT)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
@@ -214,6 +216,12 @@ class TraceFrame(wx.Frame):
         panel.SetSizer(root)
         self._mode_changed(None)
         self.workflow.set_step(0, "Choose a net and two terminals. Auto reference searches ground copper by layer.")
+
+    def open_protocols(self,_event=None):
+        try:
+            from .protocol_ui import create_protocol_frame
+            create_protocol_frame(self).Show()
+        except Exception as exc:wx.MessageBox(str(exc),'RLC protocol discovery',wx.OK|wx.ICON_ERROR,self)
 
     def open_bulk(self, _event: Any = None) -> None:
         from .bulk_ui import create_bulk_frame

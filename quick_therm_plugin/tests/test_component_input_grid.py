@@ -66,6 +66,9 @@ assert panel.export_state()['references'] == ['R1', 'U1', 'U2']
 panel.load(INVENTORY, MAPPING, {'R1': {'power_w': 0}}, ['R1'], LIMITS)
 panel.search.ChangeValue(''); panel._filter(); wx.Yield()
 assert panel.effective_values()['R1']['power_w'] == 0
+panel.known_power_button.GetEventHandler().ProcessEvent(wx.CommandEvent(wx.EVT_BUTTON.typeId,panel.known_power_button.GetId()))
+assert panel.selected_references()==['R1','U1'], 'known power replaces scope; unknown U2 excluded'
+assert notifications[-1]['references']==['R1','U1']
 frame.Destroy(); wx.Yield(); app.Destroy()
 print('Native component grid passed: prefill, JB edit, invalid commit, blank, scope, search, provenance, callbacks.')
 '''
