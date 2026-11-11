@@ -127,6 +127,8 @@ results, and record any redaction in screenshot provenance where provided.
 ## Packaging and maintainer releases
 
 1. Align active package versions and release notes for a new software release.
+   Include declared nested runtime versions and the standalone BOM PCM metadata;
+   run `python -m pytest tests/test_runtime_versions.py -q` before packaging.
    Build with `python build_pcm.py --clean-feed` and `python -m build`.
 2. Run `python tools/validate_packages.py`, `python tools/validate_docs.py` and
    `python tools/smoke_imported_packages.py dist/<built-wheel>.whl`.
