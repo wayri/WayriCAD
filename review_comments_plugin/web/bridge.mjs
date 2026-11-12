@@ -117,18 +117,42 @@ export function validateComments(value, document) {
   });
 }
 
-/** Version-pinned adapter: use the renderer's own world camera, including flip. */
+/** 0.6.0 has no public arbitrary-point 3D projector. Never guess exploded Z. */
+export function overlaysRegistered(viewer) {
+  if (viewer.view !== '3d') return true;
+  try {
+    const value = typeof viewer.getExplode === 'function' ? viewer.getExplode() : viewer.renderer?.getExplode?.() ?? 0;
+    return Number.isFinite(value) && value === 0;
+  } catch { return false; }
+}
+function camera2D(viewer) {
+  const camera = viewer.getCamera?.();
+  return camera && [camera.center?.x, camera.center?.y, camera.zoom].every(Number.isFinite) && camera.zoom > 0 && typeof camera.flipped === 'boolean' ? camera : null;
+}
+/** Public copied 2D camera in CSS pixels/mm; legacy/CAM stays version-pinned. */
 export function projectWorld(viewer, position, rect) {
   let projected;
   if (viewer.view === '3d') {
+    if (!overlaysRegistered(viewer)) return null;
     projected = viewer.renderer?.projectAnchor?.({ position });
     if (!projected || projected.visible !== true) return null;
     projected = { x: projected.x-rect.left, y: projected.y-rect.top };
+  } else if (typeof viewer.getCamera === 'function' && viewer.view !== 'manufacturing') {
+    const camera = camera2D(viewer);
+    if (!camera) return null;
+    projected = {x:(position.x-camera.center.x)*camera.zoom*(camera.flipped?-1:1)+rect.width/2,
+      y:(position.y-camera.center.y)*camera.zoom+rect.height/2};
   } else projected = viewer.renderer?.viewport?.camera?.world_to_screen?.(position);
   return projected && [projected.x, projected.y].every(Number.isFinite) ? projected : null;
 }
-export function screenToWorld(viewer, x, y) {
+export function screenToWorld(viewer, x, y, rect = viewer.stage?.getBoundingClientRect()) {
   if (viewer.view === '3d') throw new Error('Point and region drafting require the PCB or schematic view; 3D has no verified screen-to-mm inverse.');
+  if (typeof viewer.getCamera === 'function' && viewer.view !== 'manufacturing') {
+    const camera = camera2D(viewer);
+    if (!camera || !rect) throw new Error('The public camera is unavailable.');
+    return point({x:camera.center.x+(x-rect.width/2)/camera.zoom*(camera.flipped?-1:1),
+      y:camera.center.y+(y-rect.height/2)/camera.zoom});
+  }
   const camera = viewer.renderer?.viewport?.camera;
   if (typeof camera?.screen_to_world !== 'function') throw new Error('The renderer has no verified coordinate mapping.');
   return point(camera.screen_to_world({ x, y }));
@@ -153,6 +177,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
   const overlay = elements.overlay || dom.createElementNS(NS, 'svg');
   overlay.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden;z-index:20';
   let document = null, markers = [], draft = null, selected = null, mode = 'navigate', theme = 'light', layersOpen = false, generation = 0, disposed = false, tick = null, stopHooks = () => {}, drag = null, swallowClick = false;
+  let documentLoaded = false, loadController = null, viewController = null, viewGeneration = 0;
   const send = (type, detail = {}) => postMessage({ type, ...detail, ...(document ? { path: document.path, source_sha256: document.source_sha256 } : {}) });
   const status = message => { if (elements.status) elements.status.textContent = String(message); };
   const error = reason => { const message = reason?.message || String(reason); status(message); send('error', { message }); };
@@ -171,7 +196,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       const button = elements[id];
       if (button) {
         button.setAttribute('aria-pressed', String(mode === value));
-        button.disabled = value !== 'navigate' && (!api.authorized || viewer.view === '3d');
+        button.disabled = value !== 'navigate' && (!documentLoaded || !api.authorized || viewer.view === '3d');
       }
     }
     if (elements['comment-label']) elements['comment-label'].textContent = mode === 'pin' ? 'Place pin…' : mode === 'region' ? 'Draw region…' : 'Add comment';
@@ -183,6 +208,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
   }
   function clearTick() { if (tick != null) cancelRaf?.(tick); tick = null; }
   function clearDrawing() {
+    documentLoaded=false;loadController?.abort();viewController?.abort();++viewGeneration;
     clearTick(); stopHooks(); stopHooks=()=>{};
     viewer.pending?.abort(); if (Number.isFinite(viewer.generation)) ++viewer.generation;
     viewer.renderer?.dispose?.(); viewer.renderer=null;
@@ -194,14 +220,16 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
   function updateTabs() {
     for (const view of ['pcb', 'schematic', '3d', 'manufacturing']) {
       const button = elements[`view-${view}`];
-      if (button) { button.disabled = !document || view === '3d' && document.kind !== 'pcb' || view==='manufacturing' && !document.documents.some(d=>d.kind==='manufacturing'); button.setAttribute('aria-pressed', String(viewer.view === view)); }
+      if (button) { button.disabled = !documentLoaded || (view === '3d' ? document.kind !== 'pcb' : !document.documents.some(d=>d.kind===view)); button.setAttribute('aria-pressed', String(documentLoaded && viewer.view === view)); }
     }
     updateModeControls();
   }
   function updateLayers() {
     if (!elements.layers) return;
     elements.layers.replaceChildren();
-    const known = ['pcb','manufacturing'].includes(viewer.view) ? viewer.getLayers() : [];
+    const hasLayers = ['pcb','manufacturing'].includes(viewer.view) || viewer.view==='3d' && typeof viewer.getLayerState==='function';
+    const known = documentLoaded && hasLayers ? viewer.getLayers() : [];
+    const visible = viewer.getLayerState?.()?.visible;
     const toggle = elements['layers-toggle'];
     if (toggle) {
       toggle.disabled = !known.length;
@@ -210,7 +238,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     elements.layers.hidden = !layersOpen || !known.length;
     for (const layer of known) {
       const label = dom.createElement('label'), check = dom.createElement('input');
-      check.type = 'checkbox'; check.value = layer; check.checked = viewer.renderer?.visibleLayers?.has(layer) ?? true;
+      check.type = 'checkbox'; check.value = layer; check.checked = Array.isArray(visible) ? visible.includes(layer) : viewer.renderer?.visibleLayers?.has(layer) ?? true;
       label.append(check, dom.createTextNode(layer)); elements.layers.append(label);
       listen(check, 'change', safe(() => viewer.setLayers([...elements.layers.querySelectorAll('input')].filter(input => input.checked).map(input => input.value))));
     }
@@ -232,9 +260,13 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
   function drawOverlay() {
     if (disposed) return;
     overlay.replaceChildren();
+    if (!documentLoaded) return;
     const rect = viewer.stage.getBoundingClientRect();
     overlay.setAttribute('viewBox', `0 0 ${Math.max(1, rect.width)} ${Math.max(1, rect.height)}`);
-    for (const [index, marker] of markers.entries()) {
+    const registered = overlaysRegistered(viewer);
+    if (!registered) overlay.setAttribute('aria-label', 'Review markers hidden: exploded 3D is not registered to saved XY anchors');
+    else overlay.setAttribute('aria-label', 'Review comment markers');
+    for (const [index, marker] of (registered ? markers : []).entries()) {
       const at = projectWorld(viewer, { x: marker.x, y: marker.y }, rect);
       if (!at) continue;
       const visible=at.x>=-20 && at.y>=-20 && at.x<=rect.width+20 && at.y<=rect.height+20;
@@ -254,7 +286,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       listen(group, 'click', focus); listen(group, 'keydown', event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); focus(event); } });
       overlay.append(group);
     }
-    if (draft && api.authorized) {
+    if (registered && draft && api.authorized) {
       const group = shape('g', {'data-draft':'true', 'aria-label':'Unpublished comment location'});
       const geometry=draft.context||draft;
       const color = theme === 'dark' ? MARKER_COLORS.draftDark : MARKER_COLORS.draftLight, area = geometry.area;
@@ -280,7 +312,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     const renderer = viewer.renderer, originals = [];
     // OwnedCanvas mutates its camera before draw/requestDraw/resize. Observe
     // those calls rather than duplicating the camera transform or wheel math.
-    if (viewer.view !== '3d') for (const key of ['draw', 'requestDraw', 'resize']) {
+    if (typeof viewer.getCamera !== 'function' || viewer.view === 'manufacturing') for (const key of ['draw', 'requestDraw', 'resize']) {
       if (typeof renderer?.[key] !== 'function') continue;
       const original = renderer[key];
       const replacement = function (...args) { const result = original.apply(this, args); drawOverlay(); return result; };
@@ -289,9 +321,12 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     stopHooks = () => originals.forEach(restore => restore());
     drawOverlay(); updateLayers(); updateTabs();
   }
-  listen(viewer, 'ready', () => { if (!disposed) installProjectionHooks(); });
+  listen(viewer, 'ready', () => { if (!disposed && documentLoaded) installProjectionHooks(); });
+  listen(viewer, 'camerachange', event => { if (documentLoaded && (!event.detail?.path || event.detail.path===document.path)) drawOverlay(); });
+  listen(viewer, 'viewchange', () => { if (!disposed && documentLoaded) installProjectionHooks(); });
+  listen(viewer, 'layerschange', () => { if (!disposed && documentLoaded) { updateLayers();drawOverlay(); } });
   listen(viewer, 'select', event => {
-    if (!document || disposed) return;
+    if (!documentLoaded || !document || disposed) return;
     if (event.detail?.path && event.detail.path !== document.path) return;
     const item = event.detail?.item;
     if (!object(item)) return;
@@ -339,20 +374,23 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
     get viewer() { return viewer; },
     async setDocument(payload) {
       if(disposed)return false;
+      loadController?.abort();viewController?.abort();++viewGeneration;
+      loadController=new AbortController();const signal=loadController.signal;documentLoaded=false;
       const ticket=++generation;let next;draft=null;
       try{next=validateDocument(payload);}catch(reason){document=null;markers=[];api.authorized=false;clearDrawing();error(reason);return false;}
-      document = next; markers=[]; selected=null; mode='navigate'; api.authorized=false; clearTick(); overlay.replaceChildren(); updateDocuments();
+      document = next; markers=[]; selected=null; mode='navigate'; api.authorized=false; clearTick(); overlay.replaceChildren(); updateDocuments();updateTabs();updateLayers();
       try {
         if(next.kind==='manufacturing' && typeof viewer.showManufacturing!=='function')throw new Error('This externally supplied KiView build does not support Gerber drawings. Update its viewer assets.');
-        const loaded = await viewer.loadSource(next.source, {path:next.path,view:next.view});
+        const loaded = await viewer.loadSource(next.source, {path:next.path,view:next.view,signal});
         if (disposed || ticket !== generation || !loaded) return false;
-        applyTheme(); viewer.fit(); installProjectionHooks(); send('documentReady', {view:viewer.view});
+        documentLoaded=true;applyTheme();if(typeof viewer.getCamera!=='function')viewer.fit();installProjectionHooks(); send('documentReady', {view:viewer.view});
         status(`${next.path} · saved design · comments require a matching synced conversation`);
         return true;
       } catch (reason) { if (ticket === generation) { document=null; markers=[]; api.authorized=false; clearDrawing(); error(reason); } return false; }
     },
     setComments(payload) {
       const previousDraft=draft;draft=null;markers=[]; api.authorized=false;
+      if (!documentLoaded) { updateModeControls();drawOverlay();return 0; }
       try {
         // The native host may connect a provider after an independent preview,
         // or authorize a new immutable review scope for identical saved bytes.
@@ -387,10 +425,19 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       } finally { drawOverlay(); }
     },
     async setView(view) {
-      if (!document) return false;
+      if (!['pcb','schematic','3d','manufacturing'].includes(view)) throw new TypeError('Unsupported drawing view.');
+      if (!documentLoaded || !document || disposed) return false;
+      viewController?.abort();++viewGeneration;
       if (view === 'schematic' && document.kind !== 'schematic' || view === 'pcb' && document.kind !== 'pcb' || view==='manufacturing' && document.kind!=='manufacturing') { send('requestView',{view}); return false; }
       if (view === '3d' && document.kind !== 'pcb') throw new Error('3D requires a saved PCB document.');
-      mode='navigate'; clearTick(); const result=await viewer.setView(view); if (result) { applyTheme(); viewer.fit(); installProjectionHooks(); } return result;
+      if (viewer.view===view) return true;
+      viewController=new AbortController();const ticket=generation,nav=viewGeneration;
+      mode='navigate';clearTick();
+      try {
+        const result=await viewer.setView(view,{signal:viewController.signal});
+        if(disposed || ticket!==generation || nav!==viewGeneration || !result)return false;
+        applyTheme();installProjectionHooks();return true;
+      } catch(reason) { if(disposed || ticket!==generation || nav!==viewGeneration)return false;throw reason; }
     },
     setTheme(value) {
       if (!['light', 'dark'].includes(value)) throw new TypeError('Theme must be light or dark.');
@@ -401,12 +448,22 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       text(identifier,200);
       const marker=markers.find(item=>item.comment_id===identifier); if (!marker || !api.authorized) return false;
       selected=identifier;
-      if (viewer.view==='3d') { if (marker.anchor.uuid) viewer.renderer?.setSelection?.({uuids:[marker.anchor.uuid]}); viewer.renderer?.setAnchor?.(marker.anchor); }
-      else { const camera=viewer.renderer?.viewport?.camera; if (typeof camera?.center?.set!=='function') return false; camera.center.set(marker.x,marker.y); viewer.renderer.draw(); }
+      if (viewer.view==='3d') {
+        if (marker.anchor.uuid && typeof viewer.selectObject==='function') viewer.selectObject(marker.anchor.uuid,{locate:true});
+        else if (marker.anchor.uuid) viewer.renderer?.setSelection?.({uuids:[marker.anchor.uuid]});
+        if (overlaysRegistered(viewer)) viewer.renderer?.setAnchor?.(marker.anchor);
+      } else if (typeof viewer.setCamera==='function' && viewer.view!=='manufacturing') {
+        const camera=camera2D(viewer);if(!camera)return false;
+        let location={x:marker.x,y:marker.y};
+        if (marker.anchor.uuid && viewer.selectObject?.(marker.anchor.uuid,{locate:false})) {
+          const saved=viewer.getSelectionPosition?.();if(saved && [saved.x,saved.y].every(Number.isFinite)) location={x:saved.x,y:saved.y};
+        }
+        viewer.setCamera({...camera,center:location});
+      } else { const camera=viewer.renderer?.viewport?.camera; if (typeof camera?.center?.set!=='function') return false; camera.center.set(marker.x,marker.y); viewer.renderer.draw(); }
       drawOverlay(); return true;
     },
     setMode,
-    dispose() { disposed=true; ++generation; api.authorized=false;markers=[];draft=null;document=null;clearTick(); stopHooks(); overlay.remove(); viewer.dispose(); },
+    dispose() { disposed=true; ++generation; documentLoaded=false;loadController?.abort();viewController?.abort();++viewGeneration;api.authorized=false;markers=[];draft=null;document=null;clearTick(); stopHooks(); overlay.remove(); viewer.dispose(); },
   };
   applyTheme();updateTabs();updateLayers();
   return api;
@@ -415,7 +472,7 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
 export async function mountReviewBridge({ViewerClass,document:dom=globalThis.document,window:target=globalThis.window}={}) {
   let bridge;
   try {
-    const KiCadViewer=ViewerClass||(await import('./vendor/web-library/kicad-viewer.mjs')).KiCadViewer;
+    const KiCadViewer=ViewerClass||(await import('./vendor/review-viewer.mjs')).KiCadViewer;
     const ids=['viewer','status','layers','layers-toggle','documents','view-pcb','view-schematic','view-3d','fit','comment-menu','comment-label','mode-pan','mode-pin','mode-region'];
     const elements=Object.fromEntries(ids.map(id=>[id,dom.getElementById(id)]));
     elements.overlay=dom.getElementById('review-overlay');

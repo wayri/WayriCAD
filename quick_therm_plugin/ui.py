@@ -179,6 +179,10 @@ class QuickThermFrame(wx.Frame):
 
     def _thermal_files(self,event=None):
         menu=wx.Menu()
+        from wayricad_runtime.thermoelectric_ui import open_study
+        volumetric=menu.Append(wx.ID_ANY,'3D solid electrothermal study...')
+        volumetric.Enable(not self._busy)
+        menu.Bind(wx.EVT_MENU,lambda event:open_study(self),volumetric)
         available=not self._busy
         actions=[('Save setup…',self.project_setup.on_save,available),
                  ('Load setup…',self.project_setup.on_load,available),

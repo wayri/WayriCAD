@@ -1,0 +1,143 @@
+{
+  "name": "@wayrisignals/kicad-webview",
+  "version": "0.6.0",
+  "description": "Interactive KiCad schematic, PCB and 3D viewer for the web, with Gerber, Excellon, linked views and offline HTML exports",
+  "type": "module",
+  "license": "MPL-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./dist/kivi-viewer.js",
+      "default": "./dist/kivi-viewer.js"
+    },
+    "./integrations": "./integrations/shared/embed-url.mjs",
+    "./html": {
+      "types": "./types/standalone-html.d.ts",
+      "import": "./dist/standalone-html.mjs",
+      "default": "./dist/standalone-html.mjs"
+    },
+    "./slack": "./integrations/slack/adapter.mjs",
+    "./lite": {
+      "types": "./types/lite.d.ts",
+      "import": "./dist/lite/kicad-webview-lite.js",
+      "default": "./dist/lite/kicad-webview-lite.js"
+    },
+    "./hierarchy": {
+      "types": "./types/hierarchy.d.ts",
+      "import": "./src/project-tree.mjs",
+      "default": "./src/project-tree.mjs"
+    },
+    "./results": {
+      "types": "./types/wayricad-results.d.ts",
+      "import": "./dist/wayricad-results.js",
+      "default": "./dist/wayricad-results.js"
+    },
+    "./bom": {
+      "types": "./types/bom.d.ts",
+      "import": "./dist/bom-viewer.js",
+      "default": "./dist/bom-viewer.js"
+    }
+  },
+  "files": [
+    "dist/kivi-viewer.js",
+    "dist/kicad-webview.min.js",
+    "dist/embed.html",
+    "dist/embed.mjs",
+    "dist/standalone-html.mjs",
+    "dist/*.md",
+    "dist/LICENSE",
+    "dist/*-LICENSE",
+    "dist/SOURCE-PROVENANCE.json",
+    "dist/licenses",
+    "src",
+    "engine",
+    "licenses",
+    "LICENSING.md",
+    "SOURCE-PROVENANCE.json",
+    "THIRD-PARTY-NOTICES.md",
+    "integrations/README.md",
+    "integrations/shared/*.mjs",
+    "integrations/notion/README.md",
+    "integrations/slack/*.mjs",
+    "integrations/slack/manifest.example.json",
+    "integrations/slack/catalog.example.json",
+    "integrations/confluence/build.mjs",
+    "integrations/confluence/package.json",
+    "integrations/confluence/package-lock.json",
+    "integrations/confluence/manifest.example.yml",
+    "integrations/confluence/policy.json",
+    "integrations/confluence/src",
+    "integrations/confluence/licenses",
+    "docs/APP-INTEGRATIONS-BETA.md",
+    "docs/MANUFACTURING-BETA.md",
+    "integrations/confluence/validate-manifest.mjs",
+    "integrations/confluence/forge-local.mjs",
+    "integrations/confluence/BUILD-CHECKS.md",
+    "docs/ANALYSIS.md",
+    "docs/ADVANCED-VIEWER.md",
+    "docs/NET-MODEL-PROVENANCE.md",
+    "types",
+    "dist/lite",
+    "docs/PUBLIC-API.md",
+    "docs/LIGHTWEIGHT.md",
+    "docs/CAROUSEL.md",
+    "docs/LINKED-VIEWS.md",
+    "docs/VIEW-LINKS.md",
+    "docs/INTERACTIVE-DEMO.md",
+    "docs/VIEW-NAVIGATION.md",
+    "docs/PROJECT-TREE.md",
+    "docs/PRESENTATION.md",
+    "docs/PERFORMANCE.md",
+    "docs/INSPECTION-CONTROLS.md",
+    "TRADEMARKS.md",
+    "SECURITY.md",
+    "docs/MOBILE-PERFORMANCE.md",
+    "dist/wayricad-results.js",
+    "docs/WAYRICAD-RESULTS.md",
+    "dist/bom-viewer.js",
+    "docs/BOM-ANALYTICS.md",
+    "docs/UPSTREAM-SYNC.md",
+    "docs/EXTENSION-REFRESH.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:3d": "node scripts/build-3d.mjs",
+    "test": "node --test tests/*.test.mjs tests/*.test.cjs",
+    "preview": "node scripts/preview.cjs",
+    "build:lite": "node scripts/build-lite.mjs",
+    "package:static": "node scripts/package-static.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "three": "0.171.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wayri/kicad-webview.git"
+  },
+  "homepage": "https://wayri.github.io/kicad-webview/",
+  "unpkg": "./dist/kicad-webview.min.js",
+  "publishConfig": {
+    "access": "public",
+    "tag": "latest",
+    "provenance": false
+  },
+  "types": "./types/index.d.ts",
+  "bugs": {
+    "url": "https://github.com/wayri/kicad-webview/issues"
+  },
+  "keywords": [
+    "kicad",
+    "pcb",
+    "schematic",
+    "3d",
+    "gerber",
+    "excellon",
+    "webgl",
+    "viewer"
+  ],
+  "jsdelivr": "./dist/kicad-webview.min.js"
+}

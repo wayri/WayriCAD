@@ -16,6 +16,12 @@ def protocol_budgets(command):
 def parser():
     root=argparse.ArgumentParser(description=__doc__)
     subs=root.add_subparsers(dest='command',required=True)
+    thermal=subs.add_parser('thermal-3d',help='Explicit shared 3D current/heat study; not a high-frequency EM solution.')
+    thermal.add_argument('study',type=Path);thermal.add_argument('--output',type=Path);thermal.add_argument('--html',type=Path)
+    feedback=subs.add_parser('thermal-feedback',help='Review explicit 3D temperature samples against original route section DC resistances.')
+    feedback.add_argument('source',type=Path);feedback.add_argument('--thermal',type=Path,required=True)
+    feedback.add_argument('--mapping',type=Path);feedback.add_argument('--template',action='store_true')
+    feedback.add_argument('--current-a',type=float);feedback.add_argument('--output',type=Path)
     neighbours=subs.add_parser('neighbours',help='Bounded same-layer geometric exposure heat map; no voltage inferred from colour.')
     neighbours.add_argument('board',type=Path)
     neighbours.add_argument('--net',action='append',default=[],help='Exact target net; repeat. Omit to search every connected net.')
@@ -125,6 +131,21 @@ def write_report(destination,payload,source,extension):
 
 
 def execute(args):
+    if args.command=='thermal-feedback':
+        from wayricad_runtime.thermoelectric_study import parse_study,save_document,load_report
+        from .thermal_feedback import mapping_template,apply_temperature
+        def load(path):
+            if path.stat().st_size>16*1024*1024:raise ValueError('Thermal feedback input exceeds 16 MiB.')
+            return parse_study(path.read_text(encoding='utf-8-sig'))
+        path_report,thermal=load(args.source),load_report(args.thermal)
+        if args.template:
+            if args.mapping or args.current_a is not None:raise ValueError('Create a template separately from applying a mapping.')
+            report=mapping_template(path_report,thermal)
+        else:
+            if not args.mapping:raise ValueError('Supply --mapping after reviewing --template output.')
+            report=apply_temperature(path_report,thermal,load(args.mapping),args.current_a)
+        if args.output:save_document(args.output,json.dumps(report,indent=2,allow_nan=False),sources=[args.source,args.thermal,*([args.mapping] if args.mapping else [])])
+        return report
     if args.command=='neighbours':
         from .service import source_fingerprints,execute as execute_saved
         from .neighbour_report import html_report as neighbour_html
@@ -282,6 +303,12 @@ def execute(args):
 
 def main(argv=None):
     args=parser().parse_args(argv)
+    if args.command=='thermal-3d':
+        from wayricad_runtime.thermoelectric_study import cli
+        command=[str(args.study)]
+        if args.output:command+=['--output',str(args.output)]
+        if args.html:command+=['--html',str(args.html)]
+        return cli(command)
     try:
         if args.command in ('inspect','screen','study','neighbours'):
             try:import pcbnew

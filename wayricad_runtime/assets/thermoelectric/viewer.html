@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Electrothermal Study</title><style>
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:#f4f7f8;color:#20323a}header{padding:14px 20px;background:#fff;border-bottom:1px solid #cbd5d9}h1{font-size:21px;margin:0 0 6px}header p{margin:3px 0}.tools{display:flex;gap:14px;flex-wrap:wrap;padding:10px 20px;background:#fff;border-bottom:1px solid #cbd5d9}label{display:flex;align-items:center;gap:6px}button,select{padding:5px;border:1px solid #aebdc3;background:white;color:#20323a;border-radius:3px}main{display:grid;grid-template-columns:minmax(0,1fr) 290px}#view{height:66vh;min-height:320px;position:relative;touch-action:none}canvas{display:block;width:100%;height:100%}aside{padding:16px;background:#fff}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.5 system-ui}#probe{min-height:140px}#scale{height:16px;background:linear-gradient(90deg,#2446ae,#22a8bd,#f3dd42,#dc4033)}.limits{padding:16px 20px;background:#fff;border-top:1px solid #cbd5d9}details{padding:10px 20px}summary{cursor:pointer}table{border-collapse:collapse;width:100%}td,th{padding:7px;border-bottom:1px solid #dce4e7;text-align:left}#error{color:#9b241a;font-weight:600;padding:14px}input[type=range]{max-width:180px}@media(max-width:760px){main{grid-template-columns:1fr}#view{height:54vh}aside{display:grid;grid-template-columns:1fr 1fr;gap:15px}#probe{min-height:90px}.tools{padding:9px;gap:8px}header{padding:12px}}
+</style><style>header p{overflow-wrap:anywhere}main>*{min-width:0}#view{min-width:0;overflow:hidden}aside>section{min-width:0}</style></head><body><header><h1>3D Electrothermal Study</h1><p id="summary"></p><p id="identity"></p><p id="dimensions"></p></header>
+<section class="tools"><label>Field<select id="field"><option value="temperatures_c">Temperature (C)</option><option value="potential_v">Potential (V)</option><option value="joule_density_w_m3">Joule density (W/m3)</option></select></label><label>Layer<select id="layer"><option value="all">All solids</option></select></label><label>Z scale<input id="zscale" type="range" min="1" max="25" value="1"><output id="zlabel">1x</output></label><button id="fit" title="Fit solved volume">Fit</button><button id="reset" title="Reset view orientation">Reset</button></section>
+<main><section id="view"><div id="error"></div></section><aside><section><strong id="quantity">Temperature (C)</strong><div id="scale"></div><p id="range"></p><pre id="probe">Select or hover over a solved cell.</pre></section><section><strong>Energy balance</strong><pre id="energy"></pre></section></aside></main>
+<section class="limits"><strong>Model scope</strong><p id="notice"></p><ul id="limits"></ul></section>
+<details><summary>Construction and mesh</summary><pre id="construction"></pre></details>
+<details><summary>Iteration history</summary><table><thead><tr><th>Iteration</th><th>Temperature change (C)</th><th>Heat residual (W)</th></tr></thead><tbody id="history"></tbody></table></details>
+<script id="data" type="application/json">__STUDY_JSON__</script>
+<script type="module">
+import * as THREE from '__THREE_MODULE__';
+const study=JSON.parse(document.querySelector('#data').textContent),r=study.result,request=study.request;
+const $=q=>document.querySelector(q),fmt=(n,u='')=>Number.isFinite(n)?`${Number(n).toPrecision(6)} ${u}`:'Unknown';
+$('#summary').textContent=`${r.model} | ${r.coordinates.shape_xyz.join(' x ')} cells | ${r.iterations} iterations`;
+$('#identity').textContent=`UTC ${study.created_utc} | SHA-256 ${study.request_sha256}`;
+$('#notice').textContent=study.notice;
+for(const text of r.limits){const li=document.createElement('li');li.textContent=text;$('#limits').append(li)}
+$('#energy').textContent=`Electrical: ${fmt(r.electrical_power_w,'W')}\nExternal heat: ${fmt(r.external_heat_w,'W')}\nHeat out: ${fmt(r.heat_out_w,'W')}\nEnergy residual: ${fmt(r.energy_residual_w,'W')}\nMax cell residual: ${fmt(r.max_heat_residual_w,'W')}`;
+$('#construction').textContent=JSON.stringify({grid:request.grid,materials:request.materials,provenance:request.provenance},null,2);
+for(const row of r.history){const tr=document.createElement('tr');for(const value of [row.iteration,row.temperature_change_c,row.max_heat_residual_w??row.heat_residual_w]){const td=document.createElement('td');td.textContent=fmt(value);tr.append(td)}$('#history').append(tr)}
+const edges=r.coordinates.edges_mm,[nx,ny,nz]=r.coordinates.shape_xyz;
+for(let z=0;z<nz;z++){const op=document.createElement('option');op.value=z;op.textContent=`Z ${z}: ${fmt(edges.z[z])} .. ${fmt(edges.z[z+1])} mm`;$('#layer').append(op)}
+try {
+ const host=$('#view'),scene=new THREE.Scene();scene.background=new THREE.Color('#edf2f4');
+ const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(2,devicePixelRatio));host.append(renderer.domElement);
+ const camera=new THREE.PerspectiveCamera(40,1,.001,100000),target=new THREE.Vector3();
+ const span=[edges.x.at(-1)-edges.x[0],edges.y.at(-1)-edges.y[0],edges.z.at(-1)-edges.z[0]],centre=[(edges.x[0]+edges.x.at(-1))/2,(edges.y[0]+edges.y.at(-1))/2,(edges.z[0]+edges.z.at(-1))/2];
+ $('#dimensions').textContent=`Physical dimensions: X ${fmt(span[0],'mm')} | Y ${fmt(span[1],'mm')} | Z ${fmt(span[2],'mm')}. Axes: X red, Y green, Z blue.`;
+ scene.add(new THREE.AxesHelper(Math.max(...span)*.55));
+ let theta=.75,phi=.95,radius=Math.max(...span)*2.2,mesh=null,ids=[],zscale=1;
+ const ray=new THREE.Raycaster(),mouse=new THREE.Vector2(),geometry=new THREE.BoxGeometry(1,1,1),material=new THREE.MeshBasicMaterial({vertexColors:false});
+ function updateCamera(){camera.position.set(radius*Math.sin(phi)*Math.cos(theta),radius*Math.sin(phi)*Math.sin(theta),radius*Math.cos(phi)).add(target);camera.up.set(0,0,1);camera.lookAt(target);renderer.render(scene,camera)}
+ function colour(t){const stops=['#2446ae','#22a8bd','#f3dd42','#dc4033'];t=Math.max(0,Math.min(1,t))*3;const segment=Math.min(2,Math.floor(t));return new THREE.Color(stops[segment]).lerp(new THREE.Color(stops[segment+1]),t-segment)}
+ function build(){if(mesh){scene.remove(mesh);mesh.dispose()}$('#probe').textContent='Select or hover over a solved cell.';window.thermal3DProbeCell=undefined;const key=$('#field').value,values=r[key],selected=$('#layer').value;ids=[];
+  for(let i=0;i<values.length;i++)if(Number.isFinite(values[i])&&(selected==='all'||Math.floor(i/(nx*ny))===Number(selected)))ids.push(i);
+  if(!ids.length){$('#range').textContent='No supported cells in this selection';updateCamera();return}
+  const low=Math.min(...ids.map(i=>values[i])),high=Math.max(...ids.map(i=>values[i]));$('#range').textContent=`${fmt(low)} to ${fmt(high)}`;$('#quantity').textContent=$('#field').selectedOptions[0].textContent;
+  mesh=new THREE.InstancedMesh(geometry,material,ids.length);const matrix=new THREE.Matrix4(),q=new THREE.Quaternion();
+  for(let n=0;n<ids.length;n++){const i=ids[n],x=i%nx,y=Math.floor(i/nx)%ny,z=Math.floor(i/(nx*ny));matrix.compose(new THREE.Vector3((edges.x[x]+edges.x[x+1])/2-centre[0],(edges.y[y]+edges.y[y+1])/2-centre[1],((edges.z[z]+edges.z[z+1])/2-centre[2])*zscale),q,new THREE.Vector3((edges.x[x+1]-edges.x[x])*.99,(edges.y[y+1]-edges.y[y])*.99,(edges.z[z+1]-edges.z[z])*.99*zscale));mesh.setMatrixAt(n,matrix);mesh.setColorAt(n,colour((values[i]-low)/Math.max(1e-30,high-low)))}
+  scene.add(mesh);mesh.computeBoundingSphere();updateCamera();window.thermal3DReady=true;window.thermal3DVisibleCells=ids.length;
+ }
+ let drag=null;
+ renderer.domElement.title='Drag to rotate; right drag to pan; wheel to zoom';renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+ renderer.domElement.addEventListener('pointerdown',e=>{drag=[e.clientX,e.clientY,e.button];renderer.domElement.setPointerCapture(e.pointerId)});
+ renderer.domElement.addEventListener('pointerup',()=>drag=null);
+ renderer.domElement.addEventListener('pointermove',e=>{if(drag){if(drag[2]===2){const right=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,0),up=new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld,1);target.addScaledVector(right,-(e.clientX-drag[0])*radius/host.clientHeight).addScaledVector(up,(e.clientY-drag[1])*radius/host.clientHeight)}else{theta-=(e.clientX-drag[0])*.007;phi=Math.max(.05,Math.min(Math.PI-.05,phi+(e.clientY-drag[1])*.007))}drag=[e.clientX,e.clientY,drag[2]];updateCamera();return}
+  const box=renderer.domElement.getBoundingClientRect();mouse.set((e.clientX-box.left)/box.width*2-1,-(e.clientY-box.top)/box.height*2+1);ray.setFromCamera(mouse,camera);const hit=mesh?ray.intersectObject(mesh)[0]:null;if(!hit)return;const i=ids[hit.instanceId],x=i%nx,y=Math.floor(i/nx)%ny,z=Math.floor(i/(nx*ny));$('#probe').textContent=`Cell ${i} | ${request.material_ids[i]}\nX ${fmt(edges.x[x])} .. ${fmt(edges.x[x+1])} mm\nY ${fmt(edges.y[y])} .. ${fmt(edges.y[y+1])} mm\nZ ${fmt(edges.z[z])} .. ${fmt(edges.z[z+1])} mm\nT ${fmt(r.temperatures_c[i],'C')}\nV ${fmt(r.potential_v[i],'V')}\nJoule ${fmt(r.joule_heat_w[i],'W')}\nJ ${r.current_density_a_m2[i]?.map(v=>fmt(v)).join(', ')??'Unknown'} A/m2`;window.thermal3DProbeCell=i});
+ renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();radius=Math.max(.001,radius*Math.exp(e.deltaY*.001));updateCamera()},{passive:false});
+ new ResizeObserver(()=>{camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight,false);updateCamera()}).observe(host);
+ $('#field').onchange=build;$('#layer').onchange=build;$('#zscale').oninput=e=>{zscale=Number(e.target.value);$('#zlabel').value=zscale+'x (display only)';build()};$('#fit').onclick=()=>{radius=Math.max(span[0],span[1],span[2]*zscale)*2.2;updateCamera()};$('#reset').onclick=()=>{theta=.75;phi=.95;$('#fit').click()};build();
+}catch(error){$('#error').textContent='3D preview unavailable: '+error.message+'. Numerical tables and exported JSON remain available.';window.thermal3DError=String(error)}
+</script></body></html>

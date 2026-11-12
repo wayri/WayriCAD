@@ -75,6 +75,7 @@ def main(root, action_class=None):
         if not ready:
             loading = LoadingWindow(config['name'])
         profile={'planar_magnetics_plugin': 'magnetics',
+                 'heater_designer_plugin': 'heater',
                  'signal_integrity_advisor_plugin': 'quick-si',
                  'extract_pins_plugin': 'extract'}.get(config['tool'], 'ipc')
         status=relaunch(root, 'interboard_entrypoint.py' if action_class else 'ipc_entrypoint.py',

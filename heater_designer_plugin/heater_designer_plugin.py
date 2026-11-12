@@ -20,7 +20,7 @@ from .patterns import PATTERNS, circular_envelope, split_circular_envelope
 from .foil_export import export_svg
 
 
-VERSION = "4.8.2"
+VERSION = "4.8.3"
 PALETTE = ("#157f74", "#d1495b", "#edae49", "#5267a5", "#8f5aa6", "#3c91a3")
 ORGANIC_DEFAULT_TEXT = "\n".join(f"{x:g},{y:g}" for x,y in ORGANIC_DEFAULT_POINTS)
 
@@ -385,7 +385,7 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
         self.status = wx.StaticText(panel, label="Choose dimensions, then preview.",style=wx.ST_ELLIPSIZE_END)
         self.status.SetMinSize((1,-1))
         actions.Add(self.status, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
-        for label, handler in (("Preview",self.generate),("Simulate / tune",self.simulate),("Apply to PCB",self.commit)):
+        for label, handler in (("Preview",self.generate),("Simulate / tune",self.simulate),("3D study",self.simulate3d),("Apply to PCB",self.commit)):
             button = wx.Button(panel, label=label)
             button.SetMinSize(self.FromDIP((150 if label=='Simulate / tune' else 140,32)))
             button.Bind(wx.EVT_BUTTON,handler)
@@ -523,6 +523,12 @@ class HeaterFrame(ReviewedGeometry, wx.Frame):
             self.status.SetLabel(f"Model: hot−cool {self.thermal.gradient_delta_c:+.1f}°C; {len(self.thermal.sensors)} sensor marker(s){warning}. PCB unchanged.")
             self.guide.set_step(2,"Review the model gradient, sensor markers and temperature limits before applying copper.")
         except Exception as exc:wx.MessageBox(str(exc),"Thermal simulation failed",wx.OK|wx.ICON_ERROR)
+    def simulate3d(self,_event):
+        try:
+            if not self.generate(None):return
+            from .thermal3d_ui import open_heater_study
+            open_heater_study(self,self.result)
+        except Exception as exc:wx.MessageBox(str(exc),'3D study could not open',wx.OK|wx.ICON_ERROR,self)
     def _metrics(self):
         self.metrics.DeleteAllItems();r=self.result;rows=[("Material",r.spec.material.name,r.spec.material.grade),("Resistance",f"{r.resistance_ohm:.4f} ohm",f"Nominal at {r.spec.material.reference_c:g} °C"),("Current",f"{r.current_a:.3f} A","Check conductor and supply limits"),("Power",f"{r.power_w:.3f} W",f"{r.watts_per_cm2:.3f} W/cm2 of envelope"),("Layers / vias",f"{r.spec.layers} / {len(r.vias)}","Series-connected layers")]
         if self.thermal:

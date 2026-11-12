@@ -17,7 +17,7 @@ from .guided_ui import add_workflow
 from .placement import validate_placement
 
 
-VERSION="4.8.2";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
+VERSION="4.8.3";LAYER_COLORS=("#c43c35","#2b8cbe","#3a9d5d","#9b59b6","#d68b28","#455a73")
 def point(x,y):return pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
 def copper_layer(index,count):
     if index<=0:return int(pcbnew.F_Cu)
@@ -207,6 +207,7 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
         actions.Add(more_button(right_panel,[("Review placement",self.show_pcb),("Clear placement",self.clear_preview),
                                       ("Undo last apply",self.undo),("Redo",self.redo),
                                       ("Equivalent model & report…",self.equivalent_model),
+                                      ("Primary winding thermal study…",self.thermal_workbench),
                                       ("Export JSON…",self.export_json),("Export geometry CSV…",self.export_csv)]))
         right.Add(actions,0,wx.TOP,10)
         self.status=wx.StaticText(right_panel,label="Configure the winding, then preview.");right.Add(self.status,0,wx.TOP,8)
@@ -371,6 +372,13 @@ class MagneticsFrame(ReviewedGeometry, wx.Frame):
     def motor_workbench(self,_e):
         from .motor_ui import MotorDialog
         with MotorDialog(self,self.board.GetFileName()) as dialog:dialog.ShowModal()
+    def thermal_workbench(self,_e):
+        try:
+            from .thermal_ui import ThermalDialog
+            result=MagneticsEngine.analyze(self._spec(),self.catalog)
+            with ThermalDialog(self,result) as dialog:dialog.ShowModal()
+        except Exception as exc:
+            wx.MessageBox(str(exc),"Thermal study unavailable",wx.OK|wx.ICON_ERROR)
     def export_csv(self,_e):
         if not self.result:return
         with wx.FileDialog(self,"Export winding geometry",wildcard="CSV (*.csv)|*.csv",style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as d:

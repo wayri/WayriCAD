@@ -106,12 +106,40 @@ change is outside this saved-file scope.
 
 The WebView host serves an allowlisted in-memory asset snapshot over an
 ephemeral `127.0.0.1` port with a random path. It closes with the pane. The
-source tree is supplied through `WAYRICAD_REVIEW_VIEWER_ROOT` or **Viewer
-assets…**; Review leaves KiView externally supplied under its separate distribution
-license; it does not bundle or relicense those assets. There is no fixed port, remote asset fetch or provider
+default is the independent, unmodified KiCad WebView 0.6.0 full ESM under
+`vendor/kicad-webview`, with MPL-2.0 and dependency notices. `REVIEW-PIN.json`
+is an integration-owned receipt, not an upstream release manifest: its archive
+URL/SHA-256 and `files[name] = {bytes, sha256}` identify the published artifact.
+External package roots or complete `dist` folders must match that pin; earlier
+reviewed source-layout overrides retain their closure/notice checks.
+`WAYRICAD_REVIEW_VIEWER_ROOT` and **Viewer assets…** remain explicit overrides.
+There is no fixed port, remote asset fetch or provider
 credential bridge in this host. The Windows source window has passed visual
 checks with a saved KiCad 10 fixture; this does not establish native editor
 attachment or live provider authentication. See [validation scope](VALIDATION.md).
+
+The full ESM needs no external model helper scripts. A host-owned entry module
+preloads those only for legacy layouts. All served bytes are bounded, hashed
+and checked again before the immutable host starts. The full distribution is
+under 2 MiB including Review chrome; per-asset and aggregate bounds remain
+2 MiB and 3 MiB for viewer assets, 4 MiB for the complete host snapshot.
+
+Public `getCamera`/`setCamera`, `camerachange`, `selectObject`,
+`getSelectionPosition` and `getLayerState` replace available private adapters.
+The source-derived camera transform uses CSS pixels/mm, including horizontal
+flip. No public arbitrary-point 3D projection exists in 0.6.0; the pinned
+renderer `projectAnchor` adapter remains, and any nonzero/unknown explode state
+hides review overlays rather than guessing layer Z. Legacy/CAM mappings stay
+version-specific. New loads and navigation abort superseded operations; comments
+cannot authorize old displayed geometry while its replacement is loading.
+Automatic fitting is left to the published source-bound camera lifecycle.
+
+Native browser/listener creation is deferred until the drawing pane is actually
+shown on screen. Queued show callbacks check pane and owner closure; hidden
+unit-test frames do not initialize the viewer. Explicit asset overrides are
+retained for the first show. Visible panes use the shared runtime's process-local
+WebView profile helper rather than competing for the default Python profile.
+Initialization errors remain visible and do not silently disable the viewer.
 
 ### Native editor boundary
 

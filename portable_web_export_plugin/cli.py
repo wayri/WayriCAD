@@ -4,10 +4,9 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
-import os
 from pathlib import Path
 
-from .exporter import ExportSelection, export_html, scan_project
+from .exporter import ExportSelection, export_html, scan_project, _atomic_write_bytes
 
 
 def _select(values: list[str] | None, available: list[tuple[str, object]], label: str) -> tuple:
@@ -28,10 +27,7 @@ def _select(values: list[str] | None, available: list[tuple[str, object]], label
 
 
 def _write_json(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
+    _atomic_write_bytes((json.dumps(payload, indent=2, ensure_ascii=False)+"\n").encode("utf-8"), path)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,9 +50,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         scan = scan_project(args.board)
         output = args.output.resolve()
-        source_paths = {scan.board.resolve(), *(path.resolve() for path in scan.schematics)}
+        source_paths = {path.resolve() for path in scan.source_hashes}
         if output in source_paths:
             raise ValueError("Output must not overwrite a KiCad source file.")
+        manifest_path = args.manifest.resolve() if args.manifest else None
+        if manifest_path is not None and (manifest_path in source_paths or manifest_path == output):
+            raise ValueError("Manifest must use a separate non-source path.")
+        for destination in (output, manifest_path):
+            if destination is not None and destination.exists():
+                raise ValueError("Choose a new output path; an existing file will not be overwritten.")
         sheet_choices = [(path.relative_to(scan.project_root).as_posix(), path) for path in scan.schematics]
         model_choices = [(model.source, model.source) for model in scan.models if model.supported]
         selection = ExportSelection(
@@ -68,10 +70,7 @@ def main(argv: list[str] | None = None) -> int:
             model_sources=_select(args.model, model_choices, "supported model"),
         )
         manifest = export_html(scan, selection, output, Path(__file__).resolve().parent)
-        if args.manifest:
-            manifest_path = args.manifest.resolve()
-            if manifest_path in source_paths or manifest_path == output:
-                raise ValueError("Manifest must use a separate non-source path.")
+        if manifest_path is not None:
             _write_json(manifest_path, manifest)
         print(json.dumps({"output": str(output), "manifest": manifest}, indent=2, ensure_ascii=False))
         return 0

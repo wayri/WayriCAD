@@ -35,6 +35,7 @@ def _loads(loads, limits, powers=None):
 
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--thermoelectric-3d',type=Path,help='Explicit shared 3D solid current/heat study JSON; no automatic PCB voxelization.')
     parser.add_argument('board',type=Path,nargs='?')
     parser.add_argument('--insulation-result',type=Path,help='Saved multi-net batch result JSON for post-solve engineering screening only.')
     parser.add_argument('--insulation-policy',type=Path,help='Explicit rule/material/environment/voltage and spacing policy JSON; requires --insulation-result.')
@@ -85,6 +86,16 @@ def main(argv=None):
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     parser.add_argument('--series-file',type=Path,help='Reviewed series-editor JSON, including explicitly selected parallel R/L parts.')
     args=parser.parse_args(argv)
+    if args.thermoelectric_3d:
+        words=list(sys.argv[1:] if argv is None else argv)
+        allowed={'--thermoelectric-3d','--output','--html'}
+        if args.board or any(word.split('=')[0] not in allowed for word in words if word.startswith('--')):
+            parser.error('3D solid studies cannot combine with board/PI analysis options.')
+        from wayricad_runtime.thermoelectric_study import cli
+        command=[str(args.thermoelectric_3d)]
+        if args.output:command+=['--output',str(args.output)]
+        if args.html:command+=['--html',str(args.html)]
+        return cli(command)
     if args.insulation_result or args.insulation_policy:
         try:
             from .insulation_cli import run

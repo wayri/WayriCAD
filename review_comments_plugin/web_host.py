@@ -9,7 +9,7 @@ import threading
 from types import MappingProxyType
 from urllib.parse import unquote_to_bytes, urlsplit
 
-from .web_assets import asset_manifest, discover_assets, verify_assets, verify_module_closure
+from .web_assets import asset_manifest, discover_assets, verify_assets, verify_module_closure, _is_link
 
 
 _MIME = {
@@ -40,15 +40,16 @@ def _mime(name: str) -> str:
 
 
 def _read_file(path: Path, root: Path, limit: int) -> bytes:
-    if root.is_symlink() or not root.is_dir():
+    if _is_link(root) or not root.is_dir():
         raise ValueError('Review web assets need a real directory.')
     for part in path.relative_to(root).parts:
         root = root / part
-        if root.is_symlink():
+        if _is_link(root):
             raise ValueError('Review web assets cannot be symlinks.')
     if not path.is_file() or path.stat().st_size > limit:
         raise ValueError('Review web asset is missing or exceeds its size bound: ' + path.name)
-    data = path.read_bytes()
+    with path.open('rb') as stream:
+        data = stream.read(limit + 1)
     if len(data) > limit:
         raise ValueError('Review web asset changed while being read: ' + path.name)
     return data
@@ -59,7 +60,7 @@ def _snapshot(viewer_root: Path, web_root: Path) -> dict[str, bytes]:
     # Discovery rejects a linked selected root and linked asset children.
     # Use its canonical root for relative checks, including macOS /var aliases.
     viewer_root = viewer_root.resolve(strict=True)
-    if web_root.is_symlink():
+    if _is_link(web_root):
         raise ValueError('Review web assets need a real directory.')
     web_root = web_root.resolve(strict=True)
     manifest = asset_manifest(viewer_root, include_3d=True, linked_models=True)
@@ -72,6 +73,13 @@ def _snapshot(viewer_root: Path, web_root: Path) -> dict[str, bytes]:
             raise ValueError('KiView source changed while preparing the Review web host.')
         files['vendor/' + name] = data
         total += len(data)
+    # A host-owned entry keeps unmodified upstream URLs and legacy preloads
+    # separate from the bridge. The published full ESM needs no preloads.
+    imports = ("import './extension/repo-models.js';\nimport './extension/embedded-models.js';\n"
+               if 'extension/repo-models.js' in paths else '')
+    entry = (imports + "export {KiCadViewer} from './web-library/kicad-viewer.mjs';\n").encode('utf-8')
+    files['vendor/review-viewer.mjs'] = entry
+    total += len(entry)
     for name in _WEB_FILES:
         path = web_root / name
         data = _read_file(path, web_root, _MAX_WEB_FILE)

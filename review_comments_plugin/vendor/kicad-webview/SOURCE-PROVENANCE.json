@@ -1,0 +1,621 @@
+{
+  "sourceProject": "Pocket KiView / KiCad-Github-View",
+  "sourceRevision": "ecb2ca40baf80981e36ad948b29c4166cb808ef2",
+  "workingTreeSnapshot": true,
+  "createdAt": "2026-11-04T14:41:54.310Z",
+  "note": "Historical hashes identify the original extraction inputs. Current source may differ as the standalone library evolves.",
+  "inputs": [
+    {
+      "source": "web-library/index.mjs",
+      "target": "src/index.mjs",
+      "bytes": 123,
+      "sha256": "d9685dcc78396ca95a17829514c4f187551ee0b126ab5a2f0b5bd0adc415c065",
+      "transformed": true
+    },
+    {
+      "source": "web-library/kicad-viewer.mjs",
+      "target": "src/kicad-viewer.mjs",
+      "bytes": 14598,
+      "sha256": "f3c8fdc00f91a1afd9ea4e1f32ca7644e20a417f0458aa58a92ffbfbcf5f2aaf",
+      "transformed": true
+    },
+    {
+      "source": "web-library/altium-viewer.mjs",
+      "target": "src/altium-viewer.mjs",
+      "bytes": 6978,
+      "sha256": "2d00a7dbd101bb0a6f0f56f601af3c256b575d2ed9ec7e3d2c1e21c02e0ab6b2",
+      "transformed": true
+    },
+    {
+      "source": "web-library/source-loader.mjs",
+      "target": "src/source-loader.mjs",
+      "bytes": 12924,
+      "sha256": "4bb55d567a4e7fe5c88c5d6d173c37e90463b8e18841d6e17bf3e405d490fc72",
+      "transformed": true
+    },
+    {
+      "source": "web-library/viewer-host.mjs",
+      "target": "src/viewer-host.mjs",
+      "bytes": 127,
+      "sha256": "d8974ae7ed6cbcd8b932e464dfde04cf3a90914ab5f54b4b83678e6c07a07c25",
+      "transformed": true
+    },
+    {
+      "source": "web-library/three-runtime.mjs",
+      "target": "src/three-runtime.mjs",
+      "bytes": 708,
+      "sha256": "39834370ba377e7a99509e57c3a3fa1ca7e570a9bab8fecb5bc47cd16f59aad0",
+      "transformed": true
+    },
+    {
+      "source": "extension/design-diff.js",
+      "target": "engine/design-diff.js",
+      "bytes": 16780,
+      "sha256": "275c3ad9dd3d88ca61d00decab402eaf1cb398ad587dcb9852b9599d7a13884b",
+      "transformed": false
+    },
+    {
+      "source": "extension/file-compatibility.js",
+      "target": "engine/file-compatibility.js",
+      "bytes": 6514,
+      "sha256": "027e047879b2ae22c09c56c3e72bea216f7231afefea36e0ea625033df94e505",
+      "transformed": false
+    },
+    {
+      "source": "extension/worksheet.js",
+      "target": "engine/worksheet.js",
+      "bytes": 3686,
+      "sha256": "31f6b8c25c2a4f9d8f6f4bf0f965e42205c4ac11d11bd6982ed1cfe907b40ccc",
+      "transformed": false
+    },
+    {
+      "source": "extension/layer-colors.js",
+      "target": "engine/layer-colors.js",
+      "bytes": 4925,
+      "sha256": "c4059f1b1d0a367f5c0c01b6c64924eb7c8fc72ac21afd98929f20cadaf74a40",
+      "transformed": false
+    },
+    {
+      "source": "extension/schematic-renderer.js",
+      "target": "engine/schematic-renderer.js",
+      "bytes": 28936,
+      "sha256": "8041f56f3be3838c3883e2aa4eba5500dc281b8933fc57487ebeeaf4d576129d",
+      "transformed": false
+    },
+    {
+      "source": "extension/pcb-renderer.js",
+      "target": "engine/pcb-renderer.js",
+      "bytes": 21182,
+      "sha256": "3d70d4ba089f23b22503d7faa0f9d42844c15a5cff4be076355cb60e99dd0337",
+      "transformed": false
+    },
+    {
+      "source": "extension/owned-canvas.js",
+      "target": "engine/owned-canvas.js",
+      "bytes": 36260,
+      "sha256": "a225ca7e8cd7cb2b5520d12681d4d86dca7044cb82989ca51ce675dab869194e",
+      "transformed": false
+    },
+    {
+      "source": "extension/touch-canvas.js",
+      "target": "engine/touch-canvas.js",
+      "bytes": 5700,
+      "sha256": "2bd9d9b6d88aa750d05ad348ce10b8f91625494562e15ac3b435a0454aa32d51",
+      "transformed": false
+    },
+    {
+      "source": "extension/motion-webgl.js",
+      "target": "engine/motion-webgl.js",
+      "bytes": 5597,
+      "sha256": "68b906f90e36c82a5e1cbbf6c95d3cdb2d513b4ad45000a6460a9e9b4bc4a933",
+      "transformed": false
+    },
+    {
+      "source": "extension/repo-models.js",
+      "target": "engine/repo-models.js",
+      "bytes": 9124,
+      "sha256": "fc7531158ab4ddcc1c4385d9847293c881ee4ad6f4c50e1fb776d76c4aa46d8d",
+      "transformed": false
+    },
+    {
+      "source": "extension/embedded-models.js",
+      "target": "engine/embedded-models.js",
+      "bytes": 5622,
+      "sha256": "7dabd55a96ef3eedc841a5f690de17d41c91c031af324bf8c348776226fc43a8",
+      "transformed": false
+    },
+    {
+      "source": "extension/step-decoder.js",
+      "target": "engine/step-decoder.js",
+      "bytes": 6990,
+      "sha256": "ff8b8ecf7da69505657ef065f8053082ffc5b6d964e81d34442a394f2d8f3353",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/board3d.js",
+      "target": "engine/spike/board3d.js",
+      "bytes": 89259,
+      "sha256": "57260a0e81d30033b24631c0b1f95fb89fe05ffbe89a2decfa387ee80913f04f",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/componentState.mjs",
+      "target": "engine/spike/componentState.mjs",
+      "bytes": 1119,
+      "sha256": "a0b49bde1dc01882e81c7bec3045d422c4443d72d83824747ab1bfa6aeedd88b",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/fitPolicy.mjs",
+      "target": "engine/spike/fitPolicy.mjs",
+      "bytes": 1973,
+      "sha256": "61b735698f45dd4c1e1507de5fc641771265038e6f56b6892b9b77e433fba1d5",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/footprintProxies.mjs",
+      "target": "engine/spike/footprintProxies.mjs",
+      "bytes": 4547,
+      "sha256": "49ff8b2b0dc46745d506c3ee236db7619c23ee619de646bb7871a31e270b8f9d",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/measurement3d.mjs",
+      "target": "engine/spike/measurement3d.mjs",
+      "bytes": 3153,
+      "sha256": "cd076af425e4692bc08661808f403da5710b8281aa69b696faca504d32e17829",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/padGeometry.mjs",
+      "target": "engine/spike/padGeometry.mjs",
+      "bytes": 5800,
+      "sha256": "75401ee41510ffbe5310c6d6d7dccd020fc0d3dc4ba39ce539bd1eb1d06de760",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/projectAnchor.mjs",
+      "target": "engine/spike/projectAnchor.mjs",
+      "bytes": 3296,
+      "sha256": "ce516bf93d809970f46acb216e682b7e31eb4546ea6edb43320e545d37d872ce",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/renderQuality.mjs",
+      "target": "engine/spike/renderQuality.mjs",
+      "bytes": 4654,
+      "sha256": "d4300e8760c766644e03edd67373e828a815586547e40d77e7996da0cff6a076",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/result3d.js",
+      "target": "engine/spike/result3d.js",
+      "bytes": 15214,
+      "sha256": "29ae1feb3c71f11dfdfd272ceb0913ff90012f372ce02c8d8a9c1a8877051481",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/sceneResources.mjs",
+      "target": "engine/spike/sceneResources.mjs",
+      "bytes": 2945,
+      "sha256": "c0aa42786612a2bea0a9b25d3ab4f75bb2086b2d47ba2335d9938f5105b2704d",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/selectionAppearance.mjs",
+      "target": "engine/spike/selectionAppearance.mjs",
+      "bytes": 2711,
+      "sha256": "1bda36dab2e49a3f4fc267986e9367326baacc85e5b68b5e1e98652ab004a86b",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/selectionState.mjs",
+      "target": "engine/spike/selectionState.mjs",
+      "bytes": 3817,
+      "sha256": "ccc9ae30e297223b8aa7dbf9feab1e347a652835a3794c1ccfe1dd20a88cd396",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/sourceGeometry.mjs",
+      "target": "engine/spike/sourceGeometry.mjs",
+      "bytes": 2883,
+      "sha256": "89f2343f728159709921c7ae3f0096244075926c167b7b25d121a83c7716f1e9",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/surfaceSilkscreen.mjs",
+      "target": "engine/spike/surfaceSilkscreen.mjs",
+      "bytes": 3361,
+      "sha256": "f05bf44d8e3c3bc5f75208f203fb6d69d5d8bb99ceb7f257fcd1a7707ce448bd",
+      "transformed": false
+    },
+    {
+      "source": "extension/spike/viewPresets.mjs",
+      "target": "engine/spike/viewPresets.mjs",
+      "bytes": 858,
+      "sha256": "93944d69654123b2ec639f2b37da77a7f8dc77bf64729cb536e7ead862d09869",
+      "transformed": false
+    },
+    {
+      "source": "../../SPIKE-Main/app/src/boardParser.ts",
+      "target": "engine/spike-source/boardParser.ts",
+      "bytes": 26421,
+      "sha256": "8285ae9725aeb615f7243f2573f29d68512aa8b59586b68ec4880b3e0c17d2d5",
+      "transformed": false
+    },
+    {
+      "source": "../../SPIKE-Main/app/src/numericRange.ts",
+      "target": "engine/spike-source/numericRange.ts",
+      "bytes": 1307,
+      "sha256": "f0220dae11ef29b7d2093ed9e0655e5cbbb16c606d2c5b02a13836db9a323ead",
+      "transformed": false
+    },
+    {
+      "source": "../../SPIKE-Main/app/src/layerPalette.ts",
+      "target": "engine/spike-source/layerPalette.ts",
+      "bytes": 1088,
+      "sha256": "cb1daf87b07b7f5b7295c2c70f85530b8a1cf92979d6b6e9f03c562e1f2b47b6",
+      "transformed": false
+    },
+    {
+      "source": "../../SPIKE-Main/app/src/trackGeometry.ts",
+      "target": "engine/spike-source/trackGeometry.ts",
+      "bytes": 899,
+      "sha256": "99879473120331418f1969dec8fa7b972fdb2694b7b7c4e6272803ce9f995da6",
+      "transformed": false
+    },
+    {
+      "source": "../../SPIKE-Main/app/src/viewportScenePolicy.ts",
+      "target": "engine/spike-source/viewportScenePolicy.ts",
+      "bytes": 9032,
+      "sha256": "16f676f4b73d0b417ab5856a72064458377774e20cd02ebd615c83fe9d8b2564",
+      "transformed": false
+    },
+    {
+      "source": "extension/vendor/spike-board3d.bundle.js",
+      "target": "engine/vendor/spike-board3d.bundle.js",
+      "bytes": 1168956,
+      "sha256": "95a28b70a344d6484de71e5e2e9e168c44a715dd55489f11313e0dcd28b25417",
+      "transformed": false
+    },
+    {
+      "source": "extension/vendor/SPIKE-ENGINE-NOTICE.md",
+      "target": "engine/vendor/SPIKE-ENGINE-NOTICE.md",
+      "bytes": 1106,
+      "sha256": "61841a90df7f81efbfd4deb309758d3beb1b92c1e25069714c7591a9f1ecf8ad",
+      "transformed": false
+    },
+    {
+      "source": "extension/vendor/THREE-LICENSE",
+      "target": "engine/vendor/THREE-LICENSE",
+      "bytes": 1081,
+      "sha256": "4c40a1ef62450b857c3b2aaf294936304cd552d965fbcd9d32d4c5bcf4ba4454",
+      "transformed": false
+    },
+    {
+      "source": "extension/vendor/fzstd/fzstd.js",
+      "target": "engine/vendor/fzstd/fzstd.js",
+      "bytes": 8394,
+      "sha256": "fbea1c25c4413b620ca3f59e6037d9f6c675c5c7f690e4d660143188f686461d",
+      "transformed": false
+    },
+    {
+      "source": "extension/vendor/fzstd/LICENSE",
+      "target": "engine/vendor/fzstd/LICENSE",
+      "bytes": 1069,
+      "sha256": "62249119bb7df6e54300f37a37145c26a6d4420410aac8881a119c5b427cf751",
+      "transformed": false
+    },
+    {
+      "source": "extension/vendor/fzstd/README.md",
+      "target": "engine/vendor/fzstd/README.md",
+      "bytes": 546,
+      "sha256": "723e2d6a6fbec495e7f191732d256c3d92457b147c3c031f533db41f883d3771",
+      "transformed": false
+    },
+    {
+      "source": "web-library/tests/viewer.test.mjs",
+      "target": "tests/viewer.test.mjs",
+      "bytes": 10360,
+      "sha256": "2434656c54ee404335a6742e8666bb35bb7b666514c0fef32d28800a199d76ff",
+      "transformed": true
+    },
+    {
+      "source": "web-library/tests/altium-viewer.test.mjs",
+      "target": "tests/altium-viewer.test.mjs",
+      "bytes": 6054,
+      "sha256": "11d97df78b2530f749f84ffc98636b44a4b9710d608e67dc51bb5911649510f0",
+      "transformed": true
+    },
+    {
+      "source": "web-library/tests/source-loader.test.mjs",
+      "target": "tests/source-loader.test.mjs",
+      "bytes": 15010,
+      "sha256": "0f325fe1469be45b2323c80bee705b9a3f580ec95d4f4ade16e0e9378602a79e",
+      "transformed": true
+    },
+    {
+      "source": "web-library/tests/package.test.mjs",
+      "target": "tests/package.test.mjs",
+      "bytes": 1874,
+      "sha256": "ccbf200b638b522cfa4a2d8dc9adc9c66f6cd44dbef1e70ad62f67ff331ec07b",
+      "transformed": true
+    },
+    {
+      "source": "extension/tests/pcb-renderer.test.cjs",
+      "target": "tests/pcb-renderer.test.cjs",
+      "bytes": 12680,
+      "sha256": "8a3da371850993e4d5b9190badf80c6055cae9435ab2e3393db355110e503ee5",
+      "transformed": true
+    },
+    {
+      "source": "extension/tests/schematic-renderer.test.cjs",
+      "target": "tests/schematic-renderer.test.cjs",
+      "bytes": 18841,
+      "sha256": "2f719d8f3f205193ef58e8d7b6409c2f3ff1b54f365c573aad9cee441aef153e",
+      "transformed": true
+    },
+    {
+      "source": "extension/tests/canvas-renderer.test.cjs",
+      "target": "tests/canvas-renderer.test.cjs",
+      "bytes": 33780,
+      "sha256": "de07924a387331d5cd410fea701db5831029fb50e469e850fff86022873538aa",
+      "transformed": true
+    },
+    {
+      "source": "web-library/embed.html",
+      "target": "examples/embed.html",
+      "bytes": 505,
+      "sha256": "b7f81cdeaaf36dd1d2fcd4cdbd6487591ef48618566ce01a90af68a17eead937",
+      "transformed": true
+    },
+    {
+      "source": "web-library/embed.mjs",
+      "target": "examples/embed.mjs",
+      "bytes": 1010,
+      "sha256": "ccaf65ee58644530f03841dc2d4f7fd61d8821ba6836da57911b00ad0eb69731",
+      "transformed": true
+    },
+    {
+      "source": "web-library/example.html",
+      "target": "examples/example.html",
+      "bytes": 1405,
+      "sha256": "0a06221935a4762e1f5b4c1b9c447186925d356928820fcb87384c3adf2f840a",
+      "transformed": true
+    },
+    {
+      "source": "web-library/example.mjs",
+      "target": "examples/example.mjs",
+      "bytes": 1108,
+      "sha256": "566a99453a79f0fcc564adac69558eb44c6b0c844c2a1d1990b4ebcf37112bae",
+      "transformed": true
+    },
+    {
+      "source": "web-library/altium-example.html",
+      "target": "examples/altium-example.html",
+      "bytes": 1327,
+      "sha256": "e13d74878a05a1b65edf701577c59a861a57c03218825dca17791b8753aef27c",
+      "transformed": true
+    },
+    {
+      "source": "web-library/altium-example.mjs",
+      "target": "examples/altium-example.mjs",
+      "bytes": 694,
+      "sha256": "7de9b49aba2d4073c9dc9ca2a27e48273980a79e0b6a803ce196283b79ccc4ba",
+      "transformed": true
+    },
+    {
+      "source": "examples/sensor/sensor.kicad_pcb",
+      "target": "fixtures/sensor/sensor.kicad_pcb",
+      "bytes": 1757,
+      "sha256": "3a5de522130b217447f4c25d41e8e99ee948b99a124dc7c9033b8baa372131e4",
+      "transformed": false
+    },
+    {
+      "source": "examples/sensor/sensor.kicad_sch",
+      "target": "fixtures/sensor/sensor.kicad_sch",
+      "bytes": 2521,
+      "sha256": "bd44b9dfeba9cd2b3b910ca26faf066e7658fb320cd9bdb37222c9627bbdf7cc",
+      "transformed": false
+    },
+    {
+      "source": "examples/sensor/power.kicad_sch",
+      "target": "fixtures/sensor/power.kicad_sch",
+      "bytes": 2368,
+      "sha256": "ed424a86807068002902d95d374ccaa1ddf797f374507c8f6da73f6935c56d6b",
+      "transformed": false
+    },
+    {
+      "source": "examples/sensor/README.md",
+      "target": "fixtures/sensor/README.md",
+      "bytes": 850,
+      "sha256": "5f492c2d08fd6768618b4e9ac61d7b8951021bd22673b1aaf76c44dbbb270442",
+      "transformed": false
+    },
+    {
+      "source": "web-library/HOSTING.md",
+      "target": "docs/HOSTING.md",
+      "bytes": 6212,
+      "sha256": "7746486047ca289d591179dfb8c57751a179a8de18818ae5c884e223381fe55e",
+      "transformed": true
+    },
+    {
+      "source": "web-library/ALTIUM-BETA.md",
+      "target": "docs/ALTIUM-BETA.md",
+      "bytes": 5607,
+      "sha256": "d4b596e3f5d7e43f50e1ad68acbc3e2e7fb6f0e9a46ffb31393686576af3503a",
+      "transformed": true
+    },
+    {
+      "source": "docs/KICAD-COMPATIBILITY.md",
+      "target": "docs/KICAD-COMPATIBILITY.md",
+      "bytes": 2609,
+      "sha256": "d521dab3ec25293662973f6b90bbf351e9b5ff9723a1b6b836a7a4269bc72e12",
+      "transformed": false
+    },
+    {
+      "source": "LICENSE",
+      "target": "LICENSE",
+      "bytes": 5836,
+      "sha256": "6e0b3232c49c4aee1afd5b97e39c45d0eecc4071a2f69fc23f733b8aa12e6fc8",
+      "transformed": false
+    },
+    {
+      "source": "LICENSING.md",
+      "target": "LICENSING.md",
+      "bytes": 2593,
+      "sha256": "424838773533ba7f0029912ee0ad28cee8cb2101df4f056ecf6ff7a676f29053",
+      "transformed": false
+    },
+    {
+      "source": "scripts/web-library-repository/README.md",
+      "target": "README.md",
+      "bytes": 3833,
+      "sha256": "ccea904a686be7687d45a0c9892ff07c56ee7af7bddb411791b01ddd4d4464c1",
+      "transformed": false
+    },
+    {
+      "source": "scripts/web-library-repository/build.mjs",
+      "target": "scripts/build.mjs",
+      "bytes": 3528,
+      "sha256": "696b732613ddddfa2b56213e336a9344f067deef3e150d6b7cf4c9d6eeb15d5b",
+      "transformed": false
+    },
+    {
+      "source": "scripts/web-library-repository/build-3d.mjs",
+      "target": "scripts/build-3d.mjs",
+      "bytes": 2431,
+      "sha256": "255a2c314d1937ed2bb542cbf7650e0b74764a4d81d7b12ac3492b4b0eed50f6",
+      "transformed": false
+    },
+    {
+      "source": "scripts/web-library-repository/ci.yml",
+      "target": ".github/workflows/ci.yml",
+      "bytes": 436,
+      "sha256": "09ff08a35dc3872d0a4a032e382fe1371df6e5c28b25cee20505cb7e3591377f",
+      "transformed": false
+    },
+    {
+      "source": "scripts/web-library-repository/pages.yml",
+      "target": ".github/workflows/pages.yml",
+      "bytes": 900,
+      "sha256": "20cdeefaba5d859f90f953cfd6ead0b9c275b60f739cb60e6c1e052a22ce847a",
+      "transformed": false
+    },
+    {
+      "source": "web-library/tests/preview-server.cjs",
+      "target": "scripts/preview.cjs",
+      "bytes": 1260,
+      "sha256": "3f5cb0d80bb2b88d9e0c856677cbb872d9a75ec67772481d80f33837ba068b6f",
+      "transformed": true
+    }
+  ],
+  "wayriCADResults": {
+    "producerRepository": "https://github.com/wayri/WayriCAD",
+    "producerRevision": "0617fd201c0817d95648cec639744138aa59fe20",
+    "examples": "docs/examples/pocket-kivi",
+    "exampleStatus": "Saved example producer outputs, not measured hardware; preserve assumptions and unknown samples.",
+    "parserSource": "KiCad Online working-source analysis-data.js and analysis-spatial.js",
+    "originalParserSHA256": {
+      "analysisData": "527fa763938e256a8a419b0bb4be2f9df36df4c0dbfd8473963fe28a4db6e997",
+      "analysisSpatial": "e54ae11f5dd7b56063b2ac3dd21ded6e6b91eaeca430f84fd6cc4c56669f6c3"
+    },
+    "localAdaptations": [
+      "Share normalized mesh points across layer plots.",
+      "Reject empty/invalid current-vector dimensions instead of manufacturing zero magnitude.",
+      "Do not create area surfaces from singleton grid axes.",
+      "Exact-hash registration is separate from producer claims; canonical project-library integrity remains unverified.",
+      "Normalize the validated JSON object directly, avoiding duplicate stringify/parse and preserving one frozen savedSource graph.",
+      "Register supported fields on exact-source native 3D boards, preserve exact raycast probes and expose saved-layer controls."
+    ],
+    "files": [
+      {
+        "name": "example.kicad_pcb",
+        "bytes": 6499,
+        "sha256": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e"
+      },
+      {
+        "name": "example.kicad_pro",
+        "bytes": 9601,
+        "sha256": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4"
+      },
+      {
+        "name": "provenance.json",
+        "bytes": 6420,
+        "sha256": "929f05ebbb6365c2c14d92ade45174b45dd041c32835a7c511ff7a004beaea19"
+      },
+      {
+        "name": "quick-pi.pocket-kivi.json",
+        "bytes": 104691,
+        "sha256": "ad2896d3ccf1c76e4b7527ee6c12ee8bbc9596e71fe4d5afdf5559c58779a311"
+      },
+      {
+        "name": "quick-si.pocket-kivi.json",
+        "bytes": 362964,
+        "sha256": "f21a3ab360c48dc8fbc991ff39dcde947c0db3319ba28b5efdc85534de8ecbec"
+      },
+      {
+        "name": "quick-therm-transient.pocket-kivi.json",
+        "bytes": 61289,
+        "sha256": "b152cdf9efaadfd19507ae99569c45652d5479e7c56ec81191fdc4d05f080254"
+      },
+      {
+        "name": "quick-therm.pocket-kivi.json",
+        "bytes": 22971,
+        "sha256": "5b22e742c44c393bf8693ed1cf9da83af0225cf04714ecf721a41244401f6ef4"
+      },
+      {
+        "name": "README.md",
+        "bytes": 8328,
+        "sha256": "85e6eb4dd6ab3b028092ccf0695d8766ae22b7810150b2a05d26075cdac9ca0e"
+      },
+      {
+        "name": "si-channel.kicad_pcb",
+        "bytes": 6783,
+        "sha256": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995"
+      },
+      {
+        "name": "si-channel.kicad_pro",
+        "bytes": 9748,
+        "sha256": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe"
+      },
+      {
+        "name": "UPSTREAM-LICENSE",
+        "bytes": 35149,
+        "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+      }
+    ]
+  },
+  "extensionRefresh060": {
+    "candidate": "KiCad Online 0.12.94",
+    "baseCommit": "4a6b9147f165cefa38eb83365aac8d7fdf14f5fe",
+    "workingTreeSnapshot": true,
+    "method": "Selective read-only feature ports; library-specific guards and source contracts preserved.",
+    "files": [
+      {
+        "path": "extension/schematic-renderer.js",
+        "sha256": "8fa507b4ee85bed79f6d5bc237b8e6d5d8e9ca77dad194d49c73cefea7cf9042"
+      },
+      {
+        "path": "extension/pcb-renderer.js",
+        "sha256": "d879b9fcc5eaa4c8095f3328c1339c894fc97006de07f0159cd9128526cf3adc"
+      },
+      {
+        "path": "extension/net-model.js",
+        "sha256": "83da8680351ac82bb73a6dd9df9e278eea2d50e85d6e2928596e335e2fbf5646"
+      },
+      {
+        "path": "extension/owned-canvas.js",
+        "sha256": "ca863969e8354c1565fb373966dbefbfbaa3edf8784c7ec06717739764c54223"
+      },
+      {
+        "path": "extension/spike/board3d.js",
+        "sha256": "5279866a7103da449692c9ac9fbbd62926609afec07e7aabd1f4404db437f273"
+      },
+      {
+        "path": "extension/spike/explodeView.mjs",
+        "sha256": "daea0d9149d818120127f272cfbf57f42d5596a5c56dde5fecb747a2f6ab6aaf"
+      }
+    ]
+  }
+}

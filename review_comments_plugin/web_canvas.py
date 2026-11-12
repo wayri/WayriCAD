@@ -25,6 +25,9 @@ class WebDesignCanvas(wx.Panel):
         self.theme = getattr(owner, 'review_theme', 'light')
         self.pending = None
         self._generation = 0
+        self._closed = False
+        self._viewer_starting = False
+        self._pending_viewer_root = None
         self.markers = []
         self.positions = {}
         self.selected_id = None
@@ -61,26 +64,54 @@ class WebDesignCanvas(wx.Panel):
         layout.Add(self.view_area, 1, wx.EXPAND)
         self.SetSizer(layout)
         self.Bind(wx.EVT_WINDOW_DESTROY, self.destroyed)
-        bundled = Path(__file__).parent / 'web/vendor'
+        self.Bind(wx.EVT_SHOW, self.shown)
+        self._show_owner = self.GetTopLevelParent()
+        if self._show_owner is not self:
+            self._show_owner.Bind(wx.EVT_SHOW, self.shown)
+        bundled = Path(__file__).parent / 'vendor/kicad-webview'
         configured = os.environ.get('WAYRICAD_REVIEW_VIEWER_ROOT')
         if configured or bundled.is_dir():
-            try:
-                self.start_viewer(Path(configured) if configured else bundled)
-            except (ValueError, OSError, RuntimeError) as error:
-                self.status.SetLabel('KiView unavailable: ' + str(error))
+            self._pending_viewer_root = Path(configured) if configured else bundled
+            self.status.SetLabel('Saved design viewer starts when this pane is shown.')
+            wx.CallAfter(self._start_pending_viewer)
         else:
             self.status.SetLabel('Choose the KiView viewer asset directory to enable PCB, schematic and 3D views.')
 
+    def shown(self, event):
+        if event.IsShown():
+            wx.CallAfter(self._start_pending_viewer)
+        event.Skip()
+
+    def _start_pending_viewer(self):
+        if (self._closed or not self or getattr(self.owner, 'closed', False)
+                or self.browser or self._viewer_starting or self._pending_viewer_root is None
+                or not self.IsShownOnScreen()):
+            return
+        self._viewer_starting = True
+        try:
+            self.start_viewer(self._pending_viewer_root)
+        except (ValueError, OSError, RuntimeError) as error:
+            if not self._closed and self:
+                self.status.SetLabel('KiView unavailable: ' + str(error))
+        finally:
+            self._viewer_starting = False
+
     def start_viewer(self, root):
+        if self._closed or getattr(self.owner, 'closed', False):
+            raise RuntimeError('This Review pane is closed.')
+        self._pending_viewer_root = Path(root)
+        if not self.IsShownOnScreen():
+            return False
         from .web_host import ReviewWebHost
-        self.close()
+        from wayricad_runtime.local_webview import new_webview
+        self.close(restarting=True)
         self.ready = False
         host = ReviewWebHost(root)
         try:
             backend = wx.html2.WebViewBackendEdge if wx.Platform == '__WXMSW__' else wx.html2.WebViewBackendDefault
             if not wx.html2.WebView.IsBackendAvailable(backend):
                 raise RuntimeError('A modern WebView backend is required; install the system WebView2 runtime on Windows.')
-            browser = wx.html2.WebView.New(self.drawing_area, backend=backend, style=wx.BORDER_NONE)
+            browser = new_webview(self.drawing_area, backend=backend, style=wx.BORDER_NONE)
             if not browser.AddScriptMessageHandler('wayricadHost'):
                 browser.Destroy()
                 raise RuntimeError('This WebView does not support the Review message bridge.')
@@ -94,6 +125,7 @@ class WebDesignCanvas(wx.Panel):
         browser.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
         browser.LoadURL(host.url)
         self.view_area.Layout()
+        return True
 
     def choose_assets(self, event=None):
         with wx.DirDialog(self, 'Choose KiView source or installed viewer assets') as dialog:
@@ -489,7 +521,12 @@ class WebDesignCanvas(wx.Panel):
                    path=self.document_id, source_sha256=self.digest))
         self.status.SetLabel(str(message)[:1000])
 
-    def close(self):
+    def close(self, *, restarting=False):
+        self._closed = not restarting
+        if not restarting:
+            self._pending_viewer_root = None
+            if self._show_owner and self._show_owner is not self:
+                self._show_owner.Unbind(wx.EVT_SHOW, handler=self.shown)
         self._generation += 1
         self.ready = False
         if self.browser:
@@ -502,6 +539,10 @@ class WebDesignCanvas(wx.Panel):
 
     def destroyed(self, event):
         if event.GetEventObject() is self:
+            self._closed = True
+            self._pending_viewer_root = None
+            if self._show_owner and self._show_owner is not self:
+                self._show_owner.Unbind(wx.EVT_SHOW, handler=self.shown)
             self._generation += 1
             self.ready = False
             self.browser = None

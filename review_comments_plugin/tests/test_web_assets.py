@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import json
 import os
 import tempfile
 import unittest
@@ -69,6 +71,42 @@ class WebAssetsTests(unittest.TestCase):
         files['web-library/source-loader.mjs'] = b"export * from './missing.mjs';"
         with self.assertRaisesRegex(ValueError, 'missing.mjs'):
             verify_module_closure(files)
+        with self.assertRaisesRegex(ValueError, 'missing.mjs'):
+            verify_module_closure({'bundle.js':b"import './missing.mjs';"})
+
+    def test_bundled_release_is_exact_official_distribution_with_notices(self):
+        root=Path(__file__).parents[1]/'vendor/kicad-webview'
+        pin=json.loads((root/'REVIEW-PIN.json').read_text(encoding='utf-8'))
+        self.assertEqual(pin['version'],'0.6.0')
+        self.assertEqual(pin['license'],'MPL-2.0')
+        self.assertEqual(pin['source_archive_sha256'],'668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4')
+        for name,record in pin['files'].items():
+            data=(root/name).read_bytes()
+            self.assertEqual(len(data),record['bytes'])
+            self.assertEqual(hashlib.sha256(data).hexdigest(),record['sha256'])
+        manifest=asset_manifest(root,linked_models=True)
+        self.assertEqual(len(manifest),9)
+        served=discover_assets(root)
+        self.assertEqual(served['web-library/kicad-viewer.mjs'],root/'kivi-viewer.js')
+        self.assertNotIn('extension/vendor/spike-board3d.bundle.js',served)
+        self.assertNotIn('RELEASE.json',served)
+        from review_comments_plugin.web_host import _snapshot
+        snapshot=_snapshot(root,Path(__file__).parents[1]/'web')
+        self.assertLess(sum(map(len,snapshot.values())),2*1024*1024)
+        self.assertNotIn(b'extension/repo-models',snapshot['vendor/review-viewer.mjs'])
+        self.assertNotIn(b'<script src="vendor/extension/',snapshot['index.html'])
+
+    def test_distribution_package_root_and_mutated_external_copy(self):
+        import shutil
+        bundled=Path(__file__).parents[1]/'vendor/kicad-webview'
+        external=self.root/'package'/'dist'
+        external.mkdir(parents=True)
+        for name in json.loads((bundled/'REVIEW-PIN.json').read_text())['files']:
+            shutil.copyfile(bundled/name,external/name)
+        self.assertEqual(len(asset_manifest(external.parent)),9)
+        (external/'kivi-viewer.js').write_bytes(b'modified')
+        with self.assertRaisesRegex(ValueError,'pinned 0.6.0'):
+            asset_manifest(external.parent)
 
     def test_moved_source_layout_preserves_import_urls_and_notices(self):
         modern = self.root / 'moved'
@@ -119,14 +157,17 @@ class WebAssetsTests(unittest.TestCase):
         manifest = asset_manifest(root, linked_models=True)
         self.assertLess(sum(entry.bytes for entry in manifest), 3 * 1024 * 1024)
         self.assertEqual(len(discover_assets(root)), len(manifest))
-        self.assertIn('web-library/source-loader.mjs', {entry.path for entry in manifest})
-        self.assertIn('web-library/three-runtime.mjs', {entry.path for entry in manifest})
-        self.assertIn('web-library/archive/zip.mjs', {entry.path for entry in manifest})
-        self.assertIn('web-library/manufacturing/apertures.mjs', {entry.path for entry in manifest})
-        self.assertIn('web-library/inspector.mjs', {entry.path for entry in manifest})
+        served = discover_assets(root)
+        if served['web-library/kicad-viewer.mjs'].name == 'kivi-viewer.js':
+            self.assertEqual(len(manifest),9)
+            self.assertIn('PUBLIC-API.md',served)
+        else:
+            for name in ('source-loader.mjs','three-runtime.mjs','archive/zip.mjs',
+                         'manufacturing/apertures.mjs','inspector.mjs'):
+                self.assertIn('web-library/'+name,served)
         from review_comments_plugin.web_host import _snapshot
         snapshot = _snapshot(root, Path(__file__).parents[1] / 'web')
-        self.assertEqual(len(snapshot), len(manifest) + 3)
+        self.assertEqual(len(snapshot), len(manifest) + 4)
         self.assertLess(sum(map(len, snapshot.values())), 4 * 1024 * 1024)
 
 

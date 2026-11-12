@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "4.8.2")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "4.8.3")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -81,7 +81,7 @@ def plugin_files(plugin_path):
                 "tools", "scripts", "docs", "examples", "node_modules"}
     if plugin_path.name in {"protocol_constraint_composer_plugin", "quick_therm_plugin"}:
         excluded -= {"docs", "examples"}
-    if plugin_path.name == "bom_studio_plugin":
+    if plugin_path.name in {"bom_studio_plugin", "manufacturing_readiness_plugin", "heater_designer_plugin"}:
         excluded.discard("examples")
     for root, dirs, files in os.walk(plugin_path):
         dirs[:] = sorted(d for d in dirs if d not in excluded and not d.startswith("."))
@@ -537,7 +537,10 @@ def create_plugin_zip(
         # Every package carries its own runtime; installed tools never import siblings.
         if metadata.get("versions", [{}])[0].get("runtime") != "swig":
             runtime_root = Path(__file__).resolve().parent / "wayricad_runtime"
-            for source in sorted(p for p in runtime_root.rglob("*") if p.is_file() and p.suffix in (".py", ".md")):
+            for source in sorted(p for p in runtime_root.rglob("*") if p.is_file() and
+                                 (p.suffix in (".py", ".md") or
+                                  (p.is_relative_to(runtime_root / 'assets' / 'thermoelectric') and p.suffix in ('.js','.html','.txt','.png')) or
+                                  p.name == 'THERMOELECTRIC_3D.html')):
                 zipf.writestr(zip_entry("plugins/wayricad_runtime/" + source.relative_to(runtime_root).as_posix(),
                                        compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
             zipf.writestr(zip_entry("plugins/wayricad_runtime/LICENSE"),

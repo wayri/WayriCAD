@@ -16,5 +16,6 @@ examples/quick_emerge/research_antennas/images/*.html -text whitespace=cr-at-eol
 examples/quick_emerge/research_antennas/images/**/*.html -text whitespace=cr-at-eol,-blank-at-eol
 
 # The pinned WebView release is verified by byte hash; never rewrite line endings.
-portable_web_export_plugin/vendor/kicad-webview/* -text
-portable_web_export_plugin/vendor/kicad-webview/licenses/* -text
+portable_web_export_plugin/vendor/kicad-webview/* -text whitespace=cr-at-eol,-blank-at-eol
+portable_web_export_plugin/vendor/kicad-webview/licenses/* -text whitespace=cr-at-eol,-blank-at-eol
+review_comments_plugin/vendor/kicad-webview/* -text whitespace=cr-at-eol,-blank-at-eol

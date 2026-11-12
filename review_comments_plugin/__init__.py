@@ -1,2 +1,2 @@
 """Provider-backed KiCad review comments; importing never registers an editor action."""
-__version__ = '4.8.2'
+__version__ = '4.8.3'

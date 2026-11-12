@@ -18,6 +18,28 @@ CLI scope: JSON manufacturing audit; native DRC remains a separate release gate.
 
 ## Capabilities
 
+### Fabrication Net Comparison (Introduced In 4.8.3)
+
+See
+[4.8.3 source scope and local validation](../docs/RELEASE_NOTES_4.8.3.md).
+
+**Fab net compare...** in DFM/DFA Studio and **Fabrication net compare...** in
+the release manager open a read-only shorts/opens workspace. Compare a design
+reference with an independently CAM-extracted IPC-D-356 netlist or the documented
+JSON connectivity format. Net numbers may differ: exact component/pin membership
+defines the correspondence. One merged CAM group is one short finding, with all
+affected original nets and pins retained; split design groups identify opens.
+
+Native KiCad reference export includes source/output hashes and a UTC receipt.
+It exports intended design assignments, not Gerber copper connectivity. Missing
+pins, unsupported records, potentially truncated identities and self-comparison
+cannot establish a match. `MATCH` is an imported partition match, not fabrication
+approval. This separate evidence does not silently replace native DRC, manual
+checklist requirements or the release manager's existing DRC/jobset gates.
+
+See [workflow, formats and examples](FAB_NET_COMPARE.md),
+[offline help](fab_compare_help.html) and [CLI commands](DFM_CLI.md#fabrication-net-comparison).
+
 ### New in 4.8.2
 
 - Searchable **Vendor process library**: 24 process presets and 28 supplier

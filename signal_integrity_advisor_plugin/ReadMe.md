@@ -4,6 +4,26 @@
 
 ## Quick start
 
+**Introduced in 4.8.3:** **3D conductor / thermal study** opens the
+same explicit solid current/heat solver and offline 3D viewer as Quick PI,
+QuickTherm and Heater Designer. It is a steady conduction/thermoelectric study,
+not a high-frequency electromagnetic solver.
+
+```sh
+wayricad-si thermal-3d study.json --output thermal-result.json --html thermal-report.html
+wayricad-si thermal-feedback route.json --thermal thermal-result.json --template --output mapping.json
+wayricad-si thermal-feedback route.json --thermal thermal-result.json --mapping mapping.json --current-a 0.1 --output feedback.json
+```
+
+Review and fill physical XYZ samples for **every original route section** in
+the mapping, its baseline conductor reference temperature/TCR and `reviewed`
+flag. Both source identities must match. Outside/void samples and unknown
+baseline resistances are rejected, not nearest-filled. Output retains each
+section's temperature-adjusted DC resistance and optional declared I-squared-R
+loss. It does not silently change the original SI report or re-solve AC loss,
+impedance, dielectric drift, crosstalk or an eye diagram. See
+[shared help](../wayricad_runtime/THERMOELECTRIC_3D.html).
+
 | Step | Action |
 | --- | --- |
 | 1. Choose the path | Save the PCB, open **Set up path…** and select its signal and endpoints. |

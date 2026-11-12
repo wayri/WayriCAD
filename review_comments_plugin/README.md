@@ -37,14 +37,39 @@ show a visible keyboard-focus outline. Sign-in fields have persistent labels;
 composer updates preserve the chosen theme, including warnings and character
 counts. Switching themes retains drafts and field values.
 
-The pane needs a separately supplied KiView asset directory:
-set `WAYRICAD_REVIEW_VIEWER_ROOT` before launch or choose **Viewer assets…**.
-KiView is separately supplied and is not bundled or relicensed by Review. The pane serves an in-memory snapshot of those assets through
+**Introduced in 4.8.3:** source bundles the unmodified
+**KiCad WebView 0.6.0** full ESM distribution
+under MPL-2.0, with its licenses and notices; no separate viewer setup is needed.
+Its integration-owned [pin receipt](vendor/kicad-webview/REVIEW-PIN.json) records
+the official archive identity and exact file hashes. The pane serves an in-memory snapshot of those assets through
 a temporary loopback listener, closed with the window. **Open project/design…**
 chooses a saved PCB or schematic; **Review this file** connects its exact saved
 file to the provider conversation. Pins and regions are local drafts until
 **Send message** publishes them. Provider reads, saved-file SHA-256 and scope
 matching remain the authority for displayed markers and publication.
+
+Optional overrides: set `WAYRICAD_REVIEW_VIEWER_ROOT` before launch or choose
+**Viewer assets…**. Select the verified 0.6.0 package root or its complete `dist`
+folder, not a lone script or the lite/classic bundle. All nine pinned ESM/notice
+files must match. Earlier reviewed `web-library/extension` and `src/engine`
+source layouts remain supported with their original notices and closure checks.
+Review does not download renderer updates or import another plugin's copy.
+
+PCB/schematic camera navigation uses the public copied camera API, preserving
+zoom and flip when focusing comments. Object focus uses exact saved UUIDs,
+never a reference-name guess. Layer controls also work in the current 3D viewer.
+In exploded 3D, review overlays are hidden until explode returns to zero: this
+adapter has no verified registration from provider XY anchors to displaced
+layer geometry. Draft pins/regions in 2D; 3D has no supported inverse mapping.
+
+![Current browser pane with a saved net and an unpublished illustrative marker](screenshots/review-060-browser-pcb.png)
+
+![Exploded 3D with unregistered review overlays hidden](screenshots/review-060-browser-exploded.png)
+
+These are current **browser-pane** captures of the public KiCad 10 PIC programmer
+demo, not native wx windows, live provider comments or running-editor evidence.
+The single illustrative marker is unpublished; explode is 40 in the 3D capture.
+See [capture provenance and acceptance scope](VALIDATION.md#published-060-browser-adapter).
 
 For an object-linked message, the intended interaction is:
 
@@ -270,7 +295,7 @@ Up to 5,000 general comments are supported; exceeding limits fails explicitly.
   and **Generate Gerbers**. Generation uses the matching KiCad CLI and a
   disposable input snapshot, writes a unique project-local folder and preserves
   existing fabrication files. Unsupported formats show an error. Viewing needs
-  a current externally supplied KiView build with manufacturing support.
+  the bundled viewer with manufacturing support (or a compatible explicit override).
   Pins/regions use that Gerber's coordinates and exact saved-file hash;
   **Design options → Comment on current Gerber** attaches a file-level note.
 - **All variants** or an explicitly saved named variant sets new-comment

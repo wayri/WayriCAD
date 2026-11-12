@@ -7,7 +7,7 @@ from .analysis import BoardMetrics,FabricatorProfile,audit_metrics,build_release
 from .verification import capture_inputs,VerificationSnapshot,find_cli,drc_evidence
 from .guided_ui import add_workflow, mark_primary
 
-VERSION="4.8.2"
+VERSION="4.8.3"
 STATUS_COLOURS={"PASS":"#3fa56b","WARN":"#d4a62a","FAIL":"#e34a43","UNKNOWN":"#d4a62a","INFO":"#3399cc"}
 
 class ReadinessMeter(wx.Panel):
@@ -85,12 +85,20 @@ class ManufacturingFrame(wx.Frame):
             row.Add(button,0,wx.RIGHT,7)
         row.AddStretchSpacer();self.meter=ReadinessMeter(p);row.Add(self.meter,0,wx.ALIGN_CENTER_VERTICAL)
         r.Add(row,0,wx.EXPAND|wx.ALL,10);self.audit_table=wx.ListCtrl(p,style=wx.LC_REPORT)
+        fab=wx.Button(p,label='Fabrication net compare...')
+        fab.Bind(wx.EVT_BUTTON,self.open_fab_compare)
+        r.Add(fab,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         for i,(n,w) in enumerate((("Status",90),("Check",250),("Board",220),("Requirement",220))):self.audit_table.InsertColumn(i,n,width=w)
         make_sortable(self.audit_table)
         r.Add(self.audit_table,1,wx.EXPAND|wx.ALL,10);p.SetSizer(r);return p
     def release_page(self,parent):
         p=wx.Panel(parent);r=wx.BoxSizer(wx.VERTICAL);self.project=wx.TextCtrl(p,value=str(Path(self.board.GetFileName()).parent if self.board.GetFileName() else ""));self.jobset=wx.TextCtrl(p);g=wx.FlexGridSizer(2,3,7,8);g.AddGrowableCol(1,1);g.Add(wx.StaticText(p,label="Project directory"));g.Add(self.project,1,wx.EXPAND);g.Add(wx.StaticText(p,label=""));g.Add(wx.StaticText(p,label="Optional .kicad_jobset"));g.Add(self.jobset,1,wx.EXPAND);browse=wx.Button(p,label="Browse…");browse.Bind(wx.EVT_BUTTON,self.pick_jobset);g.Add(browse);r.Add(g,0,wx.EXPAND|wx.ALL,10)
         self.log=wx.TextCtrl(p,style=wx.TE_MULTILINE|wx.TE_READONLY);r.Add(self.log,1,wx.EXPAND|wx.ALL,10);p.SetSizer(r);return p
+    def open_fab_compare(self,_event):
+        from .fab_compare_ui import open_dialog
+        name=self.board.GetFileName()
+        open_dialog(self,board_path=Path(name) if name else None)
+
     def current_profile(self):
         f=self.fields;return FabricatorProfile(f['name'].GetValue(),float(f['minimum_track_mm'].GetValue()),float(f['minimum_clearance_mm'].GetValue()),float(f['minimum_drill_mm'].GetValue()),float(f['minimum_annular_ring_mm'].GetValue()),float(f['maximum_via_aspect_ratio'].GetValue()),int(f['maximum_layers'].GetValue()),float(f['minimum_routed_edge_mm'].GetValue()))
     def open_dfm(self,_event):

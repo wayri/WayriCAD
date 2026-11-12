@@ -59,6 +59,10 @@ jobs:
         run: python -m pytest manufacturing_readiness_plugin/tests -q
       - name: Review canvas bridge regressions
         run: node --test tests/web_bridge.test.mjs
+      - name: Portable offline export regressions
+        run: |
+          python -m pytest portable_web_export_plugin/tests -q
+          node --test portable_web_export_plugin/tests/review_controls.test.cjs
       - name: RLC whole-board and bundle regressions
         run: python -m pytest trace_impedance_plugin/tests -q
       - name: Embed3D regressions

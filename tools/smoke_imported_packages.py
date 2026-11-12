@@ -48,7 +48,7 @@ def main():
             archive.extractall(root)
         modules = ('wayricad_runtime.assistant', 'suite_assistant_plugin.__main__', 'wayricad_runtime.tool_cli', 'silkscreen_label_plugin.cli', 'wayricad_runtime.jobs', 'wayricad_runtime.cli', 'trace_impedance_plugin.cli', 'copper_balancer_plugin.cli', 'mechanical_check_plugin.cli',
                    'embed_3d_plugin.__main__', 'quick_emerge_plugin.__main__', 'quick_pi_plugin.cli', 'quick_therm_plugin.cli', 'signal_integrity_advisor_plugin.cli', 'project_fusion_plugin.__main__', 'variant_manager_plugin.wayri_variants.cli', 'trace_refiner_plugin.cli', 'layer_counter_plugin.cli', 'component_arranger_plugin.cli')
-        modules += ('manufacturing_readiness_plugin.dfm_cli',)
+        modules += ('manufacturing_readiness_plugin.dfm_cli', 'portable_web_export_plugin.cli')
         for module in modules:
             script = ('import importlib,sys;sys.path.insert(0,sys.argv[1]);'
                       'module=importlib.import_module(sys.argv[2]);'
@@ -62,6 +62,26 @@ def main():
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from argparse import Namespace
+from review_comments_plugin.web_assets import asset_manifest
+review_assets=Path(sys.argv[1])/'review_comments_plugin/vendor/kicad-webview'
+assert any(row.path=='web-library/kicad-viewer.mjs' for row in asset_manifest(review_assets))
+from portable_web_export_plugin.exporter import scan_project,build_export,ExportSelection
+portable_root=Path(sys.argv[1])/'portable_web_export_plugin'
+assert (portable_root/'resources/review_controls.js').is_file()
+portable_board=Path(sys.argv[1])/'portable-smoke.kicad_pcb'
+portable_board.write_text('(kicad_pcb (version 20240108) (generator pcbnew) (uuid 11111111-1111-1111-1111-111111111111))',encoding='utf-8')
+portable_document,portable_manifest=build_export(scan_project(portable_board),ExportSelection(include_schematic=False),portable_root)
+assert portable_manifest['viewer']=='KiCad WebView 0.6.0'
+assert 'WayriCADPortableReview' in portable_document
+from manufacturing_readiness_plugin.dfm_cli import main as dfm_main
+import contextlib,io,json
+fab_examples=Path(sys.argv[1])/'manufacturing_readiness_plugin/examples'
+with contextlib.redirect_stdout(io.StringIO()) as fab_stdout:
+    fab_code=dfm_main(['fab-compare','--reference',str(fab_examples/'fab-reference.json'),
+                      '--cam',str(fab_examples/'fab-intentional-short.json')])
+fab_result=json.loads(fab_stdout.getvalue())
+assert fab_code==1 and fab_result['summary']['short_groups']==1
+assert len(fab_result['shorts'][0]['design_nets'])==9 and not fab_result['fabrication_verified']
 from wayricad_runtime.tool_cli import catalogue
 assert len(catalogue()['tools'])==27
 from wayricad_runtime.control_cli import main as control_main

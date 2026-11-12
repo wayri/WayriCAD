@@ -68,6 +68,7 @@ REQUIREMENTS_QUICK_PI = {
     'vtkmodules.vtkFiltersModeling': 'vtk>=9.3,<10',
     'kipy': 'kicad-python>=0.8.0,<0.9',
 }
+# Complete non-VTK scientific profile, also used by Heater and Quick SI.
 REQUIREMENTS_QUICK_THERM = {
     'reportlab': 'reportlab>=4,<5',
     'numpy': 'numpy>=1.24,<3', 'scipy': 'scipy>=1.10,<2',

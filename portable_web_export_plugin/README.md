@@ -7,6 +7,11 @@ rather than a second KiCad parser or drawing engine. The export works directly
 from disk without a server, CDN, npm installation, or recipient-side WayriCAD
 installation.
 
+**Introduced in 4.8.3:** the official WebView 0.6.0 pin,
+exact part/net inspection, ambiguity rejection, inert saved labels, separate
+source/bundled hashes and guarded atomic export. See
+[release scope and validation limits](../docs/RELEASE_NOTES_4.8.3.md).
+
 | Native selection and preflight | Exported offline review page |
 |---|---|
 | <a href="help-workflow.png"><img src="help-workflow.png" width="560" alt="Selection, findings and exact preview workflow"></a> | <a href="help-page-preview.png"><img src="help-page-preview.png" width="560" alt="Interactive review page and traceability controls"></a> |
@@ -14,6 +19,20 @@ installation.
 These source-aligned illustrations use generic example data. They document the
 intended controls and output structure; they are not evidence of a live editor
 session or a particular project's successful export.
+
+### Actual Offline Browser Checks
+
+![Offline PCB net selection and original-field inspector](help-offline-pcb.png)
+![Offline exploded 3D with unresolved-model stand-ins](help-offline-3d.png)
+<img src="help-offline-mobile.png" width="390" alt="Actual 390-pixel offline browser controls and net inspector">
+
+These are actual browser captures of an exported public KiCad 10 PIC programmer
+demo, not native KiCad windows. The coordinating browser check reported 63 parts,
+111 nets, GND inspection, 3D explode 35, a 390-pixel layout without page overflow,
+zero HTTP attempts and zero JavaScript errors. No external 3D model assets were
+bundled; unresolved models are stand-ins, not validated model geometry. Capture
+inputs, hashes, exclusions and the forced-software-GPU timeout are recorded in
+[screenshot provenance](SCREENSHOT_PROVENANCE.md).
 
 ## What it exports
 
@@ -52,6 +71,20 @@ Use the page tabs to inspect schematic sheets, PCB views, supported 3D models,
 and the BoM. Selecting a BoM row focuses the corresponding component in the
 active viewer; viewer selections highlight their BoM rows. BoM rows can be
 grouped by value/footprint or shown as individual references.
+
+The pinned viewer is the official **KiCad WebView 0.6.0** release. The sidebar's
+**Exact saved identity** control locates a part by exact case-sensitive reference,
+UUID or saved ID, or a net by exact name/ID in the currently loaded drawing.
+Substring filtering remains separate in **Filter BoM**. Duplicate names/UUIDs
+are rejected visibly instead of picking the first match; a saved identity that
+conflicts never falls back to an unrelated reference. Select the correct sheet
+before looking up a sheet-local part or net.
+
+Selection opens the viewer's own property inspector, retaining saved original
+fields as read-only text. Use the viewer's existing Layers, fit, highlight,
+appearance and 3D camera/explode controls; the host does not maintain a duplicate
+layer/camera implementation. PCB/3D tabs reopen the saved board; schematic tabs
+open an included schematic rather than applying a schematic view to PCB bytes.
 
 Individual reference edits save immediately in browser storage. Group edits are
 staged and update every group member only after **Apply group** and confirmation.
@@ -146,11 +179,21 @@ page header and **About** dialog expose the human-reviewable identifiers.
 | `projectId` | Stable identity derived from the selected saved project. |
 | `revisionId` | Identity of the selected source bytes; changes when those bytes change. |
 | `documentId` | Identity of this separately generated HTML document. |
-| `sourceFiles` | Project-relative role, SHA-256, and byte count for every bundled source. |
+| `sourceFiles[].sha256` / `bytes` | Hash and byte count of the original saved source. |
+| `sourceFiles[].bundledSha256` / `bundledBytes` | Hash and byte count of the copy embedded for rendering. |
+| `sourceFiles[].transformed` | True when a bundled copy differs, for example after model-path rewriting. |
 
 Keep the HTML and optional JSON manifest together with the reviewed source
 revision. The metadata proves which bytes were bundled; it does not certify
 electrical correctness or manufacturing readiness.
+
+Build rejects a source changed since the native scan, including a supported
+model. Native export also rechecks that snapshot before writing the exact
+preview document. Rescan and rebuild the preview after saved-source changes.
+Source and bundled hashes are intentionally distinct; model-path rewriting
+never rewrites the saved PCB. Writes use unique same-directory temporary files
+and atomic replacement, reject source aliases, and clean up only their own temp
+file on failure. CLI destinations must be new files.
 
 ## 3D support
 
@@ -181,6 +224,12 @@ The plugin package contains a reviewed KiCad WebView distribution in
 `LICENSE`, `LICENSING.md`, `THIRD-PARTY-NOTICES.md`, dependency notices, and
 source provenance alongside `kicad-webview.min.js`.
 
+The integration-authored `PINNED-DISTRIBUTION.json` records the official 0.6.0
+archive URL/SHA-256 and hashes of all retained files; upstream does not provide a
+`RELEASE.json`. The classic script, legal/provenance files and public API
+references are retained; optional bundles, fixtures and private designs are not.
+See [the vendor pin and refresh procedure](vendor/kicad-webview/README.md).
+
 KiCad WebView is MPL-2.0. WayriCAD host code remains GPL-3.0-only. See
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
@@ -198,5 +247,32 @@ KiCad WebView is MPL-2.0. WayriCAD host code remains GPL-3.0-only. See
   limitations documented by KiCad WebView.
 - Cross-selection never guesses an unrelated reference when a stable saved
   identity conflicts.
+- Nets are per-drawing saved connectivity, not a native KiCad netlist/ERC result;
+  hidden power pins, buses and repeated-sheet instances retain the public
+  viewer's documented limitations. Hidden layers remain hidden when selected.
+- Saved labels, original fields and progress notes are untrusted text, not HTML.
+  Progress imports are bounded to 8 MiB and validate known stable identities,
+  nonnegative integer quantities, assembly states, DNP booleans and bounded notes.
+- 3D rendering performance depends on GPU/driver/browser. Software-emulated GPU
+  configurations may stall captures even when a normal GPU context renders;
+  a successful renderer call alone is not a visual qualification.
 - Browser `file:` storage policy varies. JSON backup/import is the portable
   recovery path.
+
+## Focused verification
+
+```text
+python -m unittest discover -s portable_web_export_plugin/tests -v
+node --test portable_web_export_plugin/tests/review_controls.test.cjs
+```
+
+Tests cover source/bundled hashes, stale scan rejection, exact reviewed bytes,
+concurrent atomic output, source aliases, pinned legal/runtime integrity,
+duplicate identities/references, malicious labels and tracking validation.
+They do not replace real-browser rendering checks or establish full KiCad parity.
+
+Browser QA selectors: `#inspect-kind` (`part`/`net`), `#inspect-query`,
+`#inspect-find`, `#lookup-status`, `#selection`, `#tabs`, and
+`body[data-viewer-ready="true"]`. The page-scoped `viewer` is the public 0.6.0
+Viewer instance; use `getParts()`, `getNets()`, `getSelection()`, `getLayerState()`
+and `getRenderStats()` as test diagnostics. Do not depend on renderer internals.

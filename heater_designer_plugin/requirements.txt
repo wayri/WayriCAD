@@ -1,1 +1,5 @@
 kicad-python>=0.8.0,<0.9
+numpy>=1.24,<3
+scipy>=1.10,<2
+matplotlib>=3.7,<4
+reportlab>=4,<5

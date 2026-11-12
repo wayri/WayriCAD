@@ -509,5 +509,113 @@
       "sha256": "3f5cb0d80bb2b88d9e0c856677cbb872d9a75ec67772481d80f33837ba068b6f",
       "transformed": true
     }
-  ]
+  ],
+  "wayriCADResults": {
+    "producerRepository": "https://github.com/wayri/WayriCAD",
+    "producerRevision": "0617fd201c0817d95648cec639744138aa59fe20",
+    "examples": "docs/examples/pocket-kivi",
+    "exampleStatus": "Saved example producer outputs, not measured hardware; preserve assumptions and unknown samples.",
+    "parserSource": "KiCad Online working-source analysis-data.js and analysis-spatial.js",
+    "originalParserSHA256": {
+      "analysisData": "527fa763938e256a8a419b0bb4be2f9df36df4c0dbfd8473963fe28a4db6e997",
+      "analysisSpatial": "e54ae11f5dd7b56063b2ac3dd21ded6e6b91eaeca430f84fd6cc4c56669f6c3"
+    },
+    "localAdaptations": [
+      "Share normalized mesh points across layer plots.",
+      "Reject empty/invalid current-vector dimensions instead of manufacturing zero magnitude.",
+      "Do not create area surfaces from singleton grid axes.",
+      "Exact-hash registration is separate from producer claims; canonical project-library integrity remains unverified.",
+      "Normalize the validated JSON object directly, avoiding duplicate stringify/parse and preserving one frozen savedSource graph.",
+      "Register supported fields on exact-source native 3D boards, preserve exact raycast probes and expose saved-layer controls."
+    ],
+    "files": [
+      {
+        "name": "example.kicad_pcb",
+        "bytes": 6499,
+        "sha256": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e"
+      },
+      {
+        "name": "example.kicad_pro",
+        "bytes": 9601,
+        "sha256": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4"
+      },
+      {
+        "name": "provenance.json",
+        "bytes": 6420,
+        "sha256": "929f05ebbb6365c2c14d92ade45174b45dd041c32835a7c511ff7a004beaea19"
+      },
+      {
+        "name": "quick-pi.pocket-kivi.json",
+        "bytes": 104691,
+        "sha256": "ad2896d3ccf1c76e4b7527ee6c12ee8bbc9596e71fe4d5afdf5559c58779a311"
+      },
+      {
+        "name": "quick-si.pocket-kivi.json",
+        "bytes": 362964,
+        "sha256": "f21a3ab360c48dc8fbc991ff39dcde947c0db3319ba28b5efdc85534de8ecbec"
+      },
+      {
+        "name": "quick-therm-transient.pocket-kivi.json",
+        "bytes": 61289,
+        "sha256": "b152cdf9efaadfd19507ae99569c45652d5479e7c56ec81191fdc4d05f080254"
+      },
+      {
+        "name": "quick-therm.pocket-kivi.json",
+        "bytes": 22971,
+        "sha256": "5b22e742c44c393bf8693ed1cf9da83af0225cf04714ecf721a41244401f6ef4"
+      },
+      {
+        "name": "README.md",
+        "bytes": 8328,
+        "sha256": "85e6eb4dd6ab3b028092ccf0695d8766ae22b7810150b2a05d26075cdac9ca0e"
+      },
+      {
+        "name": "si-channel.kicad_pcb",
+        "bytes": 6783,
+        "sha256": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995"
+      },
+      {
+        "name": "si-channel.kicad_pro",
+        "bytes": 9748,
+        "sha256": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe"
+      },
+      {
+        "name": "UPSTREAM-LICENSE",
+        "bytes": 35149,
+        "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+      }
+    ]
+  },
+  "extensionRefresh060": {
+    "candidate": "KiCad Online 0.12.94",
+    "baseCommit": "4a6b9147f165cefa38eb83365aac8d7fdf14f5fe",
+    "workingTreeSnapshot": true,
+    "method": "Selective read-only feature ports; library-specific guards and source contracts preserved.",
+    "files": [
+      {
+        "path": "extension/schematic-renderer.js",
+        "sha256": "8fa507b4ee85bed79f6d5bc237b8e6d5d8e9ca77dad194d49c73cefea7cf9042"
+      },
+      {
+        "path": "extension/pcb-renderer.js",
+        "sha256": "d879b9fcc5eaa4c8095f3328c1339c894fc97006de07f0159cd9128526cf3adc"
+      },
+      {
+        "path": "extension/net-model.js",
+        "sha256": "83da8680351ac82bb73a6dd9df9e278eea2d50e85d6e2928596e335e2fbf5646"
+      },
+      {
+        "path": "extension/owned-canvas.js",
+        "sha256": "ca863969e8354c1565fb373966dbefbfbaa3edf8784c7ec06717739764c54223"
+      },
+      {
+        "path": "extension/spike/board3d.js",
+        "sha256": "5279866a7103da449692c9ac9fbbd62926609afec07e7aabd1f4404db437f273"
+      },
+      {
+        "path": "extension/spike/explodeView.mjs",
+        "sha256": "daea0d9149d818120127f272cfbf57f42d5596a5c56dde5fecb747a2f6ab6aaf"
+      }
+    ]
+  }
 }

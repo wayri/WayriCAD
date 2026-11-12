@@ -253,6 +253,48 @@ thumbnail, but its black PNG is not usable evidence of that preview.
 
 ## Reproduction
 
+### Published 0.6.0 Browser Adapter
+
+On 13 November 2026 the parent browser harness exercised the unmodified official
+0.6.0 full ESM through Review's loopback host, using the saved public KiCad 10
+PIC programmer demo. It reported 63 parts, 111 nets, one explicitly illustrative
+unpublished marker, hidden review overlays at explode 40, no horizontal overflow
+at 390 CSS pixels and zero page errors. The native message channel was an explicit
+local stub. This establishes browser-pane behavior, not native wx embedding,
+provider authorization/publication, IPC navigation or installed PCM acceptance.
+
+`screenshots/review-060-browser-pcb.png` and
+`screenshots/review-060-browser-exploded.png` are copies of those browser captures.
+Both were visually inspected for private paths, identities and credentials;
+none appeared and no redaction was performed. They are not native-window captures
+and do not replace the separate historical native evidence above. The 3D capture
+has explode 40 and no review marker; display spacing is not saved board geometry.
+
+The matching source and official archive identity are in the integration-owned
+`vendor/kicad-webview/REVIEW-PIN.json`. Upstream's historical license/provenance
+documents retain old extraction/source links verbatim; the receipt identifies
+the actual 0.6.0 release bytes. No generated viewer code was edited.
+
+Additional regressions live in `tests/web_bridge_release.test.mjs`; the owned
+`tests/test_web_bridge_release.py` wrapper runs them under the Python suite when
+Node is available. They cover copied public camera projection/inversion and flip,
+camera-event repaint, UUID selection/position, explode registration rejection,
+source-load authority and superseded view cancellation. Existing root bridge
+contracts remain unchanged. Native `tests/test_web_canvas_lifetime.py` covers
+hidden/first-show/closed/error lifecycle boundaries without spawning a browser.
+
+Final source checks on Windows/Python 3.11: the complete Review Python suite
+passed 457 tests with six explicit skips (native KiCad CLI not selected,
+symlink creation unavailable for four cases, optional external viewer
+source not selected). The specified active 0.12.94 online marker parser was
+selected read-only; the shared marker format/provider semantics were unchanged.
+The combined existing and owned Node bridge suites passed 36 tests. Five
+isolated native lifecycle tests cover hidden construction, first parent show,
+closed-owner callbacks, visible initialization failures and deferred overrides.
+Visible browser construction uses the process-local runtime profile helper;
+TEMP/TMP were directed to D: during the checks. These source/native construction
+checks are not installed-package or live provider acceptance.
+
 ```console
 python -m pytest review_comments_plugin/tests -q
 python -m pytest tests/test_ipc_plugins.py tests/test_suite_ux.py tests/test_tool_cli.py -q

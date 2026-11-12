@@ -15,12 +15,12 @@ def relaunch(root, entrypoint, *, profile='ipc', loading=None):
                                 REQUIREMENTS_EXTRACT, REQUIREMENTS_BOM,
                                 REQUIREMENTS_QUICK_PI, REQUIREMENTS_QUICK_THERM,
                                 REQUIREMENTS_MAGNETICS, REQUIREMENTS_MECHANICAL,
-                                REQUIREMENTS_QUICK_EMERGE, REQUIREMENTS_REPORTS)
+                                REQUIREMENTS_QUICK_EMERGE)
     requirements = {} if profile in {'quick-pi-board', 'quick-therm-board'} else dict(REQUIREMENTS_IPC)
     if profile == 'extract':
         requirements.update(REQUIREMENTS_EXTRACT)
-    if profile == 'quick-si':
-        requirements.update(REQUIREMENTS_REPORTS)
+    if profile in {'quick-si', 'heater'}:
+        requirements.update(REQUIREMENTS_QUICK_THERM)
     if profile == 'bom':
         requirements.update(REQUIREMENTS_BOM)
     if profile in {'quick-pi', 'quick-pi-board'}:

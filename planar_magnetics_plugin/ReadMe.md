@@ -20,6 +20,14 @@ CLI scope: JSON winding analysis; copper placement remains in the GUI. The unifi
 
 ## Capabilities
 
+**Introduced in 4.8.3:** the explicit primary-winding
+thermal study adds spatial layer heat, copper-temperature feedback, native
+material/boundary forms and guarded asynchronous review/export. See
+[the thermal contract](THERMAL_STUDY.md); no core material properties or full
+3D magnetic losses are inferred.
+
+- Run an explicit primary-winding multilayer electrothermal screen with material/boundary forms, local copper temperature feedback, layer temperature maps and conservative heat-balance evidence. Open **Design > More > Primary winding thermal study**; see [thermal study assumptions, CLI example and limits](THERMAL_STUDY.md). The coupon is user-declared, not extracted from the board; optional core heat requires an explicit area/layer contact.
+
 - Generate rectangular/circular planar windings with multilayer transitions, primary/secondary nets and reviewed, recoverable PCB placement.
 - Estimate winding electrical properties and reduced actuator motion; inspect dimensioned cores, B-H sweeps, reluctance, saturation and ideal-gap force.
 - Solve explicit linear axisymmetric winding fields, mutual coupling and leakage; inspect mesh, B/H and convergence evidence.

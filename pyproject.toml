@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wayricad"
-version = "4.8.2"
+version = "4.8.3"
 description = "WayriCAD: KiCad plugins and CLI tools for PCB design, routing, electrical analysis, BOMs and portable libraries"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,7 +22,8 @@ Changelog = "https://github.com/wayri/WayriCAD/releases"
 
 [project.optional-dependencies]
 reports = ["reportlab>=4,<5"]
-si = ["matplotlib>=3.7,<4", "numpy>=1.24,<3"]
+si = ["matplotlib>=3.7,<4", "numpy>=1.24,<3", "scipy>=1.10,<2"]
+electrothermal = ["numpy>=1.24,<3", "scipy>=1.10,<2"]
 test = ["shapely>=2,<3", "numpy>=1.24,<3", "scipy>=1.10,<2", "matplotlib>=3.7,<4", "Pillow>=9.0", "pytest>=8", "jsonschema>=4", "kicad-python>=0.8.0,<0.9", "zstandard>=0.25.0,<1", "reportlab>=4,<5", "pypdf>=5,<7"]
 
 [project.scripts]
@@ -57,8 +58,10 @@ exclude = ["build*", "dist*", "tests*", "tools*", ".validation*", "*.tests", "*.
 
 [tool.setuptools.package-data]
 quick_emerge_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg", "resources/*.png"]
-review_comments_plugin = ["*.html", "*.md", "*.json", "*.txt", "*.png", "resources/*.png", "screenshots/*.png", "screenshots/*.jpg", "web/*.html", "web/*.css", "web/*.mjs"]
-wayricad_runtime = ["*.md"]
+review_comments_plugin = ["*.html", "*.md", "*.json", "*.txt", "*.png", "resources/*.png", "screenshots/*.png", "screenshots/*.jpg", "web/*.html", "web/*.css", "web/*.mjs", "vendor/kicad-webview/*", "vendor/kicad-webview/licenses/*"]
+wayricad_runtime = ["*.md", "*.html", "assets/thermoelectric/*.js", "assets/thermoelectric/*.html", "assets/thermoelectric/*.txt", "assets/thermoelectric/*.md", "assets/thermoelectric/*.png"]
+heater_designer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "examples/*.json"]
+planar_magnetics_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 suite_assistant_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
 bom_studio_plugin = ["*.html", "*.md", "*.json", "*.png", "web/*.html", "web/*.js", "web/*.css", "resources/*.png", "resources/*.ico", "resources/*.md", "examples/*", "examples/*/*", "examples/*/*/*"]
 project_fusion_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "*.svg"]
@@ -72,7 +75,7 @@ extract_pins_plugin = ["*.html", "*.md", "*.txt", "*.svg", "*.png", "metadata.js
 harness_workbench_plugin = ["*.html", "*.md", "*.png", "metadata.json"]
 fanout_generator_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "style-gallery/*.png", "style-gallery/*.json"]
 trace_impedance_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
-manufacturing_readiness_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
+manufacturing_readiness_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "examples/*.json"]
 "signal_integrity_advisor_plugin.return_path" = ["*.html", "*.md", "*.png"]
 "signal_integrity_advisor_plugin.test_points" = ["*.html", "*.md", "*.png"]
 "quick_pi_plugin.decoupling" = ["*.html", "*.md", "*.png"]
@@ -82,7 +85,7 @@ copper_balancer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"
 quick_pi_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "studies/*.json"]
 quick_therm_plugin = ["*.html", "*.md", "*.json", "*.png", "*.svg", "resources/*.png", "examples/*.png", "examples/*.json", "examples/*.html", "examples/*.kicad_pcb", "examples/*.py", "studies/*.json"]
 embed_3d_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png"]
-portable_web_export_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "resources/*.png", "vendor/kicad-webview/*", "vendor/kicad-webview/licenses/*"]
+portable_web_export_plugin = ["*.html", "*.md", "*.txt", "*.json", "*.png", "resources/*.png", "resources/*.js", "vendor/kicad-webview/*", "vendor/kicad-webview/licenses/*"]
 protocol_constraint_composer_plugin = ["*.html", "*.md", "*.json", "*.png", "resources/*.png", "docs/*.md", "examples/*", "examples/profiles/*.json", "examples/workflow_demo/*", "web/*.html", "web/*.css", "web/*.js"]
 "protocol_constraint_composer_plugin.constraint_studio" = ["*.html", "*.png", "LICENSE*", "help/*.json", "help/images/*"]
 

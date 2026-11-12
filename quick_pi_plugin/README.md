@@ -6,6 +6,14 @@ required; unsupported newer-format features are refused without changing sources
 
 ## Quick start
 
+**Introduced in 4.8.3:** Files now opens **3D solid electrothermal
+study**. Run an explicit volumetric current/Joule/heat construction with the
+same kernel and offline viewer used by Heater Designer and QuickTherm. CLI:
+`wayricad-pi --thermoelectric-3d study.json --output result.json --html report.html`.
+This does not silently voxelize the open board or replace the existing 2.5D
+board electrothermal workflow. See [shared equations and limits](../wayricad_runtime/THERMOELECTRIC_3D.html)
+and [reproducible heater constructions](../heater_designer_plugin/THERMAL_3D.md).
+
 | Step | Action |
 | --- | --- |
 | 1. Prepare | Save the PCB and fill its zones in KiCad. |

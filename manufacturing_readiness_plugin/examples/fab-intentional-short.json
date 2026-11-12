@@ -1,0 +1,25 @@
+{
+  "schema": "wayricad.fab-netlist/v1",
+  "units": "mm",
+  "provenance": {"origin": "synthetic", "producer": "WayriCAD intentional short example", "notice": "Artificially merged group 168; not real CAM or electrical test evidence."},
+  "terminals": [
+    {"reference": "U1", "pin": "1", "net": "168"},
+    {"reference": "J1", "pin": "1", "net": "168"},
+    {"reference": "U1", "pin": "2", "net": "168"},
+    {"reference": "J1", "pin": "2", "net": "168"},
+    {"reference": "U1", "pin": "3", "net": "168"},
+    {"reference": "J1", "pin": "3", "net": "168"},
+    {"reference": "U1", "pin": "4", "net": "168"},
+    {"reference": "J1", "pin": "4", "net": "168"},
+    {"reference": "U1", "pin": "5", "net": "168"},
+    {"reference": "J1", "pin": "5", "net": "168"},
+    {"reference": "U1", "pin": "6", "net": "168"},
+    {"reference": "J1", "pin": "6", "net": "168"},
+    {"reference": "U1", "pin": "7", "net": "168"},
+    {"reference": "J1", "pin": "7", "net": "168"},
+    {"reference": "U1", "pin": "8", "net": "168"},
+    {"reference": "J1", "pin": "8", "net": "168"},
+    {"reference": "U1", "pin": "9", "net": "168"},
+    {"reference": "J1", "pin": "9", "net": "168"}
+  ]
+}

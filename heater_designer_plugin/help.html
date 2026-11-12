@@ -16,6 +16,24 @@
 <h2 id="help-section-5">PTC and NTC markers</h2>
 <p>The thermal preview marks a PTC hotspot/safety candidate at the hottest grid cell meeting the copper keepaway and an NTC representative-control candidate near average temperature, apart from the PTC where possible. The results table gives PCB coordinates; JSON export includes local and PCB coordinates. These are planning markers only. They do not place components or account for sensor footprint size, mounting, circuitry, control dynamics or DRC.</p>
 <img src="organic-gradient-preview.png" alt="Synthetic organic heater thermal preview with gradient and PTC and NTC markers">
+<h2 id="help-3d">3D Joule and thermoelectric study (introduced in 4.8.3)</h2>
+<p>This source capability does not establish installed updates or a hosted release CI pass.</p>
+<p>Choose <b>3D study</b>, review the conductor conductivity and construction layers,
+then solve the explicit volume. Rigid, flex, rigid-flex and free-foil presets are
+editable assumptions, not an inferred PCB stackup. Supply Seebeck coefficient
+and reference-lead evidence to enable thermoelectric coupling; no coefficient
+is guessed from the metal name. The study window's <b>Help</b> explains equations,
+contacts, units, conservation checks and CLI reproduction.</p>
+<p>The steady finite-volume model solves current flow, temperature-dependent
+resistivity, Joule heating, conduction, exposed-face convection/radiation and
+Seebeck/Peltier coupling. Rotate, pan, zoom, select a physical layer and probe an
+original solved cell. Refine the mesh before drawing engineering conclusions.
+Exports include input/result hashes, solver hash, UTC time and assumptions.</p>
+<img src="help-3d-preview.png" alt="Actual solved copper-flex 3D browser report with temperature scale and heat balance">
+<p>This is an actual browser rendering, not a native-window screenshot or measured
+temperature image. Automatic heater conversion supports one foil layer, not
+unmodelled vias. There is no 3D transient/CFD solver; variable-Seebeck edge
+coupling is not qualified continuum Thomson physics.</p>
 <h2 id="help-section-6">Thermal assumptions and safety</h2>
 <p>The reduced-order steady-state model distributes calculated copper loss into a board-plane grid with lateral conduction and uniform two-sided convection. It does not solve enclosure airflow, radiation, anisotropic laminate, adhesive interfaces, attached masses or closed-loop control. Predicted temperatures above 180 °C are flagged as outside a safe design range.</p>
 <div class="warn"><b>Safety:</b> This tool is not thermal or fire-safety certification. Verify current density, fusing, laminate temperature limits, maximum surface temperature, footprint placement, redundant cutoff and single-fault behavior with appropriate analysis and a physical prototype.</div>

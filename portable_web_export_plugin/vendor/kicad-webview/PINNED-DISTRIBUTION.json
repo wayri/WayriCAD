@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "kind": "wayricad-integration-pin",
+  "version": "0.6.0",
+  "upstreamAssetURL": "https://github.com/wayri/kicad-webview/releases/download/v0.6.0/wayrisignals-kicad-webview-0.6.0.tgz",
+  "upstreamArchiveSHA256": "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4",
+  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/v0.6.0",
+  "note": "Integration-authored file inventory; upstream 0.6.0 ships no RELEASE.json.",
+  "legalContext": "Upstream legal text is retained verbatim, including historical source links. Exact matching source is v0.6.0 above. Archived source-available text is historical, not an extra restriction on MPL-2.0.",
+  "files": [
+    {
+      "path": "FZSTD-LICENSE",
+      "sourcePath": "dist/FZSTD-LICENSE",
+      "bytes": 1089,
+      "sha256": "1d72133b15f05101411c4f53e34af38adce3ecf7a78959d3d28b1e4d41a4fc92"
+    },
+    {
+      "path": "INSPECTION-CONTROLS.md",
+      "sourcePath": "dist/INSPECTION-CONTROLS.md",
+      "bytes": 4034,
+      "sha256": "26e222a7690c9bdb663597cba7c92fdb4db5272f40341677df7f3b2e1e3dc77f"
+    },
+    {
+      "path": "LICENSE",
+      "sourcePath": "dist/LICENSE",
+      "bytes": 16726,
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+    },
+    {
+      "path": "LICENSING.md",
+      "sourcePath": "dist/LICENSING.md",
+      "bytes": 3336,
+      "sha256": "98dc1c39eaa49058e04b5891a6d4d0e3d0d89cc6a8e74e2128a749359cfc5b89"
+    },
+    {
+      "path": "PUBLIC-API.d.ts",
+      "sourcePath": "types/index.d.ts",
+      "bytes": 18445,
+      "sha256": "461ee3331e5f13ec2ba167b94ff983f4d78b88905bd4f60fc1205cf4ea634ac1"
+    },
+    {
+      "path": "PUBLIC-API.md",
+      "sourcePath": "dist/PUBLIC-API.md",
+      "bytes": 10617,
+      "sha256": "755386656976939382643a0f1744e30c79c1d76e82be9883bc337dc285bbffbe"
+    },
+    {
+      "path": "SOURCE-PROVENANCE.json",
+      "sourcePath": "dist/SOURCE-PROVENANCE.json",
+      "bytes": 22668,
+      "sha256": "40aeb9fd11ada5bec672306253463b1b2e06dac40b145c900856361a2adf8205"
+    },
+    {
+      "path": "SPIKE-ENGINE-NOTICE.md",
+      "sourcePath": "dist/SPIKE-ENGINE-NOTICE.md",
+      "bytes": 956,
+      "sha256": "946009e7d19ae2954c0271d632257dc9e86d5ef5fe426eaa399aced449736374"
+    },
+    {
+      "path": "THIRD-PARTY-NOTICES.md",
+      "sourcePath": "dist/THIRD-PARTY-NOTICES.md",
+      "bytes": 2001,
+      "sha256": "637797c6f1c4f515ab5275807f60aa421763362cc3edbac588d3ce7595efadee"
+    },
+    {
+      "path": "THREE-LICENSE",
+      "sourcePath": "dist/THREE-LICENSE",
+      "bytes": 1102,
+      "sha256": "f57eb9202058667d12aebd854fe8a86d6feaeab51078180df5615bfdbd5cff05"
+    },
+    {
+      "path": "UPSTREAM-PACKAGE.json",
+      "sourcePath": "package.json",
+      "bytes": 4278,
+      "sha256": "01a9ed8bff9dba7ea8639cbd781d47a08873d2e659145012ab005e9cd7b3bc1a"
+    },
+    {
+      "path": "VIEW-NAVIGATION.md",
+      "sourcePath": "dist/VIEW-NAVIGATION.md",
+      "bytes": 3254,
+      "sha256": "a4ecea14023f5b54a128985a7a331a13577c04bfc2ed38965bdbf3bee986b1ed"
+    },
+    {
+      "path": "kicad-webview.min.js",
+      "sourcePath": "dist/kicad-webview.min.js",
+      "bytes": 1695295,
+      "sha256": "d708010f9d8ccd56266f3594600f9537de9df2c20675c5e983ecc0c05ff8be66"
+    },
+    {
+      "path": "licenses/Pocket-KiView-Source-Available-1.0.txt",
+      "sourcePath": "dist/licenses/Pocket-KiView-Source-Available-1.0.txt",
+      "bytes": 5836,
+      "sha256": "6e0b3232c49c4aee1afd5b97e39c45d0eecc4071a2f69fc23f733b8aa12e6fc8"
+    }
+  ]
+}

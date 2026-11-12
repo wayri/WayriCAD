@@ -59,7 +59,10 @@ class RuntimeSetupTests(unittest.TestCase):
                              {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_EXTRACT})
             bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='quick-si')
             self.assertEqual(ensure.call_args.args[0],
-                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_REPORTS})
+                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_QUICK_THERM})
+            bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='heater')
+            self.assertEqual(ensure.call_args.args[0],
+                             {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_QUICK_THERM})
             bootstrap.relaunch(Path('plugin'), 'desktop_entrypoint.py', profile='bom')
             self.assertEqual(ensure.call_args.args[0],
                              {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_BOM})
@@ -95,6 +98,29 @@ class RuntimeSetupTests(unittest.TestCase):
         with patch.object(runtime, 'ensure_runtime', return_value=Path('fake-python')) as ensure, patch.object(bootstrap.subprocess, 'call', return_value=0):
             bootstrap.relaunch(Path('plugin'), 'ipc_entrypoint.py', profile='magnetics')
         self.assertEqual(ensure.call_args.args[0], {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_MAGNETICS})
+
+    def test_heater_and_si_launch_select_independent_scientific_profiles(self):
+        from wayricad_runtime import launcher, bootstrap
+        for tool, profile in (('heater_designer_plugin', 'heater'),
+                              ('signal_integrity_advisor_plugin', 'quick-si')):
+            with self.subTest(tool=tool), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root/'wayricad-tool.json').write_text(json.dumps(dict(
+                    tool=tool, module='plugin', **{'class': 'Plugin'}, name='Scientific tool')))
+                with patch.dict(launcher.os.environ, {'WAYRICAD_SPLASH_READY': 'test'}), \
+                     patch.object(bootstrap, 'relaunch', return_value=0) as launch:
+                    self.assertEqual(launcher.main(root), 0)
+                self.assertEqual(launch.call_args.kwargs['profile'], profile)
+                with patch.object(runtime, 'ensure_runtime', return_value=Path('fake-python')) as ensure, \
+                     patch.object(bootstrap.subprocess, 'call', return_value=0):
+                    bootstrap.relaunch(root, 'ipc_entrypoint.py', profile=profile)
+                requested = ensure.call_args.args[0]
+                self.assertEqual(requested, {**runtime.REQUIREMENTS_IPC, **runtime.REQUIREMENTS_QUICK_THERM})
+                self.assertTrue({'numpy', 'scipy', 'matplotlib', 'reportlab', 'kipy'} <= requested.keys())
+                self.assertFalse(any(module.startswith('vtk') for module in requested))
+                # Keep PCM requirements and managed runtime declarations aligned.
+                requirements_file = Path(__file__).parents[1]/tool/'requirements.txt'
+                self.assertEqual(set(requirements_file.read_text().splitlines()), set(requested.values()))
 
     def test_relaunch_preserves_editor_socket_and_argument_boundaries(self):
         from wayricad_runtime import bootstrap

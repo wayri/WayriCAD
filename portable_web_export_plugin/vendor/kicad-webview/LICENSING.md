@@ -6,7 +6,7 @@ KiCad WebView's owner-authored software is licensed under the **Mozilla Public L
 
 MPL applies at the source-file level. When distributing covered software, keep its license notices and make the covered source, including your modifications, available as required by MPL. Separate host-application files do not become MPL merely because they use this library. MPL does not require you to submit a pull request, and it does not prevent paid competing offerings.
 
-Minified JavaScript and bundled HTML are not the preferred form for editing the library. Tell recipients where to obtain the corresponding source. This release's matching source is [v0.1.0-beta.2](https://github.com/wayri/kicad-webview/tree/v0.1.0-beta.2); source archives are available from that tag. Keep the source link, LICENSE, THIRD-PARTY-NOTICES.md and dependency notices with distributed builds. If you modify a build, supply your matching modified covered source rather than pointing only to an unmodified upstream release. The build scripts carry this source offer in their banners and distribution metadata.
+Minified JavaScript and bundled HTML are not the preferred form for editing the library. Tell recipients where to obtain the corresponding source. This release's matching source is [v0.2.0](https://github.com/wayri/kicad-webview/tree/v0.2.0); source archives are available from that tag. Keep the source link, LICENSE, THIRD-PARTY-NOTICES.md and dependency notices with distributed builds. If you modify a build, supply your matching modified covered source rather than pointing only to an unmodified upstream release. The build scripts carry this source offer in their banners and distribution metadata.
 
 ## Scope and exceptions
 
@@ -18,6 +18,6 @@ Minified JavaScript and bundled HTML are not the preferred form for editing the 
 
 ## Brand and contributions
 
-The code license does not grant rights to impersonate the project or imply endorsement. See [brand policy](TRADEMARKS.md). Contributors retain copyright and submit their contributions under MPL-2.0; no copyright assignment or proprietary relicensing permission is implied. See [contributing](CONTRIBUTING.md).
+The code license does not grant rights to impersonate the project or imply endorsement. See [project name policy](TRADEMARKS.md). Contributors retain copyright and submit their contributions under MPL-2.0; no copyright assignment or proprietary relicensing permission is implied. See [contributing](CONTRIBUTING.md).
 
-For integration, maintenance or support services, contact [support.kivi@sigharmonic.com](mailto:support.kivi@sigharmonic.com). Paid support is optional and does not change the open-source license. For explanatory guidance, see the [Mozilla MPL FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/).
+The library is free to use, including commercially, under MPL-2.0. No payment or individual commercial-use approval is required. Need help embedding or customizing KiCad WebView? Optional paid implementation, maintenance, and support are available at [support.kivi@sigharmonic.com](mailto:support.kivi@sigharmonic.com). You do not need to buy these services to use or integrate the library. Paid services do not change the open-source license. For explanatory guidance, see the [Mozilla MPL FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/).

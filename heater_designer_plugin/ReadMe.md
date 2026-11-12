@@ -29,6 +29,27 @@ Preview only; no copper applied and no thermal simulation performed.
 
 ## Capabilities
 
+### Introduced In 4.8.3: Shared 3D Electrothermal Studies
+
+Local source checks do not establish
+installed updates or public release CI. See [4.8.3 notes](../docs/RELEASE_NOTES_4.8.3.md).
+
+**Preview > 3D study** builds a true 3D rectilinear current/heat model from
+a single-foil pattern. Review rigid, flex, rigid-flex/local stiffener or free-foil
+construction, conductivity, cooling and physical film thickness. Electrical
+Joule heating iterates with temperature; explicit Seebeck data enable
+Kelvin-consistent Peltier/Seebeck terms.
+
+Quick PI, Quick SI and QuickTherm use the same study format, solver and offline
+interactive Three.js viewer, including rotation/pan/zoom, physical layers,
+temperature/voltage/Joule density, original-cell probes, source identities and
+energy diagnostics. See [3D workflow, examples and limits](THERMAL_3D.md).
+
+This is separate from the fast 2D screen. Automatic heater meshing rejects
+unmodelled multilayer/via substitution; generic solid studies can contain
+explicit volumetric conductors. Temperature-dependent Seebeck remains an edge
+approximation, not a qualified continuum Thomson model.
+
 - Designs series-connected serpentine, zoned-raster, and concentric-spiral copper heaters.
 - Generates circular rasters, wide circular foil strips, annular arc meanders
   with two bottom terminals, split circular foil with adjacent side terminals,

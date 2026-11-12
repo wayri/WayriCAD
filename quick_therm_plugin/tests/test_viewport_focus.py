@@ -54,7 +54,7 @@ class ViewportFocusTests(unittest.TestCase):
         labels=[]
         with patch.object(f,'PopupMenu',side_effect=lambda menu:labels.extend(item.GetItemLabelText() for item in menu.GetMenuItems() if not item.IsSeparator())):
             f._thermal_files()
-        self.assertEqual(labels,['Save setup…','Load setup…','Save simulation…','Load simulation…',
+        self.assertEqual(labels,['3D solid electrothermal study...','Save setup…','Load setup…','Save simulation…','Load simulation…',
                                  'Export report…','Dissipation Sankey…','Export to Blender…'])
 
     def test_files_dispatches_result_exports_with_drawers_closed(self):

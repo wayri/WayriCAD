@@ -9,6 +9,7 @@ from pathlib import Path
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("board", type=Path, nargs='?')
+    parser.add_argument('--thermoelectric-3d',type=Path,help='Explicit shared 3D solid current/heat study JSON; separate from reduced-order board analysis.')
     parser.add_argument('--transient', type=Path, help='Explicit independent thermal R/C power-step JSON; optional board supplies saved-file provenance. Returns 4 for temperature-limit violations.')
     parser.add_argument("--config", type=Path, help="Reviewed JSON analysis settings for jobsets")
     parser.add_argument("--environment", choices=("air", "vacuum", "forced_air", "potting", "sealed"))
@@ -41,6 +42,16 @@ def main(argv=None):
     meshing.add_argument('--mesh-mode',choices=('auto','manual'),help='Override mesh_mode in --config thermal_network_settings; auto uses geometry-based sizing, not a convergence guarantee.')
     meshing.add_argument('--auto-mesh',dest='mesh_mode',action='store_const',const='auto',help='Enable automatic sizing in --config thermal_network_settings.')
     args = parser.parse_args(argv)
+    if args.thermoelectric_3d:
+        words=list(sys.argv[1:] if argv is None else argv)
+        allowed={'--thermoelectric-3d','--output','--html'}
+        if args.board or any(word.split('=')[0] not in allowed for word in words if word.startswith('--')):
+            parser.error('3D solid studies cannot combine with board/thermal analysis options.')
+        from wayricad_runtime.thermoelectric_study import cli
+        command=[str(args.thermoelectric_3d)]
+        if args.output:command+=['--output',str(args.output)]
+        if args.html:command+=['--html',str(args.html)]
+        return cli(command)
     if args.transient:
         try:
             from wayricad_runtime.transient_study import transient_cli

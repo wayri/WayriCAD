@@ -14,10 +14,22 @@ This statement concerns development tooling. It does not claim that plugin calcu
 
 ## Software and community acknowledgements
 
+- **Three.js contributors:** the offline interactive 3D electrothermal viewer
+  vendors Three.js 0.187.0 under its MIT license. See the retained
+  [license](wayricad_runtime/assets/thermoelectric/LICENSE-three.txt) and
+  [source/integrity record](wayricad_runtime/assets/thermoelectric/PROVENANCE.md).
+
 - **KiCad and its contributors:** the PCB and schematic editors, plugin interfaces, native tools and libraries on which these workflows depend.
 - **ngspice contributors:** the circuit simulation engine used through the KiCad installation for supported simulations.
 - **Python and the scientific Python community:** including NumPy, SciPy, Matplotlib and NetworkX for numerical computation, visualization and graph algorithms.
 - **wxPython, VTK and FreeCAD contributors:** native interfaces, visualization and optional mechanical workflows used by parts of the suite.
+- **KiCad WebView / KiCad Online:** Portable Web Export's current development
+  integration uses the pinned WebView 0.6.0 release under MPL-2.0, including its
+  selectively ported read-only Online rendering and inspection improvements.
+  Review can use a separately supplied WebView distribution; provider comments
+  and authentication remain Review's responsibility. Bundled files retain their
+  own license, notices and exact source provenance. Integration does not imply
+  that extension-only editing or provider features are part of the WebView SDK.
 - **Upstream plugin and library authors:** imported components retain their applicable licenses and provenance records. Please consult each component's license and any `SOURCE_PROVENANCE.json` alongside it.
 - **Researchers and open hardware contributors:** published methods and reference designs help make assumptions and verification reproducible. Specific sources and their implemented scope are recorded in the [motor models](docs/MOTOR_MODELS.md), [magnetics verification](docs/MAGNETICS_VERIFICATION.md) and [PI reference benchmarks](docs/PI_REFERENCE_BENCHMARKS.md).
 

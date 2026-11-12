@@ -313,6 +313,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
     def _files_menu(self,event=None):
         """Keep data and report actions reachable while the setup drawer is shut."""
         menu=wx.Menu()
+        from wayricad_runtime.thermoelectric_ui import open_study
+        volumetric=menu.Append(wx.ID_ANY,'3D solid electrothermal study...')
+        volumetric.Enable(not self._busy)
+        menu.Bind(wx.EVT_MENU,lambda event:open_study(self),volumetric)
         actions=[('Save setup…',self.project_setup.on_save,not self._busy and bool(self.inventory)),
                  ('Load setup…',self.project_setup.on_load,not self._busy and bool(self.inventory)),
                  None,

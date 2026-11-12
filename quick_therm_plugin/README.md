@@ -2,7 +2,16 @@
 
 ## Quick start
 
-**Simplified starting workflow (unreleased source update):** choose parts and
+**Introduced in 4.8.3:** Files now opens an explicit volumetric
+current/Joule/heat study using the same numerical kernel, construction format
+and offline 3D viewer as Heater Designer and Quick PI. CLI:
+`wayricad-therm --thermoelectric-3d study.json --output result.json --html report.html`.
+It supports declared Seebeck/Peltier coupling, not guessed alloy coefficients.
+This is separate from the existing thin-sheet/layer-resolved board models;
+opening the window does not automatically convert the current board to voxels.
+See [model scope and help](../wayricad_runtime/THERMOELECTRIC_3D.html).
+
+**Simplified starting workflow (4.8.3 source update):** choose parts and
 enter their dissipated power and ambient, then Run. Board screening is enabled
 by default. A usable explicit saved stackup selects the copper-layer model;
 otherwise the first run uses an explicitly labelled thin-sheet screen without

@@ -166,6 +166,11 @@ class QuickSIPanel(wx.Panel):
         from .help_utils import open_help
         help_button=wx.Button(left,wx.ID_HELP,label='Help: Quick SI workflow')
         help_button.Bind(wx.EVT_BUTTON,lambda event:open_help(self));form.Add(help_button,0,wx.EXPAND|wx.TOP,8)
+        thermal_study=wx.Button(left,label='3D conductor / thermal study')
+        def open_thermal_study(event):
+            from wayricad_runtime.thermoelectric_ui import open_study
+            open_study(self)
+        thermal_study.Bind(wx.EVT_BUTTON,open_thermal_study);form.Add(thermal_study,0,wx.EXPAND|wx.TOP,5)
         left.SetSizer(form)
         self.results_splitter=wx.SplitterWindow(self.workspace_splitter,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.results_splitter.SetMinimumPaneSize(self.FromDIP(120));self.results_splitter.SetSashGravity(.7)

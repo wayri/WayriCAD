@@ -1,0 +1,20 @@
+{
+  "schema": "wayricad.review-viewer-pin/v1",
+  "version": "0.6.0",
+  "license": "MPL-2.0",
+  "source_archive_url": "https://github.com/wayri/kicad-webview/releases/download/v0.6.0/wayrisignals-kicad-webview-0.6.0.tgz",
+  "source_archive_sha256": "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4",
+  "source_url": "https://github.com/wayri/kicad-webview/tree/v0.6.0",
+  "note": "Integration-owned receipt, not an upstream RELEASE.json. Files are unmodified package/dist bytes. Historical upstream notice links are preserved; source_url identifies this actual release.",
+  "files": {
+    "kivi-viewer.js": {"bytes": 1695158, "sha256": "97623fe3f3ba20addf8bab7076a922898e3ddd792ee7f50e2e5f2f9cd1f900a0"},
+    "LICENSE": {"bytes": 16726, "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"},
+    "LICENSING.md": {"bytes": 3336, "sha256": "98dc1c39eaa49058e04b5891a6d4d0e3d0d89cc6a8e74e2128a749359cfc5b89"},
+    "THIRD-PARTY-NOTICES.md": {"bytes": 2001, "sha256": "637797c6f1c4f515ab5275807f60aa421763362cc3edbac588d3ce7595efadee"},
+    "THREE-LICENSE": {"bytes": 1102, "sha256": "f57eb9202058667d12aebd854fe8a86d6feaeab51078180df5615bfdbd5cff05"},
+    "FZSTD-LICENSE": {"bytes": 1089, "sha256": "1d72133b15f05101411c4f53e34af38adce3ecf7a78959d3d28b1e4d41a4fc92"},
+    "SPIKE-ENGINE-NOTICE.md": {"bytes": 956, "sha256": "946009e7d19ae2954c0271d632257dc9e86d5ef5fe426eaa399aced449736374"},
+    "SOURCE-PROVENANCE.json": {"bytes": 22668, "sha256": "40aeb9fd11ada5bec672306253463b1b2e06dac40b145c900856361a2adf8205"},
+    "PUBLIC-API.md": {"bytes": 10617, "sha256": "755386656976939382643a0f1744e30c79c1d76e82be9883bc337dc285bbffbe"}
+  }
+}

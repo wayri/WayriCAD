@@ -1,0 +1,25 @@
+{
+  "schema": "wayricad.fab-netlist/v1",
+  "units": "mm",
+  "provenance": {"origin": "synthetic", "producer": "WayriCAD documented reference example", "notice": "Demonstration only; not a manufactured board."},
+  "terminals": [
+    {"reference": "U1", "pin": "1", "net": "GND"},
+    {"reference": "J1", "pin": "1", "net": "GND"},
+    {"reference": "U1", "pin": "2", "net": "DEMO_SENSE1"},
+    {"reference": "J1", "pin": "2", "net": "DEMO_SENSE1"},
+    {"reference": "U1", "pin": "3", "net": "DEMO_SENSE2"},
+    {"reference": "J1", "pin": "3", "net": "DEMO_SENSE2"},
+    {"reference": "U1", "pin": "4", "net": "DEMO_SENSE3"},
+    {"reference": "J1", "pin": "4", "net": "DEMO_SENSE3"},
+    {"reference": "U1", "pin": "5", "net": "DEMO_SENSE4"},
+    {"reference": "J1", "pin": "5", "net": "DEMO_SENSE4"},
+    {"reference": "U1", "pin": "6", "net": "DEMO_SENSE5"},
+    {"reference": "J1", "pin": "6", "net": "DEMO_SENSE5"},
+    {"reference": "U1", "pin": "7", "net": "DEMO_SENSE6"},
+    {"reference": "J1", "pin": "7", "net": "DEMO_SENSE6"},
+    {"reference": "U1", "pin": "8", "net": "DEMO_SENSE7"},
+    {"reference": "J1", "pin": "8", "net": "DEMO_SENSE7"},
+    {"reference": "U1", "pin": "9", "net": "DEMO_SENSE8"},
+    {"reference": "J1", "pin": "9", "net": "DEMO_SENSE8"}
+  ]
+}

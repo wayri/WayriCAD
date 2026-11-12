@@ -1,5 +1,10 @@
 # DFM / DFA Studio
 
+Introduced in 4.8.3: **Fab net compare...** provides imported
+manufacturing shorts/opens evidence. See [fabrication comparison](FAB_NET_COMPARE.md).
+It compares exact terminal partitions, not net names, and never treats a native
+PCB reference export as independently reconstructed fabrication copper.
+
 See the [guided offline help](dfm_help.html) and [headless command guide](DFM_CLI.md).
 Since 4.8.2, the vendor browser selects an exact service, filters by board layer
 count and imports/exports custom profiles without replacing bundled IDs. Save

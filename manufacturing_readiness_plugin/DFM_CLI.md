@@ -54,6 +54,44 @@ private copy, while manual-only profiles run project DRC without inventing
 vendor limits. The Manufacturing Readiness Manager's jobset and deterministic
 release gates remain a separate workflow; this command does not release a PCB.
 
+## Fabrication Net Comparison
+
+These commands are introduced in 4.8.3. First export an intended
+design reference using the originating KiCad CLI; both output paths must be new:
+
+```sh
+python -m manufacturing_readiness_plugin.dfm_cli fab-reference C:/Projects/Example/board.kicad_pcb C:/Projects/Example/review/reference.d356 --cli "C:/Program Files/KiCad/10.0/bin/kicad-cli.exe"
+```
+
+The exporter writes IPC-D-356 and a `.receipt.json` sidecar with original PCB
+SHA-256, output SHA-256, native version, UTC and `design-netlist` basis. Neither
+file proves actual Gerber/drill copper connectivity.
+
+Obtain an independently extracted manufacturing netlist from your CAM workflow,
+then compare and export all evidence formats together:
+
+```sh
+python -m manufacturing_readiness_plugin.dfm_cli fab-compare --reference reference.d356 --cam cam-extracted.d356 --confirm-independent-cam --json comparison.json --html comparison.html --csv comparison.csv --text comparison.txt
+```
+
+`--confirm-independent-cam` records an operator review; it does not authenticate
+the CAM producer. Exit 0 means `MATCH` for complete compared terminal partitions,
+not fabrication approval. Exit 1 means proven shorts/opens (`FAIL`); exit 3 means
+incomplete or non-independent evidence (`UNKNOWN`); exit 2 means invalid input or
+output; cancellation returns 130. A net-number change alone is not an error.
+Missing pins, ambiguous/truncated identities and unsupported IPC dialects must
+be resolved, not waived by changing the net names.
+
+Reproduce the intentionally shorted nine-net example (expected exit 1):
+
+```sh
+python -m manufacturing_readiness_plugin.dfm_cli fab-compare --reference manufacturing_readiness_plugin/examples/fab-reference.json --cam manufacturing_readiness_plugin/examples/fab-intentional-short.json --html demo-short.html --text demo-short.txt
+```
+
+The synthetic example has 18 matched pins, nine original nets, one merged
+observed group `168`, one short and zero opens. It is not measured CAM evidence.
+See [input schema, parser limits and GUI workflow](FAB_NET_COMPARE.md).
+
 ## Troubleshooting
 
 - **Unknown/incompatible scope:** choose the exact service/copper basis and all

@@ -175,7 +175,10 @@ class DFMFrame(wx.Frame):
         self.run_button = wx.Button(panel, label='Run vendor DRC / DFM checks'); self.run_button.Bind(wx.EVT_BUTTON, self.run)
         options.Add(self.run_button, 0, wx.RIGHT, 6)
         stop = wx.Button(panel, label='Cancel'); stop.Bind(wx.EVT_BUTTON, lambda event: self.cancel.set()); options.Add(stop)
+        fab = wx.Button(panel, label='Fab net compare...')
+        fab.Bind(wx.EVT_BUTTON, self.open_fab_compare)
         root.Add(options, 0, wx.EXPAND | wx.ALL, 10)
+        root.Add(fab, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self.notice = wx.StaticText(panel, label='Saved-design checks. Unknown and manual requirements are not passing checks.')
         root.Add(self.notice, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         split = wx.SplitterWindow(panel)
@@ -531,6 +534,10 @@ class DFMFrame(wx.Frame):
                     checklists.save_checklist(dialog.GetPath(), self.document)
                     self.input_checklists.add(Path(dialog.GetPath()).resolve())
                 except (ValueError, OSError) as exc: self.notice.SetLabel(str(exc))
+
+    def open_fab_compare(self, _event):
+        from .fab_compare_ui import open_dialog
+        open_dialog(self, board_path=self.path)
 
     def export(self, _event):
         if not self.current_result(): return
