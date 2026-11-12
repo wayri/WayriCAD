@@ -142,7 +142,11 @@ class PortableExporterTests(unittest.TestCase):
         ]))
         self.assertTrue(output.is_file())
         payload = json.loads(manifest.read_text(encoding="utf-8"))
-        self.assertEqual("WayriCAD Portable Web Export 0.1.0", payload["exporter"])
+        metadata = json.loads((Path(__file__).parents[1] / "metadata.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            "WayriCAD Portable Web Export " + metadata["versions"][0]["version"],
+            payload["exporter"],
+        )
 
     def test_cli_rejects_manifest_model_alias_before_writing_html(self):
         import contextlib
