@@ -306,8 +306,6 @@ class SeriesPathDialog:
         body=wx.ScrolledWindow(self.dialog,style=wx.VSCROLL|wx.HSCROLL)
         self.body=body;body.SetScrollRate(12,12);body.SetMinSize((0,0))
         root=wx.BoxSizer(wx.VERTICAL)
-        intro=wx.StaticText(body,label='Choose source and sink pads, then add components in path order. For multi-pad devices, review an explicit current-terminal pair. Values are explicit assumptions; saved copper supplies the intervening nets.')
-        intro.Wrap(parent.FromDIP(880));root.Add(intro,0,wx.EXPAND|wx.ALL,12)
         from .console import terminal_aliases
         self._pad_aliases=terminal_aliases(inventory)
         by_id={str(row['id']):row for row in inventory.get('terminals',[])}
@@ -330,86 +328,101 @@ class SeriesPathDialog:
         for control in (self.source_all,self.sink_all):
             peer_row.Add(control,1,wx.RIGHT,10);control.Bind(wx.EVT_CHECKBOX,self._changed)
         root.Add(peer_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        from .series_workflow import GuidedSeriesWorkflow
+        self.workflow=GuidedSeriesWorkflow(body,self)
+        root.Add(self.workflow.book,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        auto=self.workflow.auto;auto_layout=self.workflow.auto_sizer
         infer_row=wx.WrapSizer(wx.HORIZONTAL)
-        infer=wx.Button(body,label='Auto infer path')
+        infer=wx.Button(auto,label='Find paths')
         infer.Bind(wx.EVT_BUTTON,self._infer)
         infer_row.Add(infer,0,wx.RIGHT,10)
-        self.infer_unknown=wx.CheckBox(body,label='Include other device types (review current pins and device state)')
+        correct=wx.Button(auto,label='Correct stage…')
+        correct.Bind(wx.EVT_BUTTON,self.workflow.edit_stage)
+        infer_row.Add(correct,0,wx.RIGHT,10)
+        self.infer_unknown=wx.CheckBox(auto,label='Include other device types (explicit state / pin review)')
         infer_row.Add(self.infer_unknown,0,wx.ALIGN_CENTER_VERTICAL)
         self.infer_unknown.Bind(wx.EVT_CHECKBOX,self._changed)
-        root.Add(infer_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        auto_layout.Add(infer_row,0,wx.EXPAND|wx.ALL,8)
         from .series_inference import InlineInference
-        self.inference=InlineInference(body,inventory,self._accept_inferred)
-        root.Add(self.inference.panel,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        self.inference=InlineInference(auto,inventory,self._accept_inferred,compact=True,
+                                       on_change=self.workflow.refresh)
+        auto_layout.Add(self.inference.panel,0,wx.EXPAND|wx.ALL,8)
+        root.Add(self.workflow.preview_controls,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        root.Add(self.workflow.preview_book,1,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        self.preview=wx.TextCtrl(body,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,48))
+        root.Add(self.preview,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        root.Add(self.workflow.corrections,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        detail=self.workflow.corrections.GetPane();detail_layout=wx.BoxSizer(wx.VERTICAL)
         main=wx.BoxSizer(wx.HORIZONTAL)
         left=wx.BoxSizer(wx.VERTICAL)
-        left.Add(wx.StaticText(body,label='Ordered component path'),0,wx.BOTTOM,5)
-        self.list=wx.ListBox(body);left.Add(self.list,1,wx.EXPAND)
+        left.Add(wx.StaticText(detail,label='Ordered component path'),0,wx.BOTTOM,5)
+        self.list=wx.ListBox(detail);left.Add(self.list,1,wx.EXPAND)
         actions=wx.BoxSizer(wx.HORIZONTAL)
         for title,handler in (('Remove',self._remove),('Move up',self._up),('Move down',self._down)):
-            button=wx.Button(body,label=title);button.Bind(wx.EVT_BUTTON,handler);actions.Add(button,0,wx.RIGHT,5)
+            button=wx.Button(detail,label=title);button.Bind(wx.EVT_BUTTON,handler);actions.Add(button,0,wx.RIGHT,5)
         left.Add(actions,0,wx.TOP,7);main.Add(left,1,wx.EXPAND|wx.RIGHT,14)
-        self.parallel_button=wx.Button(body,label='Parallel parts…')
+        edit=wx.Button(detail,label='Correct selected stage…')
+        edit.Bind(wx.EVT_BUTTON,self.workflow.edit_stage);left.Add(edit,0,wx.EXPAND|wx.TOP,7)
+        self.parallel_button=wx.Button(detail,label='Parallel parts…')
         self.parallel_button.Bind(wx.EVT_BUTTON,self._parallel)
         left.Add(self.parallel_button,0,wx.EXPAND|wx.TOP,7)
         self.list.Bind(wx.EVT_LISTBOX,self._parallel_note)
         right=wx.BoxSizer(wx.VERTICAL)
-        right.Add(wx.StaticText(body,label='Add next component'),0,wx.BOTTOM,5)
-        self.component=ReadableChoice(body);right.Add(self.component,0,wx.EXPAND|wx.BOTTOM,10)
-        self.kind=ReadableChoice(body,choices=['Resistance / RL','Fixed forward drop','Diode at DC current'])
+        right.Add(wx.StaticText(detail,label='Add next component'),0,wx.BOTTOM,5)
+        self.component=ReadableChoice(detail);right.Add(self.component,0,wx.EXPAND|wx.BOTTOM,10)
+        self.kind=ReadableChoice(detail,choices=['Resistance / RL','Fixed forward drop','Diode at DC current'])
         self.kind.SetSelection(0);right.Add(self.kind,0,wx.EXPAND|wx.BOTTOM,10)
         self.values={};grid=wx.FlexGridSizer(0,2,6,9);grid.AddGrowableCol(1,1)
         for key,title,initial in (('r','Resistance (e.g. 5mΩ)','5m'),('l','Inductance (H required)',''),
                                   ('fixed','Fixed forward drop','1V'),('vf','Vf at Iref','0.7V'),
                                   ('iref','Reference current','1A'),('n','Ideality n','2'),('t','Junction temperature','25C')):
-            label=wx.StaticText(body,label=title);control=wx.TextCtrl(body,value=initial)
+            label=wx.StaticText(detail,label=title);control=wx.TextCtrl(detail,value=initial)
             grid.Add(label,0,wx.ALIGN_CENTER_VERTICAL);grid.Add(control,1,wx.EXPAND)
             self.values[key]=(label,control)
             if key=='r':control.SetHint('5mΩ or 0.1Ω; one resistance')
             if key=='l':control.SetHint('1mH, 10nH or 1pH; blank omits L')
         right.Add(grid,0,wx.EXPAND|wx.BOTTOM,8)
         add_actions=wx.BoxSizer(wx.HORIZONTAL)
-        selected_component=wx.Button(body,label='Use selected component')
+        selected_component=wx.Button(detail,label='Use selected component')
         selected_component.Bind(wx.EVT_BUTTON,self._selected_component)
         add_actions.Add(selected_component,0,wx.RIGHT,8)
-        add=wx.Button(body,label='Add component to path');add.Bind(wx.EVT_BUTTON,self._add)
+        add=wx.Button(detail,label='Add component to path');add.Bind(wx.EVT_BUTTON,self._add)
         add_actions.Add(add,0);right.Add(add_actions,0,wx.ALIGN_RIGHT)
-        explicit=wx.Button(body,label='Add explicit pad pair…')
+        explicit=wx.Button(detail,label='Add explicit pad pair…')
         explicit.Bind(wx.EVT_BUTTON,self._explicit_pair)
         right.Add(explicit,0,wx.ALIGN_RIGHT|wx.TOP,8);main.Add(right,1,wx.EXPAND)
-        root.Add(main,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        root.Add(wx.StaticText(body,label='Manual saved-net path · type or paste, then apply'),0,wx.LEFT|wx.TOP,12)
-        self.manual=wx.TextCtrl(body)
+        detail_layout.Add(main,1,wx.EXPAND|wx.ALL,8);detail.SetSizer(detail_layout)
+        console=self.workflow.console;console_layout=self.workflow.console_sizer
+        self.manual=wx.TextCtrl(console)
         self.manual.SetHint('run pi J1.1 Q1.1 100m Q1.3 U1.1')
-        root.Add(self.manual,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
-        self.manual_matches=wx.ListBox(body,size=(-1,72))
-        root.Add(self.manual_matches,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP,12)
-        apply_manual=wx.Button(body,label='Use manual path')
+        console_layout.Add(self.manual,0,wx.EXPAND|wx.ALL,8)
+        self.manual_matches=wx.ListBox(console,size=(-1,72))
+        console_layout.Add(self.manual_matches,0,wx.EXPAND|wx.ALL,8)
+        apply_manual=wx.Button(console,label='Use manual path')
         apply_manual.Bind(wx.EVT_BUTTON,self._apply_manual)
-        root.Add(apply_manual,0,wx.ALIGN_RIGHT|wx.RIGHT|wx.TOP,12)
+        console_layout.Add(apply_manual,0,wx.ALIGN_RIGHT|wx.ALL,8)
         self.manual.Bind(wx.EVT_TEXT,self._manual_changed)
         self.manual_matches.Bind(wx.EVT_LISTBOX_DCLICK,self._manual_pick)
         self._manual_pending=False
-        root.Add(wx.StaticText(body,label='Preview and validation'),0,wx.LEFT|wx.TOP,12)
-        self.preview=wx.TextCtrl(body,style=wx.TE_MULTILINE|wx.TE_READONLY,size=(-1,100))
-        root.Add(self.preview,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
         from .series_batch_setup import SeriesBatchSetup
         voltage=parent.voltage.GetValue() if hasattr(parent,'voltage') else '1'
         current=parent.current.GetValue() if hasattr(parent,'current') else '1'
         if hasattr(parent,'load_mode') and parent.load_mode.GetSelection()!=0:current=''
-        self.batch_setup=SeriesBatchSetup(body,self,voltage,current)
-        root.Add(self.batch_setup.panel,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
+        self.batch_setup=SeriesBatchSetup(self.workflow.bundle,self,voltage,current)
+        self.workflow.bundle_sizer.Add(self.batch_setup.panel,0,wx.EXPAND|wx.ALL,8)
         body.SetSizer(root)
         outer=wx.BoxSizer(wx.VERTICAL);outer.Add(body,1,wx.EXPAND)
         footer=wx.BoxSizer(wx.HORIZONTAL)
         save=wx.Button(self.dialog,label='Save path…');load=wx.Button(self.dialog,label='Load path…')
         save.Bind(wx.EVT_BUTTON,self._save);load.Bind(wx.EVT_BUTTON,self._load)
+        self.save_button=save
         footer.Add(load,0,wx.RIGHT,7);footer.Add(save,0,wx.RIGHT,7)
         tree=wx.Button(self.dialog,label='Power tree…')
         tree.Bind(wx.EVT_BUTTON,self._power_tree);footer.Add(tree,0)
         footer.AddStretchSpacer()
         run=wx.Button(self.dialog,wx.ID_OK,label='Run this path');cancel=wx.Button(self.dialog,wx.ID_CANCEL,label='Cancel')
         run.Bind(wx.EVT_BUTTON,self._run);footer.Add(run,0,wx.RIGHT,8);footer.Add(cancel,0)
+        self.run_button=run
         outer.Add(footer,0,wx.EXPAND|wx.ALL,12)
         self.dialog.SetSizer(outer)
         display=wx.Display.GetFromWindow(parent)
@@ -456,6 +469,9 @@ class SeriesPathDialog:
                     self.infer_unknown.SetValue(bool(query.get('include_unknown',False)))
                     self.inference.restore(saved)
             if isinstance(editor.get('batch'),dict):self.batch_setup.restore(editor['batch'])
+            mode=editor.get('workflow_mode',0)
+            if type(mode) is int and mode in (0,1):self.workflow.book.SetSelection(mode)
+        self.workflow.refresh()
 
     def _restore_path(self,data,keep_inference=False):
         """Restore saved schema-1 controls without replacing exact pad identities."""
@@ -479,7 +495,12 @@ class SeriesPathDialog:
         from .series_power_tree import series_path_tree
         from .series_power_tree_ui import show_series_power_tree
         try:
-            tree=series_path_tree(self._path_data(),self.inventory)
+            if hasattr(self,'workflow'):
+                data=(self.workflow.current_path if self.workflow.book.GetSelection()==2
+                      else self.workflow.resolve())
+                if data is None:raise ValueError('Choose a valid path or a bundle case first.')
+            else:data=self._path_data()
+            tree=series_path_tree(data,self.inventory)
             if tree is None:raise ValueError('Infer or enter a series path first.')
             show_series_power_tree(self.dialog,tree)
         except (ValueError,KeyError) as exc:
@@ -488,6 +509,7 @@ class SeriesPathDialog:
     def _infer(self,event=None):
         self.inference.infer(self._chosen(self.source),self._chosen(self.sink),
                              include_unknown=self.infer_unknown.GetValue())
+        self.workflow.refresh()
 
     def _accept_inferred(self,data):
         data=deepcopy(data)
@@ -499,6 +521,11 @@ class SeriesPathDialog:
         self.manual.ChangeValue('');self._manual_pending=False
 
     def _reviewed_editor_path(self):
+        if hasattr(self,'workflow'):
+            data=self.workflow.resolve()
+            self._restore_path(data)
+            self._manual_pending=False
+            return data
         if self._manual_pending and self.manual.GetValue().strip():
             if not self._apply_manual(None):raise ValueError('Complete the manual path before adding a batch setup.')
             self.inference.invalidate()
@@ -519,12 +546,14 @@ class SeriesPathDialog:
             'values':{key:control.GetValue() for key,(_,control) in self.values.items()},
             'component':component,'selected_stage':self.list.GetSelection(),
             'manual':self.manual.GetValue(),'manual_pending':self._manual_pending,
-            'inference':self.inference.snapshot(),'batch':self.batch_setup.snapshot()}}
+            'inference':self.inference.snapshot(),'batch':self.batch_setup.snapshot(),
+            'workflow_mode':self.workflow.mode if hasattr(self,'workflow') else 0}}
 
     def _manual_changed(self,event):
         from .console import suggestions
         self._manual_pending=True
         self.manual_matches.Set(suggestions(self.manual.GetValue(),self.inventory)[:12])
+        if hasattr(self,'workflow'):self.workflow.refresh()
         event.Skip()
 
     def _manual_pick(self,event):
@@ -539,6 +568,7 @@ class SeriesPathDialog:
             data=path_from_command(self.manual.GetValue(),self.inventory,existing=previous)
             self._restore_path(data)
             self._manual_pending=False
+            if hasattr(self,'workflow'):self.workflow.refresh()
             return True
         except ValueError as exc:
             self.wx.MessageBox(str(exc),'Review manual series path',self.wx.OK|self.wx.ICON_WARNING)
@@ -707,6 +737,7 @@ class SeriesPathDialog:
                                   ('\nDetected parallel parts: '+', '.join(found)+' · review with Parallel parts.' if found else ''))
         except Exception as exc:
             self.preview.SetValue((command if 'command' in locals() else '')+'\n\nReview: '+str(exc))
+        if hasattr(self,'workflow'):self.workflow.refresh()
         if event:event.Skip()
 
     def _model(self):
@@ -834,9 +865,8 @@ class SeriesPathDialog:
         except Exception as exc:self.wx.MessageBox(str(exc),'KiCad selection',self.wx.OK|self.wx.ICON_WARNING)
 
     def _save(self,event):
-        if self._manual_pending and not self._apply_manual(event):return
         try:
-            data=self._path_data()
+            data=self._reviewed_editor_path()
             parse_saved_path(data,self.inventory)
         except ValueError as exc:
             self.wx.MessageBox(str(exc),'Complete the series path before saving',self.wx.OK|self.wx.ICON_WARNING)
@@ -861,6 +891,7 @@ class SeriesPathDialog:
                 parse_saved_path(data,self.inventory)
                 self._restore_path(data)
                 self.manual.SetValue('');self._manual_pending=False
+                self.workflow.book.SetSelection(0);self.workflow.refresh()
             except (OSError,KeyError,TypeError,ValueError) as exc:
                 self.wx.MessageBox(str(exc),'Cannot load path',self.wx.OK|self.wx.ICON_WARNING)
 

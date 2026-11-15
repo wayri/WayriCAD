@@ -42,6 +42,24 @@ activation. Rechecking with an active wx event loop and warmed imports passed
 without changing its timeout or numerical baseline. Live timers ran with an
 active native event loop, not a mock scheduler.
 
+## Final Series And RLC Integration
+
+After the initial live-selection candidate, the requested guided series/bundle
+editor and RLC barrel safeguards were integrated. Independent checks passed:
+13 native series-editor tests, 64 focused series/bundle/plot tests, 20 native
+RLC via/zone tests, 97 broader RLC tests (8 skipped), 221 SI tests (39 skipped),
+and 3 native SI saved-worker/GUI tests. Counts overlap and are not summed.
+The SI native fixture now declares its 35 um / 1.53 mm / 35 um physical stackup;
+a separate test rejects missing stackup rather than restoring guessed via depths.
+The native SI GUI harness selected the known native interpreter directly, without
+testing dependency provisioning. Production worker and source checks were real.
+
+Auto/Console/Bundle views reuse the same path parser and pin/model safeguards.
+The embedded diagram and details tree clear on invalid drafts. Preview values
+remain topology-only until a solver run. Physical/used/residual barrel metadata
+is distinct; unverified stub termination, C and resonance are not manufactured.
+The shared SI RLC engine copies were synchronized and the drift gate passed.
+
 ## Evidence Boundaries
 
 Desktop screenshots returned an unrelated foreground window; they were rejected

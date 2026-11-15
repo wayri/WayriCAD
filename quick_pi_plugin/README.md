@@ -130,11 +130,14 @@ No private design or personal path is shown; no redaction was needed.
   current terminals. Optional same-component/net source, sink and component
   input/output pad groups share one model and one total current. Gate/control
   behavior and regulator dynamics are not inferred. [Pad-group workflow](SERIES_PAD_GROUPS.md).
-- **Series → Auto infer path** displays candidate net chains directly in the editor and
-  parallel component banks. Review incoming/outgoing and excluded pin numbers,
-  select the parts, and enter R/L or forward-drop models before using the path.
+- **Series → Auto / Console** separates guided route discovery from command entry.
+  Auto finds paths between selected start/end pads and reviews one stage at a
+  time. Both modes share an embedded Diagram / Details preview (topology only);
+  invalid edits clear the graph and tree and
+  block Run/Save. Correct stage uses component/current-pin dropdowns and explicit
+  models, preserving reviewed groups unless replacement is confirmed.
   [Discovery workflow and limits](SERIES_PAD_GROUPS.md#automatic-path-discovery).
-- **Batch series setups** in the same editor keeps named paths with their own
+- **Bundle** in the same editor keeps named batch paths with their own
   source voltage and load current. Add or update a reviewed path, save/load the
   batch setup, then **Run batch…** to open the batch results workspace. Each case
   retains all stages, parallel parts and current-pin groups. Cases are independent

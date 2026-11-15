@@ -421,6 +421,9 @@ class TraceFrame(wx.Frame):
         section=self.current.segments[event.GetIndex()]
         self.route_preview.selected_uuid=section.get('item_uuid');self.route_preview.Refresh()
         self.summary.SetLabel(f"{section['kind']} on {section['layer']} · {section.get('length_mm',0):.3f} mm · R DC {section.get('resistance_ohm',0):.5g} Ω · R AC {section.get('resistance_ac_ohm',0):.5g} Ω · {section.get('model','Model unresolved')}")
+        from .via_feedback import describe_via
+        if detail:=describe_via(section):
+            self.summary.SetLabel(self.summary.GetLabel()+'\n'+detail)
         self.summary.Wrap(max(500,self.GetClientSize().width-35))
 
     def highlight_net(self, _event: Any = None) -> None:
@@ -454,6 +457,9 @@ class TraceFrame(wx.Frame):
         self.summary.SetLabel(f"Selected {count} pads/tracks on {net_name} in PCB Editor.")
 
     def _show(self, result: PathMeasurement) -> None:
+        from .via_feedback import via_notes
+        for note in via_notes(result):
+            if note not in result.notes:result.notes.append(note)
         self.export_button.Enable()
         self.frequency_panel.set_path(result.as_report())
         self.table.DeleteAllItems()

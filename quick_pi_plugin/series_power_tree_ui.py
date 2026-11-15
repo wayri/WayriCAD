@@ -53,6 +53,7 @@ def diagram_canvas(parent, tree):
             self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
             self.SetScrollRate(12, 12)
             self.scale = 1.
+            self.tree = tree
             self.drag = None
             self.Bind(wx.EVT_PAINT, self.paint)
             self.Bind(wx.EVT_SIZE, self.resize)
@@ -61,6 +62,18 @@ def diagram_canvas(parent, tree):
             self.Bind(wx.EVT_MOTION, self.pan_move)
             self.Bind(wx.EVT_MIDDLE_UP, self.pan_end)
             self.fit_width()
+
+        def set_tree(self, tree, *, fit=False):
+            """Replace the drawing, including an empty topology, without a new window."""
+            nonlocal drawing
+            drawing = diagram_layout(tree)
+            self.tree = tree
+            self.drag = None
+            if self.HasCapture():self.ReleaseMouse()
+            if fit or not tree['nodes']:self.Scroll(0, 0)
+            if fit:self.fit_width()
+            else:self.update_size()
+            self.Refresh(False)
 
         def fit_width(self):
             size = self.FromDIP((drawing['width'], drawing['height']))

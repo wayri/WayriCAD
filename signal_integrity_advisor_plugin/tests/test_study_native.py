@@ -9,8 +9,9 @@ except ImportError:
     pcbnew=wx=None
 
 
-def make_board(path):
+def make_board(path, *, physical_stackup=True):
     board=pcbnew.BOARD()
+    board.GetDesignSettings().SetBoardThickness(pcbnew.FromMM(1.6))
     point=lambda x,y:pcbnew.VECTOR2I(pcbnew.FromMM(x),pcbnew.FromMM(y))
     for code,name in enumerate(('DATA','CLOCK','GND'),1):board.Add(pcbnew.NETINFO_ITEM(board,name,code))
     for reference,x in [('U1',5),('J1',65)]:
@@ -25,6 +26,20 @@ def make_board(path):
             track=pcbnew.PCB_TRACK(board);track.SetStart(point(start,y));track.SetEnd(point(end,y));track.SetWidth(pcbnew.FromMM(.2));track.SetLayer(layer);track.SetNetCode(code);board.Add(track)
     ground=pcbnew.PCB_TRACK(board);ground.SetStart(point(5,30));ground.SetEnd(point(65,30));ground.SetWidth(pcbnew.FromMM(1));ground.SetLayer(pcbnew.B_Cu);ground.SetNetCode(3);board.Add(ground)
     pcbnew.SaveBoard(str(path),board)
+    from wayricad_runtime.schematic_sexpr import parse,apply_edits
+    text=path.read_text(encoding='utf-8');setup=parse(text).one('setup')
+    if setup is None:raise AssertionError('Native fixture is missing its setup node.')
+    existing=setup.one('stackup')
+    if physical_stackup:
+        # Explicit synthetic material inputs, not a fallback for unknown boards.
+        stackup='''(stackup
+          (layer "F.Cu" (type "copper") (thickness 0.035))
+          (layer "dielectric 1" (type "core") (thickness 1.53) (material "FR4") (epsilon_r 4.2))
+          (layer "B.Cu" (type "copper") (thickness 0.035)))'''
+        edit=(existing.start,existing.end,stackup) if existing else (setup.end-1,setup.end-1,'\n'+stackup+'\n')
+        path.write_text(apply_edits(text,[edit]),encoding='utf-8')
+    elif existing:
+        path.write_text(apply_edits(text,[(existing.start,existing.end,'')]),encoding='utf-8')
     inputs={'rise_ns':1.,'frequency_mhz':100.,'source_ohm':20.,'z0_ohm':50.,'epsilon_eff':3.,
             'return_nets':['GND'],'return_terminal_ids':['U1.3','J1.3'],'return_terminal_roles':{'source':'U1.3','load':'J1.3'}}
     return {'schema':'wayricad.quick-si-study-input/v1','cases':[
@@ -39,6 +54,10 @@ class NativeStudyTests(unittest.TestCase):
         from signal_integrity_advisor_plugin.service import source_fingerprints,run_job
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'study.kicad_pcb';config=make_board(path);fingerprints=source_fingerprints(path)
+            from signal_integrity_advisor_plugin.measurement import TraceMeasurementEngine
+            engine=TraceMeasurementEngine(pcbnew.LoadBoard(str(path)))
+            self.assertEqual([row.thickness_mm for row in engine.stackup_layers()],[.035,1.53,.035])
+            self.assertAlmostEqual(engine.via_span_mm(pcbnew.F_Cu,pcbnew.B_Cu),1.565)
             payload=run_job({'mode':'study','board_path':str(path),'source_fingerprints':fingerprints,'study':config},python=__import__('sys').executable)
             report=payload['study'];self.assertEqual(report['summary'],{'cases':3,'reported':2,'errors':1})
             for case in report['cases'][:2]:
@@ -46,6 +65,22 @@ class NativeStudyTests(unittest.TestCase):
                 self.assertEqual(case['report']['return_path']['return_nets'],['GND'])
                 self.assertEqual(set(case['report']['return_path']['return_terminal_roles']),{'source','load'})
                 self.assertEqual(case['source_fingerprints'] if 'source_fingerprints' in case else report['source_fingerprints'],fingerprints)
+            self.assertEqual(source_fingerprints(path),fingerprints)
+
+    def test_saved_worker_rejects_via_routes_without_physical_stackup(self):
+        from signal_integrity_advisor_plugin.service import source_fingerprints,run_job
+        from wayricad_runtime.schematic_sexpr import parse
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'missing-stackup.kicad_pcb';config=make_board(path,physical_stackup=False)
+            self.assertIsNone(parse(path.read_text(encoding='utf-8')).one('setup').one('stackup'))
+            fingerprints=source_fingerprints(path)
+            payload=run_job({'mode':'study','board_path':str(path),'source_fingerprints':fingerprints,'study':config},python=__import__('sys').executable)
+            report=payload['study'];self.assertEqual(report['summary'],{'cases':3,'reported':0,'errors':3})
+            for case in report['cases'][:2]:
+                self.assertEqual(case['error_type'],'ValueError')
+                self.assertIn('complete physical stackup thicknesses',case['error'])
+                self.assertNotIn('report',case)
+            self.assertIn('explicit start',report['cases'][2]['error'])
             self.assertEqual(source_fingerprints(path),fingerprints)
 
 

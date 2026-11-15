@@ -58,8 +58,47 @@ H units such as `1mH`, `10nH` or `1pH`; `1m+1p` is ambiguous and rejected.
 
 ## Automatic path discovery
 
-Choose source and sink pads in **Series**, then **Infer paths from source to
-sink…**. Select a candidate net route. Each stage lists the components spanning
+The series editor separates **Auto**, **Console** and **Bundle** views. Choose
+source and sink pads, open **Auto**, then **Find paths**. Select a candidate
+net route and a stage. Only that stage's review is expanded: select alternative
+components or parallel members, review incoming/outgoing pins, and enter each
+model. The embedded **Diagram / Details** preview shows the complete validated
+path, including parallel branches and pin groups, without opening a second
+window. Diagram reuses the native power-tree canvas with zoom, fit and pan;
+Details retains the tree of stages and pins. The caption explicitly says
+**Topology only**: no solved voltage, current or power is fabricated. Invalid model,
+endpoint or console edits clear both views and disable Run / Save; old branches
+cannot silently substitute for an invalid active draft.
+
+**Correct stage…** opens component and current-pin dropdowns for the selected
+stage's existing saved net pair, plus model type and expression. Changing the
+component clears the model and both pin choices: transistor/IC current pins
+and device states are not assigned automatically. A model-only edit preserves
+reviewed groups and parallel parts. Changing pin groups or replacing a bank
+requires explicit confirmation. Cancel leaves the original path unchanged.
+**Correct stages / explicit path** retains ordered add/remove/reorder, explicit
+pair entry and parallel review for paths outside automatic discovery.
+
+**Console** accepts the same bounded `run pi` grammar with pad suggestions.
+Valid typing updates the tree; **Use manual path** applies it to the ordered
+editor. The unchanged parser checks net continuity and model units. Switching
+modes retains drafts but Run / Save validates the selected mode, not a hidden
+previous command. Source/load-only same-net commands remain in the ordinary
+single-net workflow, not a series solve.
+
+**Bundle** retains named independent batch setups, each with its own voltage,
+current, groups and models. **Add current path** captures the active Auto or
+Console path; it does not copy whichever bundle row happens to be selected.
+Selecting a saved case previews it, and **Edit selected** reopens it in Auto
+using the same review/correction workflow. Update selected writes the reviewed
+active path back to that case. Refresh clears selection, requiring an explicit
+row selection before Update / Remove. Batch setup files, source-revision
+guards, path JSON and simulation/report exports retain their existing formats.
+The single-path Run button is disabled on the Bundle view; **Run batch…** uses
+the existing independent-case solver. Cancel/close retains the in-memory draft,
+including Console text and mode, but does not start a solve.
+
+Each stage lists the components spanning
 that saved net pair as a proposed parallel bank, with incoming, outgoing and
 excluded pin numbers. Uncheck unused parts or pins and enter each component's
 model. Bare resistor values can be suggested from their saved Value field;

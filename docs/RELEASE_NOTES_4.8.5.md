@@ -29,6 +29,17 @@ compatibility is claimed.
   banks and load with stage numbering, directional arrows, zoom, pan and SVG
   export. Parallel devices retain pin groups and model evidence. Ground is not
   inserted as a forward-path stage, and missing converter models are not guessed.
+- The series editor separates Auto, Console and Bundle views with an embedded
+  Diagram/Details preview. Choose explicit source/sink pads, discover candidate
+  routes, select an alternative and review each stage. Component, current-pin
+  and model controls correct a valid stage without silently dropping parallel
+  banks or multi-pad electrodes. Replacing those groups requires confirmation.
+  Invalid drafts clear the diagram/tree and disable Run/Save. The preview is
+  topology only: it does not fabricate solved voltage, current or power.
+- Named bundle cases reuse the same editor and preview when selected. Cases
+  retain their individual path, models and operating values; this is not a new
+  arbitrary coupled branching-network solver. Existing source checks, guarded
+  save/load and cancellation contracts remain.
 
 Following editor selection does not read unsaved geometry into the numerical
 model. These are review workflows, not board-editing or automatic signoff tools.
@@ -97,6 +108,23 @@ The planar CLI returns 3 for `MODELLED` evidence, not a convergence pass. See th
 [saved synthetic example](../quick_pi_plugin/examples/planar_pdn/README.md).
 The example compares this implementation's fine and coarse meshes; it is not
 an independent solver comparison, board measurement or native-window capture.
+
+## RLC Zones, Vias And Residual Barrels
+
+Filled-zone corridor connectivity and reference-overlap estimates remain
+explicit first-order models, not arbitrary spreading-current solutions. Via
+lengths now use saved physical stackup distances and TopLayer/BottomLayer spans,
+including unflashed internal annuli; equal layer spacing is not substituted.
+Reports separate physical, traversed and residual barrel spans. Via-row feedback
+and notes expose the lengths; bulk slices do not invent a terminal path.
+
+Residual barrel may be an open stub or a connected branch. Its termination,
+capacitance, resonance and input impedance remain unknown without a validated
+via/channel model. Such paths, branched routes and reference ambiguity retain
+blockers/partial status; frequency sweeps do not present a complete series
+impedance for them. Duplicate physical pad labels cannot bridge a copper gap.
+Backdrilled/stepped barrel and microvia taper physics are not solved. See the
+[coverage audit and evidence](../trace_impedance_plugin/RLC_ZONE_VIA_AUDIT.md).
 
 ## Results, Comparisons And Publication
 

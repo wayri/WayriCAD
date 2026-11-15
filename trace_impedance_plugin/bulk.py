@@ -10,7 +10,7 @@ from collections import Counter
 from copy import deepcopy
 import math
 
-from .copper_path import CopperGeometry, IU, distance, ground_name, point
+from .copper_path import CopperGeometry, IU, distance, ground_name, point, via_layers
 
 
 def normalize_bundles(document, available):
@@ -73,11 +73,12 @@ def _uuid(item):
 def _edges(engine, geometry, item):
     pcb = geometry.pcb
     if isinstance(item, pcb.PCB_VIA):
-        span = [layer for layer in geometry.layers if item.IsOnLayer(layer)]
+        span = via_layers(item, geometry.layers)
         position = point(item.GetPosition())
         for a, b in zip(span, span[1:]):
             yield dict(kind='via', item=item, layer=a, end_layer=b, a=position, b=position,
-                       length_mm=engine.via_span_mm(a, b), drill_mm=item.GetDrillValue()/IU)
+                       length_mm=engine.via_span_mm(a, b), drill_mm=item.GetDrillValue()/IU,
+                       scope='bulk_barrel_slice')
     elif isinstance(item, pcb.PCB_ARC):
         for a, b, scale in geometry.arc_pieces(item):
             yield dict(kind='track', item=item, layer=item.GetLayer(), a=a, b=b,

@@ -56,7 +56,7 @@ class SeriesBatchSetup:
         import wx
         self.wx=wx;self.editor=editor;self.cases=[];self.selected=-1
         self.panel=wx.Panel(parent)
-        root=wx.StaticBoxSizer(wx.VERTICAL,self.panel,'Batch series setups')
+        root=wx.BoxSizer(wx.VERTICAL)
         fields=wx.FlexGridSizer(2,3,5,8)
         self.name=wx.TextCtrl(self.panel,value='Series case 1')
         self.voltage=wx.TextCtrl(self.panel,value=str(voltage));self.current=wx.TextCtrl(self.panel,value=str(current))
@@ -98,8 +98,11 @@ class SeriesBatchSetup:
                 self.list.SetItem(row,col,str(value))
         self.notice.SetLabel(str(len(self.cases))+' / 32 independent series setups. Review all models before running.')
         self.editor.body.Layout();self.editor.body.FitInside()
+        if hasattr(self.editor,'workflow'):self.editor.workflow.refresh()
 
-    def select(self,event):self.selected=event.GetIndex()
+    def select(self,event):
+        self.selected=event.GetIndex()
+        if hasattr(self.editor,'workflow'):self.editor.workflow.refresh()
 
     def _case(self):
         return make_case(self.editor._reviewed_editor_path(),self.editor.inventory,
@@ -132,6 +135,9 @@ class SeriesBatchSetup:
         self.editor.inference.invalidate();self.editor._restore_path(path)
         self.editor.inference.infer(path['source'],path['sink'],
             include_unknown=self.editor.infer_unknown.GetValue(),existing=path)
+        if hasattr(self.editor,'workflow'):
+            self.editor.workflow.book.SetSelection(0)
+            self.editor.workflow.refresh()
 
     def remove(self,event=None):
         if 0<=self.selected<len(self.cases):self.cases.pop(self.selected);self.selected=-1;self.refresh()

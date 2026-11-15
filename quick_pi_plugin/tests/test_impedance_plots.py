@@ -79,6 +79,15 @@ class ImpedancePlotTests(unittest.TestCase):
             else:data['frequencies'][0]['z_ohm'][0][0]['real']=float('nan')
             with self.assertRaises(ValueError):samples(data)
 
+    def test_oversized_json_integers_are_validation_errors_not_overflows(self):
+        for field in ('frequency','impedance'):
+            data=dataset()
+            if field=='frequency':data['frequencies'][0]['frequency_hz']=10**400
+            else:data['frequencies'][0]['z_ohm'][0][0]['real']=10**400
+            with self.assertRaises(ValueError):samples(data)
+        axis=object()
+        self.assertEqual(probe_text({axis:[('sample',[1.],[1j])]},axis,10**400),'')
+
     def test_actual_plot_axes_and_nearest_sample_probes(self):
         from matplotlib.figure import Figure
         data=dataset();before=copy.deepcopy(data)

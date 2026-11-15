@@ -1171,7 +1171,8 @@ compatibility. Validation records are in [the release audit](docs/audits/RELEASE
 ## Release history
 
 **Release 4.8.5:** PCB-driven PI/SI selection workflows and a
-sequential PI power-path diagram, explicit MQS two-port impedance, and a
+sequential PI power-path diagram, guided Auto/Console/Bundle path editing,
+explicit MQS two-port impedance, and a
 separate quasi-TEM planar PDN cavity with magnitude/reference plots. Planar
 results remain `MODELLED`, without automatic convergence; neither model is
 Palace or arbitrary-board full-wave extraction. Origin-bound live selection and

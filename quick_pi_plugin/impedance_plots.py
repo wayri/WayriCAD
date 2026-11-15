@@ -1,7 +1,13 @@
 """Impedance magnitude/reference plots from actual sampled complex matrices."""
 import math
+import sys
 
 TERMS = ((0, 0, 'Z11'), (0, 1, 'Z12'), (1, 0, 'Z21'), (1, 1, 'Z22'))
+
+
+def _finite_number(value):
+    return (not isinstance(value,bool) and isinstance(value,(int,float))
+            and abs(value)<=sys.float_info.max and math.isfinite(value))
 
 
 def samples(result):
@@ -15,7 +21,7 @@ def samples(result):
     for row in rows:
         if not isinstance(row,dict):raise ValueError('Every frequency sample must be an object.')
         frequency = row.get('frequency_hz')
-        if isinstance(frequency, bool) or not isinstance(frequency, (int, float)) or not math.isfinite(frequency) or frequency <= 0:
+        if not _finite_number(frequency) or frequency <= 0:
             raise ValueError('Frequencies must be finite positive hertz.')
         if frequencies and frequency <= frequencies[-1]:
             raise ValueError('Reference frequencies must increase strictly.')
@@ -28,7 +34,7 @@ def samples(result):
                 if not isinstance(value,dict) or set(value) != {'real','imag'}:
                     raise ValueError('Complex entries require real and imag values in ohms.')
                 parts = [value[key] for key in ('real','imag')]
-                if any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) for v in parts):
+                if any(not _finite_number(v) for v in parts):
                     raise ValueError('Impedance samples must be finite numbers.')
                 if not math.isfinite(math.hypot(*parts)):
                     raise ValueError('Impedance magnitudes must be finite and representable.')
@@ -91,7 +97,7 @@ def draw_magnitudes(figure, result, reference=None, reference_label='Imported re
 
 
 def probe_text(probes, axis, frequency):
-    if axis not in probes or frequency is None or not math.isfinite(frequency) or frequency <= 0:
+    if axis not in probes or not _finite_number(frequency) or frequency <= 0:
         return ''
     log_frequency = math.log(frequency)
     lines=[]

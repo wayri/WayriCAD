@@ -20,6 +20,13 @@ equivalence. Reopen and rerun after source, rules or converter changes.
 
 ## Capabilities
 
+**4.8.5 source update:** via reports distinguish the physical drilled span from
+the selected path span and remaining barrel candidates. Branch/alternate-route
+ambiguity and unverified reference roles remain partial. Missing physical
+stackup thickness no longer falls back to equally spaced layers. See the
+[zone/via/stub coverage audit](RLC_ZONE_VIA_AUDIT.md) for implemented behavior,
+unknown parasitics and the integration/validation boundary.
+
 - Discover protocol-labelled nets with bounded fuzzy/wildcard/regex matching,
   then screen supported saved-copper sections with corrective suggestions.
   Includes RGMII, SGMII, DDR, PCI/PCIe, SerDes and GTH/GTY/GTX/GTP.
@@ -36,6 +43,14 @@ equivalence. Reopen and rerun after source, rules or converter changes.
 
 - Zone R/L uses an assumed current corridor, not spreading resistance; full-island C and corridor R/L are not one extracted series circuit.
 - Mixed routes do not have a single uniform Z0. Via capacitance remains unknown without antipad geometry; partial totals omit unresolved terms.
+- Remaining via barrel is reported as a candidate open stub or connected branch,
+  not automatically classified as open. Stub shunt capacitance, input impedance,
+  resonance and broadband S-parameters are unknown; residual barrel is not added
+  to the traversed route's series R/L. Bulk slices have no terminal-defined stub
+  classification. Blind/buried spans use physical endpoint layers; microvia taper
+  and backdrilled/stepped barrels are not modeled (stepped barrels are rejected).
+  Frequency sweeps retain traversed-copper resistance but leave series reactance
+  and magnitude unknown for branch/alternate-path or residual-barrel cases.
 - Arbitrary proximity, roughness, dielectric loss, full return-current distribution and connector/package effects are not solved.
 - Copper arcs retain their circular length, with small chords used for coverage checks. Complex current paths around zone obstacles can still remain unresolved.
 - Analysis follows existing layer transitions and never reroutes copper. Saved stackup/reference data and native KiCad geometry support are required.
@@ -92,6 +107,14 @@ In the native editor window, **More → Refresh stackup** rereads the saved stac
 Auto ground recognition uses names such as GND, AGND, DGND and VSS. A name alone does not establish a reference: the engine checks filled copper coverage on adjacent copper layers. Explicit reference selection still requires copper coverage. Unfilled zones must be filled in KiCad first.
 
 Paths follow existing layer transitions through vias and plated pads. Analysis does not shift or reroute the board's copper. Crossings on different layers are not connections. Zone links require a finite-width corridor inside one filled island; holes and disconnected islands cannot be crossed by a shortcut. Circular arcs retain their exact length; coverage/contact checks use small chords. Large filled islands are no longer excluded by a fixed contact-count limit, although obstacle geometry can still leave a path unresolved. Use terminal-defined zone mode to review a specific island.
+
+Path mode reports a shortest geometric candidate, not a solved current path.
+Branches or alternate paths set `ROUTE_AMBIGUOUS`, retain modeled section values,
+and prevent a passing uniform-route result. Duplicate endpoint labels are
+rejected instead of joining separate pads by their number. Same-net drawings,
+arbitrary overlapping zone unions and all possible copper intersections are not
+a certified connectivity extraction; unresolved geometry never falls back to
+an aggregate-net impedance.
 
 ## What the numbers mean
 

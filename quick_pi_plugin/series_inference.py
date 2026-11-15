@@ -56,10 +56,11 @@ class InlineInference:
     Importing this module does not require the native wx runtime.
     """
 
-    def __init__(self, parent, inventory, on_use):
+    def __init__(self, parent, inventory, on_use, *, compact=False, on_change=None):
         import wx
         from .console import terminal_aliases
         self.wx, self.inventory, self.on_use = wx, inventory, on_use
+        self.compact, self.on_change = compact, on_change
         self.aliases = terminal_aliases(inventory)
         self.proposal, self.query = None, None
         self.controls, self.drafts = [], {}
@@ -70,6 +71,11 @@ class InlineInference:
         layout.Add(self.note, 0, wx.EXPAND | wx.BOTTOM, 6)
         self.routes = wx.Choice(self.panel)
         layout.Add(self.routes, 0, wx.EXPAND | wx.BOTTOM, 6)
+        self.stage_choice = wx.Choice(self.panel)
+        self.stage_choice.Show(compact)
+        layout.Add(self.stage_choice, 0, wx.EXPAND | wx.BOTTOM, 6)
+        self.stage_choice.Bind(wx.EVT_CHOICE, self._stage_changed)
+        self.stage_panels = []
         # The containing editor owns scrolling so every bank remains in its flow.
         self.area = wx.Panel(self.panel)
         self.stack = wx.BoxSizer(wx.VERTICAL)
@@ -109,6 +115,8 @@ class InlineInference:
         """Discard all drafts when the endpoint query or device policy changes."""
         self.proposal, self.query, self._shown_route = None, None, None
         self.controls.clear()
+        self.stage_panels.clear()
+        self.stage_choice.Clear()
         self.drafts.clear()
         self.routes.Clear()
         self.routes.Disable()
@@ -118,6 +126,17 @@ class InlineInference:
         self.omitted.SetLabel('')
         self.status.SetLabel('')
         self._layout()
+        if self.on_change:self.on_change()
+
+    def _edited(self, event):
+        if self.on_change:self.on_change()
+        event.Skip()
+
+    def _stage_changed(self, event=None):
+        for i, panel in enumerate(self.stage_panels):
+            panel.Show(not self.compact or i == self.stage_choice.GetSelection())
+        self._layout()
+        if event:event.Skip()
 
     def infer(self, source, sink, include_unknown=False, *, existing=None):
         """Populate current saved-board candidates; return success, errors inline."""
@@ -173,6 +192,8 @@ class InlineInference:
         wx = self.wx
         self._remember()
         self.controls.clear()
+        self.stage_panels.clear()
+        self.stage_choice.Clear()
         self.stack.Clear(True)
         index = self.routes.GetSelection()
         if self.proposal is None or index < 0:
@@ -181,7 +202,12 @@ class InlineInference:
         key = tuple(route['nets'])
         saved = self.drafts.get(key, [])
         for number, stage in enumerate(route['stages'], 1):
-            self.stack.Add(wx.StaticText(self.area, label=
+            stage_panel=wx.Panel(self.area);stage_box=wx.BoxSizer(wx.VERTICAL)
+            stage_panel.SetSizer(stage_box)
+            self.stage_panels.append(stage_panel)
+            self.stack.Add(stage_panel,0,wx.EXPAND)
+            self.stage_choice.Append(f"{number}: {stage['from_net']} → {stage['to_net']}")
+            stage_box.Add(wx.StaticText(stage_panel, label=
                 f"Stage {number}: {stage['from_net']} → {stage['to_net']} · {len(stage['parts'])} component(s)"),
                 0, wx.TOP | wx.BOTTOM, 8)
             previous = {self._part_key(dict(footprint_uuid=p['footprint_uuid'],
@@ -192,13 +218,14 @@ class InlineInference:
                 default = suggested_resistance(dict(id=part['reference'], component_value=part['component_value']))
                 draft = previous.get(self._part_key(part), {})
                 model = draft.get('model', default)
-                panel = wx.Panel(self.area)
+                panel = wx.Panel(stage_panel)
                 box = wx.BoxSizer(wx.VERTICAL)
                 label = part['reference'] + ' · ' + part['component_value']
                 if len(stage['parts']) > 1:
                     label += ' (parallel bank)'
                 check = wx.CheckBox(panel, label=label)
                 check.SetValue(draft.get('included', True))
+                check.Bind(wx.EVT_CHECKBOX,self._edited)
                 box.Add(check, 0, wx.BOTTOM, 4)
                 pins = []
                 for label, field in (('Incoming current pins', 'from_pads'), ('Outgoing current pins', 'to_pads')):
@@ -209,6 +236,7 @@ class InlineInference:
                     for identifier in part[field]:
                         control = wx.CheckBox(panel, label=self.aliases.get(identifier, identifier))
                         control.SetValue(identifier in selected)
+                        control.Bind(wx.EVT_CHECKBOX,self._edited)
                         line.Add(control, 0, wx.RIGHT, 8)
                         group.append((identifier, control))
                     pins.append(group)
@@ -221,18 +249,22 @@ class InlineInference:
                 model_row.Add(wx.StaticText(panel, label='Model: '), 0, wx.ALIGN_CENTER_VERTICAL)
                 text = wx.TextCtrl(panel, value=model)
                 text.SetHint('100mΩ, 5mΩ+10nH, 0.7V or diode(Vf=0.7V,Iref=1A,n=2,T=25C)')
+                text.Bind(wx.EVT_TEXT,self._edited)
                 model_row.Add(text, 1, wx.EXPAND)
                 box.Add(model_row, 0, wx.EXPAND)
                 if default:
                     box.Add(wx.StaticText(panel, label='Resistance suggested from component value; review before use.'),
                             0, wx.TOP, 4)
                 panel.SetSizer(box)
-                self.stack.Add(panel, 0, wx.EXPAND | wx.LEFT | wx.BOTTOM, 12)
+                stage_box.Add(panel, 0, wx.EXPAND | wx.LEFT | wx.BOTTOM, 12)
                 bank.append((part, check, text, *pins))
             self.controls.append(bank)
         self._shown_route = key
         self.status.SetLabel('')
+        if self.stage_panels:self.stage_choice.SetSelection(0)
+        self._stage_changed()
         self._layout()
+        if self.on_change:self.on_change()
 
     def reviewed_path(self):
         """Validate the visible review against the established saved-path parser."""

@@ -39,6 +39,49 @@ def ground_name(name):
     return bool(re.search(r"(?:^|[/_+\-])(GND|AGND|DGND|PGND|SGND|VSS|GROUND)(?:$|[_\-\d])", str(name), re.I))
 
 
+def via_layers(via, layers):
+    """Physical drilled span, independent of which unused annuli are flashed."""
+    for name in ('GetSecondaryDrillSize', 'GetTertiaryDrillSize'):
+        if getattr(via, name, lambda: None)() is not None:
+            raise ValueError('Backdrilled/stepped vias need an explicit barrel model; not supported.')
+    if not hasattr(via, 'TopLayer') or not hasattr(via, 'BottomLayer'):
+        raise ValueError('Via physical start/end layers are unavailable.')
+    a, b = via.TopLayer(), via.BottomLayer()
+    if a not in layers or b not in layers or layers.index(a) >= layers.index(b):
+        raise ValueError('Via physical span does not match the saved copper stack.')
+    return layers[layers.index(a):layers.index(b)+1]
+
+
+def routing_ambiguity(graph, start):
+    """Conservative branch/cycle evidence after ideal contact nodes collapse."""
+    seen, pending, parent = set(), [start], {}
+    while pending:
+        node = pending.pop()
+        if node in seen:continue
+        seen.add(node);parent[node] = node
+        pending.extend(target for target, _ in graph.get(node, ()))
+    def root(node):
+        while parent[node] != node:
+            parent[node] = parent[parent[node]];node = parent[node]
+        return node
+    for node in seen:
+        for target, edge in graph.get(node, ()):
+            if edge.get('kind') not in ('track', 'via'):
+                parent[root(node)] = root(target)
+    links, identities, degree = [], set(), {}
+    for node in seen:
+        for target, edge in graph.get(node, ()):
+            if edge.get('kind') not in ('track', 'via') or id(edge) in identities:continue
+            identities.add(id(edge))
+            a, b = root(node), root(target)
+            if a == b:continue
+            links.append((a,b));degree[a] = degree.get(a,0)+1;degree[b] = degree.get(b,0)+1
+    # The remaining connected multigraph has a cycle iff E >= V.
+    return {'branched': any(value > 2 for value in degree.values()),
+            'alternate_paths': bool(degree) and len(links) >= len(degree),
+            'basis': 'Shortest geometric candidate; not solved current distribution'}
+
+
 def shortest_path(graph, start, end):
     queue = [(0., 0, start)]
     distances = {start: 0.}
@@ -235,6 +278,11 @@ class CopperGeometry:
                 continue
             h, er = self.engine.dielectric_to_reference(self.engine._layer_name(signal_layer), name)
             candidates.append((h, name, er, island))
+        counts = {}
+        for row in candidates:counts[row[1]] = counts.get(row[1],0)+1
+        if any(count > 1 for count in counts.values()):
+            self.notes.append('Overlapping reference candidates on one layer are ambiguous; no candidate is chosen on that layer.')
+        candidates = [row for row in candidates if counts[row[1]] == 1]
         if all_matches:
             return candidates
         return min(candidates, key=lambda x: x[0]) if candidates else None
@@ -282,6 +330,35 @@ class CopperGeometry:
                     out.setdefault(f'{fp.GetReference()}.{pad.GetNumber()}', []).append(pad)
         return out
 
+    def via_evidence(self, edge):
+        via = edge['item']
+        span = via_layers(via, self.layers)
+        names = [self.engine._layer_name(layer) for layer in span]
+        kind = ('through' if span[0] == self.layers[0] and span[-1] == self.layers[-1]
+                else 'blind' if span[0] == self.layers[0] or span[-1] == self.layers[-1] else 'buried')
+        if via.GetViaType() == getattr(self.pcb, 'VIATYPE_MICROVIA', None):kind = 'microvia'
+        evidence = dict(via_type=kind, physical_layers=names,
+                        physical_length_mm=self.engine.via_span_mm(span[0],span[-1]),
+                        length_basis='Saved stackup copper midplanes; end-face overhang not included',
+                        barrel_model='Constant circular drill and assumed plating; microvia taper is not extracted')
+        if edge.get('scope') == 'bulk_barrel_slice':
+            evidence.update(stub_status='not_evaluated_without_terminal_path',
+                            connected_path_span=None, remaining_barrel=None)
+            return evidence
+        a, b = sorted((span.index(edge['layer']),span.index(edge['end_layer'])))
+        remaining = []
+        for first, last in ((0,a),(b,len(span)-1)):
+            if first != last:
+                remaining.append(dict(start_layer=names[first],end_layer=names[last],
+                    length_mm=self.engine.via_span_mm(span[first],span[last]),
+                    termination='unverified_open_stub_or_connected_branch',
+                    capacitance_pf=None,input_impedance_ohm=None,resonance_hz=None))
+        evidence.update(connected_path_span=dict(start_layer=self.engine._layer_name(edge['layer']),
+                        end_layer=self.engine._layer_name(edge['end_layer']),length_mm=edge['length_mm']),
+                        remaining_barrel=remaining,
+                        stub_status='candidate_extensions_unmodeled' if remaining else 'no_extension_beyond_selected_span')
+        return evidence
+
     def path(self, net, start, end, corridor_width_mm=.2):
         graph = {}
         def add(node_a, node_b, **edge):
@@ -292,6 +369,8 @@ class CopperGeometry:
         pads = self.pads(net)
         if start not in pads or end not in pads or start == end:
             return None, ['Select two distinct pads on the selected net.']
+        if len(pads[start]) != 1 or len(pads[end]) != 1:
+            return None, ['Endpoint pad label is ambiguous; duplicate pad numbers need explicit physical-pad selection.']
         self.prepare_routing(net)
         nodes = set()
         tracks = []
@@ -301,9 +380,8 @@ class CopperGeometry:
                 continue
             if isinstance(item, self.pcb.PCB_VIA):
                 vias.append(item)
-                for layer in self.layers:
-                    if item.IsOnLayer(layer):
-                        nodes.add((*point(item.GetPosition()), layer))
+                for layer in via_layers(item, self.layers):
+                    nodes.add((*point(item.GetPosition()), layer))
             elif isinstance(item, self.pcb.PCB_ARC):
                 for a,b,scale in self.arc_pieces(item):
                     layer=item.GetLayer()
@@ -335,15 +413,16 @@ class CopperGeometry:
                 # nearest-node jump, and NPTH pads cannot bridge copper layers.
                 contacts = [n for n in nodes if pad.IsOnLayer(n[2]) and pad.HitTest(self.pcb.VECTOR2I(*n[:2]), 0, n[2])]
                 is_plated = pad.GetAttribute() == self.pcb.PAD_ATTRIB_PTH
+                identity = pad.m_Uuid.AsString()
                 for n in contacts:
-                    terminal = ('pad', key) if is_plated else ('pad', key, n[2])
+                    terminal = ('pad', identity) if is_plated else ('pad', identity, n[2])
                     add(terminal, n, kind='pad', item=pad, layer=n[2])
                 for n in contacts:
                     if key in (start, end):
-                        add(key, ('pad', key) if is_plated else ('pad', key, n[2]), kind='terminal')
+                        add(key, ('pad', identity) if is_plated else ('pad', identity, n[2]), kind='terminal')
         for via in vias:
             position = point(via.GetPosition())
-            span = [layer for layer in self.layers if via.IsOnLayer(layer)]
+            span = via_layers(via, self.layers)
             for la, lb in zip(span, span[1:]):
                 length = self.engine.via_span_mm(la,lb)
                 add((*position, la), (*position, lb), kind='via', item=via, layer=la, end_layer=lb,
@@ -360,6 +439,7 @@ class CopperGeometry:
                         island=island,navigation=navigation,component=component)
         edges=shortest_path(graph,start,end)
         if edges is None:return None,list(dict.fromkeys(self.notes))
+        self.path_evidence = routing_ambiguity(graph, start)
         resolved=[];index=0
         while index<len(edges):
             edge=edges[index]

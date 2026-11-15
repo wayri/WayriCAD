@@ -126,6 +126,7 @@ class PathMeasurement:
     zone_area_mm2: float = 0.0
     overlap_area_mm2: float = 0.0
     blockers: List[Dict[str, Any]] = field(default_factory=list)
+    route_topology: Dict[str, Any] = field(default_factory=dict)
 
     def as_report(self) -> Dict[str, Any]:
         """Numeric JSON report without live board object references."""
@@ -436,17 +437,17 @@ class TraceMeasurementEngine:
         return "stripline" if copper and actual and all(layer in copper[1:-1] for layer in actual) else "microstrip"
 
     def via_span_mm(self, layer_a, layer_b):
-        positions, z = {}, 0.
-        for row in self.stackup_layers():
-            if row.name.endswith(".Cu"):
-                positions[row.name] = z + row.thickness_mm/2
-            z += row.thickness_mm
+        rows = self.stackup_layers()
         a, b = self._layer_name(layer_a), self._layer_name(layer_b)
-        if a in positions and b in positions and positions[a] != positions[b]:
-            return abs(positions[b]-positions[a])
-        layers = self._geometry().layers
-        thickness = mm(self.board.GetDesignSettings().GetBoardThickness())
-        return thickness * abs(layers.index(layer_b)-layers.index(layer_a))/max(len(layers)-1,1)
+        indices = {row.name:index for index,row in enumerate(rows)}
+        if a not in indices or b not in indices or a == b:
+            raise ValueError('Via span requires two distinct saved stackup copper layers.')
+        low, high = sorted((indices[a],indices[b]))
+        span = rows[low:high+1]
+        if (not any(not row.name.endswith('.Cu') for row in span) or
+                any(row.kind == 'routed' or not math.isfinite(row.thickness_mm) or row.thickness_mm <= 0 for row in span)):
+            raise ValueError('Via length is unknown: save complete physical stackup thicknesses; equal layer spacing is not assumed.')
+        return sum(row.thickness_mm for row in span[1:-1])+(span[0].thickness_mm+span[-1].thickness_mm)/2
 
     def available_layers(self) -> List[str]:
         """Return all actual stackup/routed layers, not a hard-coded subset."""
@@ -523,6 +524,12 @@ class TraceMeasurementEngine:
             result.notes.append("No connected finite-width path between these terminals. Check copper connectivity, zone fills and corridor width; aggregate net geometry is never substituted.")
             return result
         self._measure_edges(result, edges, frequency_mhz, reference_layer)
+        result.route_topology = getattr(self._geometry(), 'path_evidence', {})
+        if result.route_topology.get('branched') or result.route_topology.get('alternate_paths'):
+            result.status = 'partial';result.impedance_valid = False
+            self._block(result, 'ROUTE_AMBIGUOUS', 'Connected copper has branches or alternate paths; one geometric candidate was selected.',
+                        'Review all branches and terminations; selected-path R/L/C is not a net-equivalent or channel impedance.')
+            result.notes.append('Branched/alternate copper is not reduced to a unique electrical route or current distribution.')
         return result
 
     def measure_zone(self, net_name, start_pad, end_pad, zone_id, reference_layer="Auto", frequency_mhz=100., corridor_width_mm=.2):
@@ -541,6 +548,11 @@ class TraceMeasurementEngine:
         result.zone_area_mm2 = zone["area_mm2"]
         if start_pad == end_pad or start_pad not in pads or end_pad not in pads:
             result.notes.append("Select two distinct pads on this zone's net.")
+            return result
+        if len(pads[start_pad]) != 1 or len(pads[end_pad]) != 1:
+            self._block(result, 'ENDPOINT_AMBIGUOUS', 'Duplicate pad numbers do not identify unique physical zone terminals.',
+                        'Choose unique physical endpoints; disconnected pad copper is not implicitly joined.')
+            result.notes.append('Endpoint pad label is ambiguous; duplicate pad numbers cannot select a unique physical zone terminal.')
             return result
         # Layer-specific pad ownership is mandatory, including plated through pads.
         candidates = [(a,b) for a in pads[start_pad] for b in pads[end_pad] if a.IsOnLayer(zone["layer"]) and b.IsOnLayer(zone["layer"])]
@@ -608,6 +620,14 @@ class TraceMeasurementEngine:
                 via_ids.add(uid)
                 end_layer = self._layer_name(edge["end_layer"])
                 section["end_layer"] = end_layer
+                section['via_geometry'] = geometry.via_evidence(edge)
+                if section['via_geometry']['stub_status'] == 'candidate_extensions_unmodeled':
+                    self._block(result, 'VIA_STUB_OR_BRANCH_UNMODELED', 'Physical barrel extends beyond the selected connected path span.',
+                                'Review residual barrel terminations and antipads with a validated via/channel model; stub C, input impedance and resonance remain unknown.',item_uuid=uid)
+                    for residual in section['via_geometry']['remaining_barrel']:
+                        result.notes.append(f"Via {uid}: remaining barrel {residual['start_layer']} to {residual['end_layer']}, "
+                            f"{residual['length_mm']:.6g} mm, may be an open stub or connected branch. "
+                            'Termination, capacitance, input impedance and resonance are unknown; not added to series R/L.')
                 previous_layer = end_layer
                 result.layer_changes += 1
                 if end_layer not in result.layers:
@@ -702,6 +722,11 @@ class TraceMeasurementEngine:
                 if kind == "zone":
                     result.zone_area_mm2 = max(result.zone_area_mm2,edge["island"]["area_mm2"])
             result.resistance_ohm += section["resistance_ohm"]
+            if section.get('reference_net') and not re.search(r'(?:^|[/_+\-])(GND|AGND|DGND|PGND|SGND|VSS|GROUND)(?:$|[_\-\d])',section['reference_net'],re.I):
+                result.status = 'partial';section['status'] = 'partial'
+                self._block(result, 'REFERENCE_ELECTRICAL_ROLE_UNVERIFIED', 'The selected reference copper is not a verified electrical return.',
+                            'Verify AC return connectivity; a geometric reference layer alone is not proof.',item_uuid=uid)
+                result.notes.append(f"Reference {section['reference_net']} on {section['reference_layer']} has an unverified electrical-return role.")
             result.inductance_nh += section["inductance_nh"] or 0.
             result.capacitance_pf += section["capacitance_pf"] or 0.
             result.segments.append(section)
@@ -735,6 +760,7 @@ class TraceMeasurementEngine:
         if result.via_count:
             result.notes.append("Via capacitance needs antipad/reference geometry and is unknown. Barrel plating is assumed 25 um; inductance is isolated partial L, not return-loop L.")
         result.notes.append("Routing follows existing layer transitions without moving copper. Zone corridors include connected thermal copper at the stated width; general pad spreading impedance remains unmodeled.")
+        result.notes.extend(note for note in getattr(geometry, 'notes', ()) if note not in result.notes)
 
     def _layer_name(self, layer: Any) -> str:
         try:
