@@ -604,6 +604,8 @@ class QuickSIPanel(wx.Panel):
 
     def _destroyed(self,event):
         if event.GetEventObject() is self:
+            follower=getattr(getattr(self,'workspace',None),'selection_follower',None)
+            if follower is not None:follower.stop()
             self._closed=True;self._cancel.set();self._circuit_generation+=1
         event.Skip()
 

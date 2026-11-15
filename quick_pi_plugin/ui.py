@@ -83,6 +83,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         toolbar=wx.WrapSizer(wx.HORIZONTAL,flags=wx.REMOVE_LEADING_SPACES)
         for control in (self.setup_toggle,self.inspector_toggle,self.focus_button,self.fit_button,self.zoom_in,self.zoom_out,self.image_button,self.toolbar_run,self.more):
             toolbar.Add(control,0,wx.RIGHT|wx.BOTTOM,4)
+        from .board_workflow_ui import BoardWorkflow
+        self.board_workflow=BoardWorkflow(self,panel,toolbar)
         root.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,6)
         body=wx.BoxSizer(wx.HORIZONTAL)
         self.workspace_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
@@ -538,6 +540,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self.book.GetSelection()>=len(self.views):
             for control in (self.net,self.source,self.sink,self.voltage,self.current,self.layer,self.metric,self.preview,self.run,self.export,self.power_flow):control.Disable()
         self.toolbar_run.SetLabel(self.run.GetLabel());self.toolbar_run.Enable(self.run.IsEnabled())
+        if hasattr(self,'board_workflow'):self.board_workflow.refresh()
 
     def _run_readiness(self):
         """Explain setup gates without reading geometry or changing solver inputs."""
@@ -1791,6 +1794,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.Bind(wx.EVT_MENU,self.on_electrothermal,electrothermal);electrothermal.Enable(not self._busy)
         ac=menu.Append(wx.ID_ANY,'AC / SMPS copper study…')
         self.Bind(wx.EVT_MENU,self.on_ac,ac);ac.Enable(not self._busy)
+        ports=menu.Append(wx.ID_ANY,'AC two-port impedance · Z11 / Z12 / Z21 / Z22...')
+        self.Bind(wx.EVT_MENU,self.on_ac_ports,ports);ports.Enable(not self._busy)
+        plane=menu.Append(wx.ID_ANY,'Planar PDN impedance from selected pad ports...')
+        self.Bind(wx.EVT_MENU,self.on_plane_ports,plane);plane.Enable(not self._busy)
         details=menu.Append(wx.ID_ANY,'Layer thickness, losses and hotspots…');details.Enable(bool(self.bundle.get('result',{}).get('analytics')))
         self.Bind(wx.EVT_MENU,self.on_details,details)
         focus=menu.Append(wx.ID_ANY,'Zoom to circuit terminals');self.Bind(wx.EVT_MENU,self._focus_terminals,focus)
@@ -2083,6 +2090,17 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
 
+    def on_ac_ports(self,event=None):
+        if self._busy:return
+        from .ac_ports_ui import launch
+        launch(self)
+
+    def on_plane_ports(self,event=None):
+        try:
+            from .plane_ports_ui import launch_from_board
+            launch_from_board(self)
+        except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
+
     def on_electrothermal(self,event=None,feedback=False):
         if self._busy:return
         if not self._snapshot_current():self.status.SetLabel('Saved PCB changed. Reload before opening electrothermal coupling.');return
@@ -2274,6 +2292,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._end()
 
     def _end(self):
+        self.board_workflow.stop()
         self._reset_live()
         self._closed=True;self.timer.Stop();self.Destroy()
 

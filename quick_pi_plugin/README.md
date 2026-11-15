@@ -27,6 +27,45 @@ and [reproducible heater constructions](../heater_designer_plugin/THERMAL_3D.md)
 
 ## Board-first workspace
 
+### PCB-driven setup and sequential paths
+
+**Follow PCB** follows one selected net from the originating PCB Editor while
+idle. Use **PCB > Source pad** or **PCB > Load pad** to assign a single selected pad to an
+explicit role. Selection order never establishes direction. Ambiguous multi-net
+or stale selections retain the current inputs; a connection error pauses
+following until enabled again. Saved-board changes require reload. Existing
+inspector commands cross-select reviewed items back in KiCad.
+Mapping uses the saved snapshot, not unsaved net/geometry edits in the editor;
+save and reload those edits before interpreting analysis results.
+
+**Path** opens reviewed series-path extraction. Its sequential diagram
+numbers source, copper rails, in-path device banks and load, with distinct
+colours, directional arrows, wheel zoom, middle-button pan and SVG export.
+Every parallel device retains its pin groups and numerical model; a ground
+branch is not added as a forward-path stage. Unresolved converter behaviour and
+missing topology still need explicit review rather than guessed connections.
+
+**More > AC two-port impedance** opens an explicit geometry/ports/results
+workflow with complex Z11/Z12/Z21/Z22 curves and a full numerical table. Both
+port excitations share a factorization per frequency and mesh. This is a bounded
+MQS cross-section model, not automatic arbitrary-board full-wave extraction or
+a demonstrated speedup over Palace. See [two-port setup and solver limits](AC_PORTS.md).
+
+For magnitude/anti-resonance plots, **More > Planar PDN impedance from selected
+pad ports** uses the saved copper triangle mesh with explicit dielectric
+separation/loss and a reviewed ideal full-reference-plane assumption. P1/P2 are
+the two selected positive pad groups relative to that common reference, not a
+differential pair. The result viewer shows log-log magnitudes, actual-reference
+overlays, signed dB differences at common samples and hover probes. Multilayer,
+via-containing, nonuniform-thickness and disconnected meshes are rejected.
+`MODELLED` does not establish mesh convergence or agreement with Palace.
+See [planar model, assumptions and validation](PLANE_PORTS.md).
+
+![Actual computed planar PDN magnitudes and fine/coarse mesh differences](help-planar-pdn.png)
+
+This is a synthetic 100 x 50 mm ideal-reference cavity, not a Palace or measured
+comparison. [Saved studies, numerical results and reproduction steps](examples/planar_pdn/README.md).
+
 The board opens across the window. **Setup** opens net, pad and load inputs;
 **Details** opens layers, colours, tables and probes. **Focus view** hides both
 and restores their previous widths when pressed again. **Run** and **Files**

@@ -1,5 +1,15 @@
 # WayriCAD Quick SI
 
+## PCB-driven workspace
+
+**Use PCB selection** is available directly on the toolbar. **Follow PCB** reads
+the originating PCB Editor selection while idle and updates the selected signal
+net/pads through the same guarded selection path. Ambiguous nets keep current
+inputs; source and receiver direction are not inferred from selection order.
+A read failure pauses following, and closing the window stops its timer and
+discards queued callbacks. Existing **PCB** actions cross-select the route and
+explicit return nets. Save/reopen after changing the source board or rules.
+
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
 ## Quick start

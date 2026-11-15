@@ -121,6 +121,8 @@ def copper_lengths(node, evidence):
 def diagram_layout(tree):
     """Device-independent drawing commands; every parallel component gets a lane."""
     width, y, commands = 1100, 12, []
+    palettes = {'source': ('#e2f1fc', '#2476a8'), 'copper': ('#fff2d5', '#ad7316'),
+                'load': ('#f1e8fb', '#7950a5'), 'sink': ('#f1e8fb', '#7950a5')}
     def text(x, top, value, size=13):
         nonlocal y
         right = 940 if x == 160 else width - 40
@@ -131,13 +133,21 @@ def diagram_layout(tree):
         return len(lines) * (size + 6)
     def line(x1, y1, x2, y2):
         commands.append(dict(kind='line', x1=x1, y1=y1, x2=x2, y2=y2))
+    def arrow(top, bottom):
+        line(550, top, 550, bottom)
+        line(543, bottom - 7, 550, bottom)
+        line(557, bottom - 7, 550, bottom)
     def pins(values):
         return ', '.join(pin['label'] for pin in values) or 'Unknown'
-    text(30, y, 'Reviewed series path · schematic, not PCB geometry', 18); y += 30
-    for node in tree['nodes']:
+    text(30, y, 'Sequential power path · source to load', 18); y += 28
+    text(30, y, 'Blue: source   Amber: copper rail   Green: in-path devices   Violet: load', 12); y += 25
+    text(30, y, 'Reviewed series connectivity; return branches are not forward-path stages.', 12); y += 30
+    for number, node in enumerate(tree['nodes'], 1):
+        if number > 1:
+            arrow(y, y + 18); y += 26
         if node['kind'] == 'parallel_stage':
             entry = y
-            y += text(80, y, node['label'] + ' · parallel stage', 16) + 6
+            y += text(80, y, str(number) + '. ' + node['label'] + ' · parallel stage', 16) + 6
             top = y
             line(550, entry, 550, top - 8)
             for part in node.get('parts', []):
@@ -148,7 +158,8 @@ def diagram_layout(tree):
                 if metrics:
                     y += text(160, y, metrics)
                 y += 7
-                commands.append(dict(kind='rect', x=140, y=start, width=820, height=y-start))
+                commands.append(dict(kind='rect', x=140, y=start, width=820, height=y-start,
+                                     fill='#e3f4ec', stroke='#258265'))
                 center = (start + y) / 2
                 line(80, center, 140, center); line(960, center, 1020, center)
                 y += 8
@@ -156,19 +167,21 @@ def diagram_layout(tree):
             line(550, top - 8, 80, top - 8); line(80, top - 8, 80, top)
             line(1020, y, 550, y); line(550, y, 550, y + 10); y += 14
         else:
-            if commands:
-                line(550, y, 550, y + 12)
-            y += 16
+            start = y
+            y += 10
             label = ('Net ' if node['kind'] == 'copper' else '') + node['label']
-            y += text(40, y, label, 16)
+            y += text(160, y, str(number) + '. ' + label, 16)
             if node.get('pins'):
-                y += text(40, y, 'Pins: ' + pins(node['pins']))
+                y += text(160, y, 'Pins: ' + pins(node['pins']))
             if node['kind'] == 'copper':
-                y += text(40, y, wire_length_summary(node), 12)
+                y += text(160, y, wire_length_summary(node), 12)
             metrics = _metric_text(node)
             if metrics:
-                y += text(40, y, metrics)
-            y += 8
+                y += text(160, y, metrics)
+            y += 12
+            fill, stroke = palettes.get(node['kind'], ('#e2f1fc', '#2476a8'))
+            commands.append(dict(kind='rect', x=140, y=start, width=820, height=y-start,
+                                 fill=fill, stroke=stroke))
     return dict(width=width, height=y + 20, commands=commands)
 
 
@@ -226,7 +239,8 @@ def diagram_svg(tree):
         if command['kind'] == 'line':
             output.append('<line ' + ' '.join(f'{key}="{command[key]}"' for key in ('x1', 'y1', 'x2', 'y2')) + ' stroke="#426878" stroke-width="2"/>')
         elif command['kind'] == 'rect':
-            output.append('<rect ' + ' '.join(f'{key}="{command[key]}"' for key in ('x', 'y', 'width', 'height')) + ' fill="#eef5f4" stroke="#426878" rx="5"/>')
+            output.append('<rect ' + ' '.join(f'{key}="{command[key]}"' for key in ('x', 'y', 'width', 'height')) +
+                          f' fill="{command.get("fill", "#eef5f4")}" stroke="{command.get("stroke", "#426878")}" rx="5"/>')
         else:
             output.append(f'<text x="{command["x"]}" y="{command["y"] + command["size"]}" '
                           f'font-family="sans-serif" font-size="{command["size"]}" fill="#172c34">{escape(command["text"])}</text>')

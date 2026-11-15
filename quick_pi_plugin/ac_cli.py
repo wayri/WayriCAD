@@ -11,7 +11,7 @@ SCHEMA = 'wayricad.pi-ac/v1'
 MAX_STUDY_BYTES = 4 * 1024 * 1024
 
 
-def parse_study(data):
+def parse_study(data, *, schema=SCHEMA):
     """Decode a bounded study, rejecting repeated fields and non-finite values."""
     if len(data) > MAX_STUDY_BYTES:
         raise ValueError('AC study exceeds 4 MiB.')
@@ -29,8 +29,8 @@ def parse_study(data):
                            parse_constant=invalid)
     except (UnicodeDecodeError, RecursionError) as exc:
         raise ValueError('AC study must be bounded UTF-8 JSON.') from exc
-    if not isinstance(study, dict) or study.get('schema') != SCHEMA:
-        raise ValueError('AC study requires schema ' + SCHEMA + '.')
+    if not isinstance(study, dict) or study.get('schema') != schema:
+        raise ValueError('AC study requires schema ' + schema + '.')
     def visit(value, depth=0):
         if depth > 32:
             raise ValueError('AC study nesting exceeds 32 levels.')

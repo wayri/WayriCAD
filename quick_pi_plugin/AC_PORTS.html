@@ -1,0 +1,52 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Quick PI Two-Port Help</title>
+<style>body{font:15px/1.6 system-ui,sans-serif;max-width:960px;margin:24px auto;padding:0 20px;color:#24313a}table{border-collapse:collapse}td,th{padding:8px;border:1px solid #ccd4d9;text-align:left}pre{white-space:pre-wrap;background:#f0f4f6;padding:12px}</style>
+<h1>Explicit AC Two-Port Impedance</h1>
+<p>A numerical screening tool for two independent current loops in straight,
+parallel rectangular copper conductors. It is not an automatic whole-board AC
+extractor or full-wave simulation. No Palace performance comparison is claimed.</p>
+<h2>1. Geometry</h2><p>Enter conductor centre coordinates, width, thickness and
+common path length in millimetres. Add every outgoing and return conductor that
+participates in either port. Conductor names must be unique; copper cannot touch
+or overlap. Geometry is explicit, not inferred from the current PCB selection.</p>
+<h2>2. Ports And Frequencies</h2><p>Each port requires a positive and negative
+conductor. Both port currents enter the positive terminal and return through the
+negative terminal. Shared returns are supported, but duplicate or reversed copies
+of the same loop are not independent ports. Supply 1 to 32 distinct positive
+frequencies in hertz. Unexcited ports have zero net current, not zero local eddy
+current. Use Load for a saved study; edits invalidate results.</p>
+<h2>3. Run And Inspect</h2><p>Run launches a background solve. Cancel discards the
+result and takes effect between sparse solves, not inside SuperLU factorization.
+Read both the complex curves and complete table; signed imaginary values are
+retained. A provisional result has not met the declared mesh/boundary tolerance.</p>
+<table><tr><th>Quantity</th><th>Definition</th></tr>
+<tr><td>Z11</td><td>V1 / I1 with I2 = 0</td></tr>
+<tr><td>Z21</td><td>V2 / I1 with I2 = 0</td></tr>
+<tr><td>Z12</td><td>V1 / I2 with I1 = 0</td></tr>
+<tr><td>Z22</td><td>V2 / I2 with I1 = 0</td></tr></table>
+<p>Magnitude plots use logarithmic Hz/ohm scales for all four terms. Hover shows
+the nearest original complex sample and phase. Pan/zoom with the plot toolbar.
+Reference loads actual complex samples and adds signed dB differences at common
+sample frequencies only, without interpolation. See the Markdown contract for
+the generic reference JSON schema. No Palace data or agreement is invented.</p>
+<p>Voltages and currents use RMS phasors, exp(+j omega t); Z is in ohms. Reversing
+one port changes the signs of transfer impedances without changing the self term.</p>
+<h2>Math And Performance</h2><p>The existing cell-centred MQS formulation solves
+axial vector potential and conductor electric fields with explicit net-current
+constraints. Z = B transpose times E times length. One sparse LU factorization
+per frequency and mesh serves both right-hand sides; matrix assembly is not
+repeated for the second port. Numerical checks cover current balance, reciprocity,
+positive-semidefinite dissipated power, Joule balance, mesh refinement and
+magnetic-boundary enlargement. These are numerical checks, not measured accuracy.</p>
+<h2>Where This Does Not Apply</h2><p>No bends, changing-width traces, vias, copper
+zones, dielectric capacitance/loss, radiation, magnetic cores, nonlinear devices,
+connector resonances or arbitrary return paths are extracted. Electrically large
+sections are rejected. Relative permittivity participates only in that size guard;
+it does not add capacitance. Use a qualified distributed/full-wave workflow for
+those cases, with explicit ports and convergence evidence.</p>
+<h2>Export And Automation</h2><p>Save Result writes full normalized inputs,
+complex matrices, units, checks, numerical work counts and limits to a separate
+JSON file. It cannot overwrite a loaded input study. The PCB is never modified.</p>
+<pre>wayricad-pi --ac-ports study.json --output impedance.json --timeout 300</pre>
+<p>CLI exit codes: 0 converged, 3 provisional, 2 rejected/failed/cancelled. Timeout
+is cooperative between solves. <a href="AC_PORTS.md">Complete input contract</a>.</p>
+</html>

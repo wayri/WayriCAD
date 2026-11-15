@@ -1,0 +1,45 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Planar PDN Impedance</title>
+<style>body{font:15px/1.6 system-ui,sans-serif;max-width:960px;margin:24px auto;padding:0 20px;color:#24313a}pre{padding:12px;background:#f0f4f7;white-space:pre-wrap}</style>
+<h1>Planar PDN Impedance</h1>
+<p>This is a parallel-plate cavity model of one saved copper sheet over an
+explicitly ideal reference plane. It includes distributed sheet R/L and shunt
+capacitance/loss, so it can represent plane-cavity resonances that a conductor-only
+MQS section cannot. It is not a full-wave Palace replacement.</p>
+<h2>Board workflow</h2><ol><li>Save and fill copper in KiCad. Select the net,
+then explicitly assign two pad ports using Source pad and Load pad.</li>
+<li>In More, choose Planar PDN impedance. The two pad groups are positive P1/P2
+contacts relative to the same ideal reference plane; they are not a differential
+pair or a DC source/load termination.</li><li>Enter the reference name, dielectric
+separation, permittivity/loss, copper properties and frequency range. Confirm the
+ideal full-plane and magnetic-wall assumption explicitly.</li><li>The existing
+saved-copper mesher provides triangles and pad nodes. Multilayer sheets, vias,
+nonuniform thickness, overlapping ports and disconnected meshes are rejected.</li>
+<li>Inspect log-log |Z11|, |Z12|, |Z21| and |Z22|. Hover probes show actual sampled
+complex values and phase. Pan/zoom using the plot toolbar. Refine the mesh and
+frequency sweep before relying on resonant peaks.</li></ol>
+<h2>Mathematics</h2><p>The P1 triangular scalar model solves
+Y V = B, with Y = K / (Rs + j omega mu0 h) + omega (tan delta + j) C.
+K is the geometric sheet stiffness and C is lumped dielectric capacitance to
+the ideal plane. Z = B transpose V. One sparse factorization serves both current
+excitations at each frequency. The uniform-capacitance mode is separated to
+avoid cancellation in low-frequency nodal solves. Residual, return-current,
+reciprocity, passivity and power-balance checks are retained.</p>
+<p>MODELLED is not CONVERGED or physically validated. The solver does not
+automatically refine a supplied mesh; numerical invariants alone cannot establish
+spatial accuracy or whether a narrow peak was missed by frequency sampling.</p>
+<h2>Reference overlays</h2><p>Reference loads actual complex impedance samples
+from the documented generic JSON format, not a screenshot. Magnitude curves are
+overlaid and lower plots show 20 log10(|Zmodel| / |Zreference|). Differences use
+common sampled frequencies only: no interpolation, extrapolation or invented
+Palace data. Reference results are only comparable when geometry, port areas,
+reference planes, materials and boundary conditions match.</p>
+<h2>Limits</h2><p>The return plane is ideal and has no loss or voids. Magnetic
+walls reflect at the copper outline. Fringing, radiation, via/launch parasitics,
+plane-stack coupling, dielectric dispersion, discrete decoupling and transverse
+higher modes are absent. Copper Rs is a DC/skin-envelope approximation. This
+model does not replace a manufacturing DRC or field-solver qualification.</p>
+<pre>wayricad-pi --plane-ports study.json --output impedance.json --timeout 300</pre>
+<p>Exit 3 denotes modelled/provisional results without demonstrated mesh
+convergence. See <a href="PLANE_PORTS.md">solver contract and references</a> and
+<a href="AC_PORTS.md">comparison data format and plotting workflow</a>.</p>
+</html>

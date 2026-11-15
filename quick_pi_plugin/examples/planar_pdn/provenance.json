@@ -1,0 +1,17 @@
+{
+  "created_at_utc": "2026-11-15T14:19:18.114721+00:00",
+  "kind": "actual numerical plot, not UI screenshot",
+  "model": "explicit ideal-reference parallel-plate scalar cavity",
+  "fine_mesh": [
+    24,
+    12
+  ],
+  "coarse_mesh": [
+    12,
+    6
+  ],
+  "frequency_samples": 282,
+  "reference": "same-method coarse mesh; not independent Palace evidence",
+  "physical_or_mesh_qualification": false,
+  "plot_sha256": "fa220408006473556866cc1f30599a3abf6988f1a90001c055d3bf9adabcaa38"
+}

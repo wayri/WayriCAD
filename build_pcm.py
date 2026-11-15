@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "4.8.4")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "4.8.5")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -81,7 +81,7 @@ def plugin_files(plugin_path):
                 "tools", "scripts", "docs", "examples", "node_modules"}
     if plugin_path.name in {"protocol_constraint_composer_plugin", "quick_therm_plugin"}:
         excluded -= {"docs", "examples"}
-    if plugin_path.name in {"bom_studio_plugin", "manufacturing_readiness_plugin", "heater_designer_plugin"}:
+    if plugin_path.name in {"bom_studio_plugin", "manufacturing_readiness_plugin", "heater_designer_plugin", "quick_pi_plugin"}:
         excluded.discard("examples")
     for root, dirs, files in os.walk(plugin_path):
         dirs[:] = sorted(d for d in dirs if d not in excluded and not d.startswith("."))

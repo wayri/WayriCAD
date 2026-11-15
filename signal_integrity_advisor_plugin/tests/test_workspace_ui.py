@@ -4,6 +4,7 @@ import copy
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 _app = None
@@ -27,7 +28,9 @@ class WorkspaceTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.path=Path(self.temp.name)/'example.kicad_pcb';copy_board_fixture(self.path);self.before=self.path.read_bytes()
         self.frame=self.wx.Frame(None,size=(1280,800))
-        self.panel=QuickSIPanel(self.frame,pcbnew.LoadBoard(str(self.path)),RoutePreview,saved_board=True)
+        with patch.dict('os.environ',{'KICAD_API_SOCKET':'','KICAD_API_TOKEN':''}):
+            self.panel=QuickSIPanel(self.frame,pcbnew.LoadBoard(str(self.path)),RoutePreview,saved_board=True)
+        self.assertFalse(self.panel.workspace.follow.GetValue())
         layout=self.wx.BoxSizer(self.wx.VERTICAL);layout.Add(self.panel,1,self.wx.EXPAND);self.frame.SetSizer(layout)
         self.frame.Show();_app.Yield()
 

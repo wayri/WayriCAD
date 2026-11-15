@@ -53,8 +53,13 @@ def diagram_canvas(parent, tree):
             self.SetBackgroundStyle(wx.BG_STYLE_PAINT)
             self.SetScrollRate(12, 12)
             self.scale = 1.
+            self.drag = None
             self.Bind(wx.EVT_PAINT, self.paint)
             self.Bind(wx.EVT_SIZE, self.resize)
+            self.Bind(wx.EVT_MOUSEWHEEL, self.wheel)
+            self.Bind(wx.EVT_MIDDLE_DOWN, self.pan_start)
+            self.Bind(wx.EVT_MOTION, self.pan_move)
+            self.Bind(wx.EVT_MIDDLE_UP, self.pan_end)
             self.fit_width()
 
         def fit_width(self):
@@ -67,9 +72,36 @@ def diagram_canvas(parent, tree):
                 self.SetVirtualSize(target)
 
         def resize(self, event):
-            self.fit_width()
+            self.update_size()
             self.Refresh(False)
             event.Skip()
+
+        def update_size(self):
+            size = self.FromDIP((drawing['width'], drawing['height']))
+            self.SetVirtualSize((math.ceil(size.width*self.scale), math.ceil(size.height*self.scale)))
+
+        def zoom(self, factor):
+            self.scale = max(.35, min(3., self.scale*factor))
+            self.update_size()
+            self.Refresh(False)
+
+        def wheel(self, event):
+            self.zoom(1.15 if event.GetWheelRotation()>0 else 1/1.15)
+
+        def pan_start(self, event):
+            self.drag = (event.GetPosition(), self.GetViewStart())
+            self.CaptureMouse()
+
+        def pan_move(self, event):
+            if self.drag is None:return
+            point, origin = self.drag
+            current = event.GetPosition()
+            self.Scroll(max(0,origin[0]+round((point.x-current.x)/12)),
+                        max(0,origin[1]+round((point.y-current.y)/12)))
+
+        def pan_end(self, event):
+            self.drag = None
+            if self.HasCapture():self.ReleaseMouse()
 
         def paint(self, event):
             dc = wx.AutoBufferedPaintDC(self)
@@ -81,7 +113,7 @@ def diagram_canvas(parent, tree):
                     dc.SetPen(wx.Pen('#426878', self.FromDIP(2)))
                     dc.DrawLine(*[self.FromDIP(round(item[k])) for k in ('x1', 'y1', 'x2', 'y2')])
                 elif item['kind'] == 'rect':
-                    dc.SetPen(wx.Pen('#426878')); dc.SetBrush(wx.Brush('#eef5f4'))
+                    dc.SetPen(wx.Pen(item.get('stroke','#426878'))); dc.SetBrush(wx.Brush(item.get('fill','#eef5f4')))
                     dc.DrawRoundedRectangle(*[self.FromDIP(round(item[k])) for k in ('x', 'y', 'width', 'height')], self.FromDIP(5))
                 else:
                     font = self.GetFont()
@@ -114,7 +146,18 @@ def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=Non
     notice.Wrap(dialog.FromDIP(900))
     layout.Add(notice, 0, wx.EXPAND | wx.ALL, 10)
     tabs = wx.Notebook(dialog)
-    tabs.AddPage(diagram_canvas(tabs, tree), 'Series path diagram')
+    canvas = diagram_canvas(tabs, tree)
+    navigation = wx.BoxSizer(wx.HORIZONTAL)
+    for label, art, tip, callback in (
+            ('+',wx.ART_PLUS,'Zoom in',lambda event:canvas.zoom(1.2)),
+            ('-',wx.ART_MINUS,'Zoom out',lambda event:canvas.zoom(1/1.2)),
+            ('Fit',wx.ART_GO_HOME,'Fit diagram width',lambda event:(canvas.fit_width(),canvas.Refresh(False)))):
+        button=wx.Button(dialog,label=label,style=wx.BU_EXACTFIT)
+        button.SetBitmap(wx.ArtProvider.GetBitmap(art,wx.ART_BUTTON,(16,16)))
+        button.SetToolTip(tip);button.Bind(wx.EVT_BUTTON,callback)
+        navigation.Add(button,0,wx.RIGHT,5)
+    layout.Add(navigation,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+    tabs.AddPage(canvas, 'Series path diagram')
     panel = ScrolledPanel(tabs)
     flow = wx.BoxSizer(wx.VERTICAL)
     for index, node in enumerate(tree['nodes']):

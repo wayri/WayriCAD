@@ -15,159 +15,14 @@
 from 27 independently installable development packages. Processing runs locally after setup.
 KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 
-Explore the [WayriCAD website and searchable plugin directory](https://wayri.github.io/wayricad/)
-for screenshots, installation, CLI workflows and model limits. WayriCAD was
-formerly named KiWay; the maintained source and PCM feed use WayriCAD.
+[Download 4.8.5](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.8.5.md)
 
-[Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
-[Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
-GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
+See the release's validation receipt for exact source, CI and asset identities.
 
-**Release 4.8.4:** Portable Web Export revalidates saved-source hashes immediately
-before publishing a staged export. Original and embedded file hashes remain
-distinct, with regression coverage for stale component metadata, model-path
-rewriting and edits during output staging. Existing 4.8.3 features and the
-official WebView 0.6.0 pin are retained. See [4.8.4 release notes](docs/RELEASE_NOTES_4.8.4.md)
-and the attached `validation-4.8.4.json` release receipt for verification scope.
-
-**Release 4.8.3:** shared steady 3D Joule/Seebeck/Peltier
-studies, heater foil/flex materials, magnetics thermal feedback, explicit SI DC
-temperature correction, official WebView 0.6.0 integration and imported CAM
-short/open net comparison. No Gerber reconstruction, fabrication approval,
-3D transient/CFD, full HF temperature feedback or broad KiCad 11 acceptance is
-claimed. See [4.8.3 scope, local evidence and limits](docs/RELEASE_NOTES_4.8.3.md).
-Published source/CI identities and artifact hashes are recorded in the release's
-attached `validation-4.8.3.json` receipt; these notes do not imply a hosted CI pass.
-
-**Release 4.8.2:** DFM/DFA failure recovery, a searchable 24-process / 28-supplier
-library, custom profiles, guided offline help and headless vendor audits.
-Native assembly findings retain corrective guidance without implying complete
-process approval. See [4.8.2 release notes](docs/RELEASE_NOTES_4.8.2.md) and the
-[DFM/DFA guide](manufacturing_readiness_plugin/DFM_DFA.md).
-
-**Release 4.8.1:** coupled FEM phased arrays with up to 16 passive patch ports,
-scan steering and power diagnostics, plus simultaneous interactive 3D radiation
-and scaled 2D cuts inside Quick EMerge. The ideal array-factor mode stays
-separate. See [4.8.1 release notes](docs/RELEASE_NOTES_4.8.1.md) and the
-[illustrated FEM AESA guide](quick_emerge_plugin/FEM_AESA.md) for evidence and limits.
-
-**Release 4.8.0:** RLC protocol discovery and evidence-bounded screening,
-simpler QuickTherm power/ambient setup, EMerge 3.0.4 / emsutil 1.1.6 adapter
-support, richer antenna field/polarization and AESA steering views, and a
-searchable product website. See [4.8.0 release notes](docs/RELEASE_NOTES_4.8.0.md)
-for verification and known limits, including the unresolved Constraint Studio
-startup assertion on the audited Windows native runtime.
-
-**Release 4.7.0:** Quick EMerge adds research antenna benchmarks and detailed
-[reproduction walkthroughs](examples/quick_emerge/research_antennas/README.md).
-See [4.7.0 release notes](docs/RELEASE_NOTES_4.7.0.md).
-
-**Release 4.6.0:** Portable Web Export joins the main release as the 27th
-independently installable package. It builds one traceable, self-contained
-offline HTML review from selected saved schematic, PCB, BoM and supported 3D
-content, with an exact in-plugin preview and a headless CLI for controlled
-automation. See the [illustrated guide](portable_web_export_plugin/README.md).
-KiCad 10 remains the supported baseline; newer saved-board analysis is experimental.
-[Download 4.8.4](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) ·
-[Release notes and validation limits](docs/RELEASE_NOTES_4.8.4.md) · [Getting started](#getting-started)
-
-- [Quick PI](quick_pi_plugin/README.md): infer and review VIN → MID → OUT paths,
-  parallel devices and current pins in the editor; save independent named batch
-  cases and inspect a schematic path diagram with guarded SVG export.
-- [Saved-board analysis](docs/SAVED_BOARD_ANALYSIS.md): Quick PI, QuickTherm,
-  Quick SI, Trace RLC and DFM/DFA Studio can inspect strictly convertible newer
-  saved boards using the originating editor's CLI and a native KiCad 10 helper.
-- [Component Arranger](component_arranger_plugin/README.md): optional pin-level
-  schematic springs guide placement only where drawn wires match exact same-net
-  PCB pads. Native validation still gates Apply.
-
-Windows KiCad 10.0.6 editor checks completed a three-net, two-bank, 20-current-pin
-series run with setup and simulation reload plus HTML, PDF, SVG and compact
-diagram inspection. A KiCad 11 development build checked the newer saved format,
-inline inference, explicit models, the full path run, setup reload and HTML.
-Its PDF, diagram and screenshots remain pending; the full KiCad 11 suite is not
-qualified. See [compatibility evidence](docs/COMPATIBILITY.md#43-candidate-editor-evidence).
-
-<details>
-<summary>About the download counter</summary>
-
-The download counter updates automatically across all releases. It includes direct
-GitHub downloads and KiCad PCM downloads, since PCM fetches the same GitHub release
-assets. It counts downloaded files, including repeat downloads and release metadata,
-not unique users or installations. GitHub does not separate PCM from direct downloads;
-automatic source ZIP/tar downloads and repository clones are excluded.
-
-</details>
-
-<details>
-<summary>Earlier releases and validation history</summary>
-
-**Release 4.5.0:** Review added a compact composer, quote replies, BOM and
-Gerber context, variant tags and orphan-status diagnostics. Review remains a
-testing package. [Release notes](docs/RELEASE_NOTES_4.5.0.md).
-
-**Release 4.2.0:** DFM/DFA checklists, whole-board and bundle RLC extraction,
-reference-plane evidence and PI series power trees.
-[Release notes](docs/RELEASE_NOTES_4.2.0.md).
-
-**Release 4.1.3:** smaller lossless HTML/PDF reports, restored-simulation export
-fixes, and reviewed series-path discovery with parallel components and pin groups.
-[Release notes](docs/RELEASE_NOTES_4.1.3.md).
-
-**New in 4.0.1:** clearer Quick PI setup feedback, more useful Quick SI route/eye
-status, and board-derived RLC eye simulation. Quick EMerge has simple 2D/3D
-views focused on the antenna region, 2D/3D radiation patterns and grouped
-plot/report exports. Full-value PI result-table copying and the fanout style
-picture catalogue are included.
-[Release notes](docs/RELEASE_NOTES_4.0.1.md).
-
-**New in 4.0.0:** board-first quick-tool workspaces, compact setup and results
-panels, and separate setup/result file choosers. Also includes alternating fanout,
-reviewed PI power trees, shared returns and thermal materials.
-[Release notes](docs/RELEASE_NOTES_4.0.0.md).
-
-**New in 3.6.45:** Quick EMerge beta, Review conversations, project-local
-simulation save/load, portable analysis exports and a readable, searchable tool
-launcher. [Release notes](docs/RELEASE_NOTES_3.6.45.md).
-
-## New in 3.6.42
-
-| Pin Extractor addition | Where to start |
-|---|---|
-| Mating connector pairs | [Top/bottom views, poses and contact mapping](extract_pins_plugin/CONNECTOR_TOOLS.md#review-a-mating-pair) |
-| Matching labels | [Editable modifiers, bulk assignment and individual rows](extract_pins_plugin/CONNECTOR_TOOLS.md) |
-| CSV / TSV to schematic labels | [Numbering and global/local/hierarchical labels](extract_pins_plugin/CONNECTOR_TOOLS.md#paste-csv-or-a-column-of-names) |
-| Physical pinout tables | [Actual connector rows and columns](extract_pins_plugin/CONNECTOR_TOOLS.md#extract-the-actual-rows-and-columns) |
-
-<details>
-<summary>Recent Quick-tool improvements and measured speeds · 3.6.41</summary>
-
-| Improvement | Where to start |
-|---|---|
-| Faster analysis | [PI measurements](docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md) · [SI measurements](docs/audits/QUICK_SI_SPEED_GUIDE_2026-10-28.md) · [Thermal measurements](docs/audits/QUICKTHERM_SPEED_GUIDE_2026-10-28.md) |
-| Guided Joule feedback | [Materials, cooling and model limits](quick_pi_plugin/USER_GUIDE.md) |
-| Complete analysis workflows | [Marble and White Rabbit tutorials](docs/QUICK_TOOL_EXAMPLE_BOARDS.md) · [Detailed guides](#detailed-analysis-guides) |
-| Blender visualization | [Export supported board geometry, fields and thermal frames](wayricad_runtime/BLENDER.md) |
-
-
-
-| Study | Before | 3.6.41 |
-|---|---:|---:|
-| Fresh Quick SI analysis — Marble | 7.09 s | 3.77 s |
-| Fresh Quick SI analysis — White Rabbit | 1.52 s | 0.52 s |
-| Marble multilayer thermal solve | 93.07 s | 65.02 s |
-| PI 3D field preparation benchmark | 80.9 ms | 18.2 ms |
-
-These local measurements cover the stated operations, not total startup for
-every board. SI serialized results and the compared thermal values matched.
-See the measurement links above for inputs, methods and numerical tolerances.
-
-</details>
-
-[Download 4.0.1](https://github.com/wayri/WayriCAD/releases/tag/v4.0.1) ·
-[Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
-
-</details>
+[Install](#install-and-open) · [Choose a tool](#all-27-plugins) ·
+[Showcase](#showcase) · [Guides](#detailed-analysis-guides) ·
+[CLI](#automation-and-development) · [Release history](#release-history)
 
 ## Start here
 
@@ -176,7 +31,7 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 4.8.4](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) · [Release notes](docs/RELEASE_NOTES_4.8.4.md) |
+| Download or update | [Release 4.8.5](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) · [Release notes](docs/RELEASE_NOTES_4.8.5.md) |
 | Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 27 plugins](#all-27-plugins) |
@@ -186,146 +41,13 @@ See the measurement links above for inputs, methods and numerical tolerances.
 | Resolve a problem | [Help and upgrades](#help-and-upgrades) |
 | Automate or contribute | [Development](#automation-and-development) |
 
-### Detailed analysis guides
+Explore the [WayriCAD website and searchable plugin directory](https://wayri.github.io/wayricad/)
+for screenshots, installation, CLI workflows and model limits. WayriCAD was
+formerly named KiWay; the maintained source and PCM feed use WayriCAD.
 
-| Tool | Step-by-step user guide | Offline version |
-|---|---|---|
-| Quick PI | [DC paths, returns, AC losses, PDN, transients and probes](quick_pi_plugin/USER_GUIDE.md) | [HTML guide](quick_pi_plugin/USER_GUIDE.html) |
-| Quick SI | [Signal paths, returns, coupling, pair timing and IBIS export](signal_integrity_advisor_plugin/USER_GUIDE.md) | [HTML guide](signal_integrity_advisor_plugin/USER_GUIDE.html) |
-| QuickTherm | [Power inputs, cooling, steady state, transients and temperature inspection](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) | [HTML guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.html) |
-| Quick EMerge (beta) | [Setup, antenna templates, bounded PCB regions, probes and reports](quick_emerge_plugin/README.md) | [HTML guide](quick_emerge_plugin/help.html) |
-| DFM / DFA Studio | [Vendor processes, saved checklists, native DRC and visual findings](manufacturing_readiness_plugin/DFM_DFA.md) | [HTML guide](manufacturing_readiness_plugin/help.html) |
-
-Each guide covers setup, result interpretation, examples, command-line use,
-report export and troubleshooting, including the limits of each solver.
-
-Follow the [Marble and White Rabbit example-board preparation](docs/QUICK_TOOL_EXAMPLE_BOARDS.md)
-for pinned sources, native-import limits and links to the worked tutorials and
-control references.
-
-**Blender visualization — included in 3.6.41:** completed Quick PI, Quick SI and
-QuickTherm results can be exported as Blender scenes, with supported fields and
-stored-frame thermal animation. See the [Blender walkthrough](wayricad_runtime/BLENDER.md)
-for the plugin actions, CLI, animation controls and model limits.
-
-### Save setups and recall results
-
-The quick tools open a file chooser in the saved PCB’s folder. Choose the name
-and destination; setup files and computed results are separate JSON files.
-Quick EMerge keeps these actions in its **Files** menu.
-
-| Action | What it retains | When loaded |
-|---|---|---|
-| **Save setup… / Load setup…** | Editable analysis inputs and source-board identity | Restore the inputs, review any changed source and run again |
-| **Save simulation… / Load simulation…** | Complete supported numerical results, plugin identity and provenance | Inspect stored plots, time steps and probes read-only without solving |
-
-The deterministic `.wayricad/results/` library remains available through the
-CLI. Supported result structures can also be read by the KiCad GitHub viewer.
-[File formats, limits and CLI](docs/PROJECT_RESULTS.md).
-
-## Showcase
-
-### Portable Web Export — 4.6.0
-
-| Saved-project selection, preflight and exact embedded preview | Recipient-facing offline review and traceability page |
-|---|---|
-| <a href="portable_web_export_plugin/help-workflow.png"><img src="portable_web_export_plugin/help-workflow.png" width="460" alt="Portable Web Export project selection and preflight workflow"></a> | <a href="portable_web_export_plugin/help-page-preview.png"><img src="portable_web_export_plugin/help-page-preview.png" width="460" alt="Portable Web Export offline review page with linked views and traceability"></a> |
-
-The [complete Portable Web Export guide](portable_web_export_plugin/README.md)
-covers the KiCad workflow, CLI and jobset integration, metadata, browser-local
-tracking, recovery, security boundaries and supported 3D formats.
-The images are source-aligned illustrations with generic example data, not
-evidence of a connected editor session.
-
-### Quick PI and Quick SI — 4.0.1
-
-| Quick PI: setup guidance and full-value result tables | Quick SI: displayed-route and board RLC eye feedback |
-|---|---|
-| <a href="quick_pi_plugin/help-workspace-polish-4.0.1.png"><img src="quick_pi_plugin/help-workspace-polish-4.0.1.png" width="460" alt="Quick PI setup guidance, copper viewport and loss table"></a> | <a href="signal_integrity_advisor_plugin/help-result-feedback.png"><img src="signal_integrity_advisor_plugin/help-result-feedback.png" width="460" alt="Quick SI header and eye tab identifying a board-derived RLC channel"></a> |
-
-Native synthetic examples, not measured-board or protocol qualification.
-[PI setup and screenshot assumptions](quick_pi_plugin/README.md) ·
-[SI channel and screenshot assumptions](signal_integrity_advisor_plugin/ReadMe.md).
-Both tools retain a full-width viewport with optional Setup and Details panels.
-
-Click a screenshot for its full resolution. [More screenshots, grouped by plugin](#plugin-previews).
-
-### Board-first quick tools — 4.0.0
-
-Setup and Details open on demand; Focus view restores their previous state.
-File actions remain available while the board fills the workspace.
-
-| [Quick PI](quick_pi_plugin/README.md) | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) |
-|---|---|
-| <a href="quick_pi_plugin/help-viewport-first.png"><img src="quick_pi_plugin/help-viewport-first.png" width="460" alt="Quick PI with a full-width copper viewport and compact controls"></a> | <a href="signal_integrity_advisor_plugin/help-viewport-first.png"><img src="signal_integrity_advisor_plugin/help-viewport-first.png" width="460" alt="Quick SI with a full-width route and collapsible setup and result panels"></a> |
-| Illustrative analytical field; [capture assumptions](quick_pi_plugin/VIEWPORT_LAYOUT.md). | Synthetic saved-PCB route with explicit line assumptions. |
-| **[QuickTherm](quick_therm_plugin/README.md)** | **[Quick EMerge — beta](quick_emerge_plugin/README.md)** |
-| <a href="quick_therm_plugin/help-viewport-first.png"><img src="quick_therm_plugin/help-viewport-first.png" width="460" alt="QuickTherm with a large board temperature view and optional sidebars"></a> | <a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="460" alt="Quick EMerge with a full-area antenna-region viewport, 2D/3D controls and grouped exports"></a> |
-| Public saved thermal example with illustrative inputs. | Extracted and clipped rule-area copper preview; no FEM solve shown. |
-
-### Worked examples and previews
-
-| [Quick PI — Marble board preview](#quick-pi) | [QuickTherm — 3D temperature view](#quicktherm) |
-|---|---|
-| <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
-| Geometry preview; no PI field solved. | Assumed-load demonstration; STEP models disabled. |
-| **[Quick PI — AC setup · 3.6.40](#quick-pi)** | **[Quick PI — AC heating · 3.6.40](#quick-pi)** |
-| <a href="quick_pi_plugin/help-ac-setup-3.6.40.png"><img src="quick_pi_plugin/help-ac-setup-3.6.40.png" width="460" alt="Simplified AC loop setup with outgoing and return preview"></a> | <a href="quick_pi_plugin/help-ac-results-3.6.40.png"><img src="quick_pi_plugin/help-ac-results-3.6.40.png" width="460" alt="AC heating results with summary cards, one large plot and engineering units"></a> |
-| Live explicit-geometry preview before solving. | Computed illustrative loop; 128.1 mW total copper heat. |
-| **[Trace Refiner — old/new comparison](#trace-refiner)** | **[Fanout — connector escape preview](#fanout-generator)** |
-| <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
-| Synthetic fixture; native validation reported no new DRC findings. | Six-pin synthetic fixture; [dense Marble trial results](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
-
-## Released workflow highlights
-
-Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
-
-| Improvement | Workflow |
-|---|---|
-| Computed thermal playback | Default 0.1 s frames, separate solver/output intervals, Previous/Next and playback speed controls. [QuickTherm guide](quick_therm_plugin/README.md). |
-| Reviewed IBIS circuits | Load exact source/receiver models, export selected complete routes and copy a native KiCad circuit. [SI workflow and limits](signal_integrity_advisor_plugin/ReadMe.md#reviewed-ibis-circuit-export). |
-| PI melting and bottlenecks | Trace-cell and via-barrel adiabatic melting estimates, limiting-region selection and heat maps. Melting does not establish fuse opening. [PI guide](quick_pi_plugin/README.md). |
-| SI neighbour map | Search nearby traces, inspect gap/parallel overlap and review supported local coupling separately from geometric exposure. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
-| Live Quick PI current | Ctrl+scroll over a sink pad changes that load; other solved copper adjusts total demand. Scroll zooms. A cursor readout compares before/after values. [Controls and model limits](quick_pi_plugin/README.md#individual-sink-current-wheel-control). |
-| Dense-board Fanout | Native padstack/track/arc checks, real keepout polygons, faster connector exits and retained short-stub continuation. [Marble results](docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md). |
-| Simpler Constraint Studio | Ordinary rules and netclasses stay in KiCad; Studio retains a read-only overview, protocol presets, matrices, reusable sets and reviewed export. [Guide](protocol_constraint_composer_plugin/ReadMe.md). |
-| Fanout corrections | Accept nullable saved netclass assignments and reject duplicate Fixed-mode launches on connected pads. [Real-board trial results and remaining limits](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
-| Updated guides and showcase | Refreshed navigation for the current 27-plugin development catalogue, retained earlier previews and added current native screenshots. |
-| Guard via stitching | Fence selected signal nets/traces on a distinct guard net; review pitch, offset, clearances and rejections. [Guide](via_stitching_plugin/ReadMe.md). |
-| Guided, cancellable Fanout | Actual component thumbnails, Before/After and small-window actions. [Guide](fanout_generator_plugin/ReadMe.md). |
-| Shared responsiveness | Faster dropdowns and exact picking; Quick PI geometry-ready time 33.09 s to 20.26 s. [Measurements and limits](docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md). |
-| Assistant — testing | Local fuzzy command planning, clarification and reports across registered CLI actions. [Guide](suite_assistant_plugin/README.md). |
-| Faster fresh PI solves | Reuse one native PCB across a multi-net batch and reduce geometry/matrix overhead. Marble cold median 43.24 s to 31.71 s. [Measurements](docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.md). |
-| Responsive native board view | Saved silkscreen retains its physical size and placement. Marble full viewport redraw 763 ms to 58 ms; cached drag and indexed probes reduce interaction work. [Measurements](docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.md). |
-| Live, faster fanout preview | Selection and style changes update the main canvas and a component thumbnail. Fixed Marble U35 planning 21.94 s to 0.29 s with identical plans. [Fanout guide](fanout_generator_plugin/ReadMe.md). |
-| Faster Quick PI interaction | Reuse unchanged results, load selected-net display geometry in the worker, and retain plot artists during navigation. [Measurements](docs/audits/QUICK_TOOLS_PERFORMANCE.md). |
-| Better net selection and views | Search with wildcards or fuzzy suggestions without losing the selected net. Focus maps and PCB selection on the simulated nets; choose a combined-layer projection. |
-| Clear trace comparisons | Trace Refiner 0.3.1 fixes missing UUID-setter compatibility and provides amber/teal Overlay, Before, After and Side-by-side views. |
-| Pad/via endpoint centering | Run the separate Trace Refiner action for pad/via endpoint centering. [Trace Refiner guide](trace_refiner_plugin/README.md). |
-| Readable local silkscreen | Preserve acceptable references; try footprint-axis placement, bounded sizing and local repacking near the owning courtyard. Every eligible reference receives an outcome. [Silkscreen guide](silkscreen_label_plugin/README.md). |
-| Managed silkscreen guides | Leaders default off. Optional short straight guides have persistent ownership, detached-guide auditing and reversible cleanup. CLI HTML reports show both board faces. [Silkscreen guide](silkscreen_label_plugin/README.md). |
-| Shared-return PI and multi-pad units | Solve common return copper across rails; choose multiple physical source/load pads per unit. Shared return losses count once. [PI guide](quick_pi_plugin/README.md). |
-| Automatic mesh sizing | PI and thermal models recommend sizes and refine supported regions locally, with manual overrides and explicit budget warnings. |
-| Power and thermal Sankeys | Follow source-to-load power or individual-part dissipation in native actions and offline HTML reports. |
-| PI Joule heating checkbox | Enable temperature feedback, then supply reviewed material and cooling inputs. Plain DC already reports copper losses. |
-| Quick SI local crosstalk | Configure directed aggressor/victim pairs and review supported straight-section coupling, modeled coverage and omitted geometry. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
-| PI / SI / Therm reports | Read status, coverage and provenance; search/sort tables, navigate sections and print. Interactive plots and probes remain available. |
-| CLI access across all 27 development tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
-| Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
-
-PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.38.md).
-
-See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
-
-### Analysis evidence
-
-Released tools include jointly solved shared-return copper for multi-net PI,
-multiple source/load pads per PI unit, and local coupled-line crosstalk analysis
-for SI. Read the
-[Marble validation results and model limits](docs/audits/MARBLE_COUPLED_ANALYSIS.md),
-[PI guide](quick_pi_plugin/README.md) and
-[SI guide](signal_integrity_advisor_plugin/ReadMe.md) before interpreting them
-as whole-board predictions.
+[Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
+[Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
+GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
 
 ## Install and open
 
@@ -372,7 +94,7 @@ an input or model is missing; they are not a pass.
 
 <img src="quick_emerge_plugin/icon.png" width="48" height="48" alt="Quick EMerge beta icon">
 
-1. Download the [Quick EMerge PCM ZIP from release 4.8.4](https://github.com/wayri/WayriCAD/releases/download/v4.8.4/WayriCAD-quick-emerge-4.8.4-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
+1. Download the [Quick EMerge PCM ZIP from release 4.8.5](https://github.com/wayri/WayriCAD/releases/download/v4.8.5/WayriCAD-quick-emerge-4.8.5-PCM.zip). In KiCad's **Plugin and Content Manager**, choose **Install from File**, install the ZIP and restart PCB Editor.
 2. Save your board and open **WayriCAD Quick EMerge (beta)**. Complete the first-run runtime setup; it needs internet access and at least **3 GiB free** and can take several minutes.
 3. In KiCad, draw a named rule area around the antenna and the feed/ground geometry needed for its model; refill and save the board. In **Setup → 1 Geometry**, use **Saved PCB rule area**, load the areas and select the signal and reference nets. Review material and boundary assumptions in **2 Physics**, then sweep and mesh settings in **3 Solve**.
 4. Click **Preview** to inspect the actual clipped copper and numbered feed ports. Resolve blocking diagnostics, then choose **Run simulation**. Start with a coarse mesh and short sweep before increasing resolution.
@@ -512,6 +234,157 @@ Board analytics uses saved geometry and saved zone fills. Pad-contact area means
 nominal copper land area, not thermal conductance. Missing values and mixed
 currencies stay explicit.
 
+### Detailed analysis guides
+
+| Tool | Step-by-step user guide | Offline version |
+|---|---|---|
+| Quick PI | [DC paths, returns, AC losses, PDN, transients and probes](quick_pi_plugin/USER_GUIDE.md) | [HTML guide](quick_pi_plugin/USER_GUIDE.html) |
+| Quick SI | [Signal paths, returns, coupling, pair timing and IBIS export](signal_integrity_advisor_plugin/USER_GUIDE.md) | [HTML guide](signal_integrity_advisor_plugin/USER_GUIDE.html) |
+| QuickTherm | [Power inputs, cooling, steady state, transients and temperature inspection](quick_therm_plugin/QUICK_THERM_USER_GUIDE.md) | [HTML guide](quick_therm_plugin/QUICK_THERM_USER_GUIDE.html) |
+| Quick EMerge (beta) | [Setup, antenna templates, bounded PCB regions, probes and reports](quick_emerge_plugin/README.md) | [HTML guide](quick_emerge_plugin/help.html) |
+| DFM / DFA Studio | [Vendor processes, saved checklists, native DRC and visual findings](manufacturing_readiness_plugin/DFM_DFA.md) | [HTML guide](manufacturing_readiness_plugin/help.html) |
+
+Each guide covers setup, result interpretation, examples, command-line use,
+report export and troubleshooting, including the limits of each solver.
+
+Follow the [Marble and White Rabbit example-board preparation](docs/QUICK_TOOL_EXAMPLE_BOARDS.md)
+for pinned sources, native-import limits and links to the worked tutorials and
+control references.
+
+**Blender visualization — included in 3.6.41:** completed Quick PI, Quick SI and
+QuickTherm results can be exported as Blender scenes, with supported fields and
+stored-frame thermal animation. See the [Blender walkthrough](wayricad_runtime/BLENDER.md)
+for the plugin actions, CLI, animation controls and model limits.
+
+### Save setups and recall results
+
+The quick tools open a file chooser in the saved PCB’s folder. Choose the name
+and destination; setup files and computed results are separate JSON files.
+Quick EMerge keeps these actions in its **Files** menu.
+
+| Action | What it retains | When loaded |
+|---|---|---|
+| **Save setup… / Load setup…** | Editable analysis inputs and source-board identity | Restore the inputs, review any changed source and run again |
+| **Save simulation… / Load simulation…** | Complete supported numerical results, plugin identity and provenance | Inspect stored plots, time steps and probes read-only without solving |
+
+The deterministic `.wayricad/results/` library remains available through the
+CLI. Supported result structures can also be read by the KiCad GitHub viewer.
+[File formats, limits and CLI](docs/PROJECT_RESULTS.md).
+
+## Showcase
+
+### Portable Web Export — 4.6.0
+
+| Saved-project selection, preflight and exact embedded preview | Recipient-facing offline review and traceability page |
+|---|---|
+| <a href="portable_web_export_plugin/help-workflow.png"><img src="portable_web_export_plugin/help-workflow.png" width="460" alt="Portable Web Export project selection and preflight workflow"></a> | <a href="portable_web_export_plugin/help-page-preview.png"><img src="portable_web_export_plugin/help-page-preview.png" width="460" alt="Portable Web Export offline review page with linked views and traceability"></a> |
+
+The [complete Portable Web Export guide](portable_web_export_plugin/README.md)
+covers the KiCad workflow, CLI and jobset integration, metadata, browser-local
+tracking, recovery, security boundaries and supported 3D formats.
+The images are source-aligned illustrations with generic example data, not
+evidence of a connected editor session.
+
+### Quick PI and Quick SI — 4.0.1
+
+| Quick PI: setup guidance and full-value result tables | Quick SI: displayed-route and board RLC eye feedback |
+|---|---|
+| <a href="quick_pi_plugin/help-workspace-polish-4.0.1.png"><img src="quick_pi_plugin/help-workspace-polish-4.0.1.png" width="460" alt="Quick PI setup guidance, copper viewport and loss table"></a> | <a href="signal_integrity_advisor_plugin/help-result-feedback.png"><img src="signal_integrity_advisor_plugin/help-result-feedback.png" width="460" alt="Quick SI header and eye tab identifying a board-derived RLC channel"></a> |
+
+Native synthetic examples, not measured-board or protocol qualification.
+[PI setup and screenshot assumptions](quick_pi_plugin/README.md) ·
+[SI channel and screenshot assumptions](signal_integrity_advisor_plugin/ReadMe.md).
+Both tools retain a full-width viewport with optional Setup and Details panels.
+
+Click a screenshot for its full resolution. [More screenshots, grouped by plugin](#plugin-previews).
+
+### Board-first quick tools — 4.0.0
+
+Setup and Details open on demand; Focus view restores their previous state.
+File actions remain available while the board fills the workspace.
+
+| [Quick PI](quick_pi_plugin/README.md) | [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) |
+|---|---|
+| <a href="quick_pi_plugin/help-viewport-first.png"><img src="quick_pi_plugin/help-viewport-first.png" width="460" alt="Quick PI with a full-width copper viewport and compact controls"></a> | <a href="signal_integrity_advisor_plugin/help-viewport-first.png"><img src="signal_integrity_advisor_plugin/help-viewport-first.png" width="460" alt="Quick SI with a full-width route and collapsible setup and result panels"></a> |
+| Illustrative analytical field; [capture assumptions](quick_pi_plugin/VIEWPORT_LAYOUT.md). | Synthetic saved-PCB route with explicit line assumptions. |
+| **[QuickTherm](quick_therm_plugin/README.md)** | **[Quick EMerge — beta](quick_emerge_plugin/README.md)** |
+| <a href="quick_therm_plugin/help-viewport-first.png"><img src="quick_therm_plugin/help-viewport-first.png" width="460" alt="QuickTherm with a large board temperature view and optional sidebars"></a> | <a href="quick_emerge_plugin/help-minimal-workspace-4.0.1.png"><img src="quick_emerge_plugin/help-minimal-workspace-4.0.1.png" width="460" alt="Quick EMerge with a full-area antenna-region viewport, 2D/3D controls and grouped exports"></a> |
+| Public saved thermal example with illustrative inputs. | Extracted and clipped rule-area copper preview; no FEM solve shown. |
+
+### Worked examples and previews
+
+| [Quick PI — Marble board preview](#quick-pi) | [QuickTherm — 3D temperature view](#quicktherm) |
+|---|---|
+| <a href="quick_pi_plugin/help-marble-geometry-3.6.28.png"><img src="quick_pi_plugin/help-marble-geometry-3.6.28.png" width="460" alt="Quick PI showing extracted copper on public Marble"></a> | <a href="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png"><img src="quick_therm_plugin/examples/quicktherm-3d-3.6.38.png" width="460" alt="QuickTherm native 3D temperature surface on the thermal demonstration board"></a> |
+| Geometry preview; no PI field solved. | Assumed-load demonstration; STEP models disabled. |
+| **[Quick PI — AC setup · 3.6.40](#quick-pi)** | **[Quick PI — AC heating · 3.6.40](#quick-pi)** |
+| <a href="quick_pi_plugin/help-ac-setup-3.6.40.png"><img src="quick_pi_plugin/help-ac-setup-3.6.40.png" width="460" alt="Simplified AC loop setup with outgoing and return preview"></a> | <a href="quick_pi_plugin/help-ac-results-3.6.40.png"><img src="quick_pi_plugin/help-ac-results-3.6.40.png" width="460" alt="AC heating results with summary cards, one large plot and engineering units"></a> |
+| Live explicit-geometry preview before solving. | Computed illustrative loop; 128.1 mW total copper heat. |
+| **[Trace Refiner — old/new comparison](#trace-refiner)** | **[Fanout — connector escape preview](#fanout-generator)** |
+| <a href="trace_refiner_plugin/help-validated-comparison.png"><img src="trace_refiner_plugin/help-validated-comparison.png" width="460" alt="Trace Refiner comparing amber original tracks with teal proposed tracks"></a> | <a href="fanout_generator_plugin/help-connector-proposed.png"><img src="fanout_generator_plugin/help-connector-proposed.png" width="460" alt="Fanout Generator previewing six escapes on a synthetic connector fixture"></a> |
+| Synthetic fixture; native validation reported no new DRC findings. | Six-pin synthetic fixture; [dense Marble trial results](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
+
+## Released workflow highlights
+
+- [Quick PI](quick_pi_plugin/README.md): infer and review VIN → MID → OUT paths,
+  parallel devices and current pins in the editor; save independent named batch
+  cases and inspect a schematic path diagram with guarded SVG export.
+- [Saved-board analysis](docs/SAVED_BOARD_ANALYSIS.md): Quick PI, QuickTherm,
+  Quick SI, Trace RLC and DFM/DFA Studio can inspect strictly convertible newer
+  saved boards using the originating editor's CLI and a native KiCad 10 helper.
+- [Component Arranger](component_arranger_plugin/README.md): optional pin-level
+  schematic springs guide placement only where drawn wires match exact same-net
+  PCB pads. Native validation still gates Apply.
+
+Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
+
+| Improvement | Workflow |
+|---|---|
+| Computed thermal playback | Default 0.1 s frames, separate solver/output intervals, Previous/Next and playback speed controls. [QuickTherm guide](quick_therm_plugin/README.md). |
+| Reviewed IBIS circuits | Load exact source/receiver models, export selected complete routes and copy a native KiCad circuit. [SI workflow and limits](signal_integrity_advisor_plugin/ReadMe.md#reviewed-ibis-circuit-export). |
+| PI melting and bottlenecks | Trace-cell and via-barrel adiabatic melting estimates, limiting-region selection and heat maps. Melting does not establish fuse opening. [PI guide](quick_pi_plugin/README.md). |
+| SI neighbour map | Search nearby traces, inspect gap/parallel overlap and review supported local coupling separately from geometric exposure. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
+| Live Quick PI current | Ctrl+scroll over a sink pad changes that load; other solved copper adjusts total demand. Scroll zooms. A cursor readout compares before/after values. [Controls and model limits](quick_pi_plugin/README.md#individual-sink-current-wheel-control). |
+| Dense-board Fanout | Native padstack/track/arc checks, real keepout polygons, faster connector exits and retained short-stub continuation. [Marble results](docs/audits/FANOUT_DENSE_BOARD_FIXES_2026-10-23.md). |
+| Simpler Constraint Studio | Ordinary rules and netclasses stay in KiCad; Studio retains a read-only overview, protocol presets, matrices, reusable sets and reviewed export. [Guide](protocol_constraint_composer_plugin/ReadMe.md). |
+| Fanout corrections | Accept nullable saved netclass assignments and reject duplicate Fixed-mode launches on connected pads. [Real-board trial results and remaining limits](docs/audits/FANOUT_REAL_BOARD_TRIALS_2026-10-23.md). |
+| Updated guides and showcase | Refreshed navigation for the current 27-plugin development catalogue, retained earlier previews and added current native screenshots. |
+| Guard via stitching | Fence selected signal nets/traces on a distinct guard net; review pitch, offset, clearances and rejections. [Guide](via_stitching_plugin/ReadMe.md). |
+| Guided, cancellable Fanout | Actual component thumbnails, Before/After and small-window actions. [Guide](fanout_generator_plugin/ReadMe.md). |
+| Shared responsiveness | Faster dropdowns and exact picking; Quick PI geometry-ready time 33.09 s to 20.26 s. [Measurements and limits](docs/audits/SUITE_RESPONSIVENESS_2026-10-23.md). |
+| Assistant — testing | Local fuzzy command planning, clarification and reports across registered CLI actions. [Guide](suite_assistant_plugin/README.md). |
+| Faster fresh PI solves | Reuse one native PCB across a multi-net batch and reduce geometry/matrix overhead. Marble cold median 43.24 s to 31.71 s. [Measurements](docs/audits/QUICK_PI_COLD_PERFORMANCE_2026-10-22.md). |
+| Responsive native board view | Saved silkscreen retains its physical size and placement. Marble full viewport redraw 763 ms to 58 ms; cached drag and indexed probes reduce interaction work. [Measurements](docs/audits/QUICK_PI_VIEWPORT_PERFORMANCE_2026-10-23.md). |
+| Live, faster fanout preview | Selection and style changes update the main canvas and a component thumbnail. Fixed Marble U35 planning 21.94 s to 0.29 s with identical plans. [Fanout guide](fanout_generator_plugin/ReadMe.md). |
+| Faster Quick PI interaction | Reuse unchanged results, load selected-net display geometry in the worker, and retain plot artists during navigation. [Measurements](docs/audits/QUICK_TOOLS_PERFORMANCE.md). |
+| Better net selection and views | Search with wildcards or fuzzy suggestions without losing the selected net. Focus maps and PCB selection on the simulated nets; choose a combined-layer projection. |
+| Clear trace comparisons | Trace Refiner 0.3.1 fixes missing UUID-setter compatibility and provides amber/teal Overlay, Before, After and Side-by-side views. |
+| Pad/via endpoint centering | Run the separate Trace Refiner action for pad/via endpoint centering. [Trace Refiner guide](trace_refiner_plugin/README.md). |
+| Readable local silkscreen | Preserve acceptable references; try footprint-axis placement, bounded sizing and local repacking near the owning courtyard. Every eligible reference receives an outcome. [Silkscreen guide](silkscreen_label_plugin/README.md). |
+| Managed silkscreen guides | Leaders default off. Optional short straight guides have persistent ownership, detached-guide auditing and reversible cleanup. CLI HTML reports show both board faces. [Silkscreen guide](silkscreen_label_plugin/README.md). |
+| Shared-return PI and multi-pad units | Solve common return copper across rails; choose multiple physical source/load pads per unit. Shared return losses count once. [PI guide](quick_pi_plugin/README.md). |
+| Automatic mesh sizing | PI and thermal models recommend sizes and refine supported regions locally, with manual overrides and explicit budget warnings. |
+| Power and thermal Sankeys | Follow source-to-load power or individual-part dissipation in native actions and offline HTML reports. |
+| PI Joule heating checkbox | Enable temperature feedback, then supply reviewed material and cooling inputs. Plain DC already reports copper losses. |
+| Quick SI local crosstalk | Configure directed aggressor/victim pairs and review supported straight-section coupling, modeled coverage and omitted geometry. [SI guide](signal_integrity_advisor_plugin/ReadMe.md). |
+| PI / SI / Therm reports | Read status, coverage and provenance; search/sort tables, navigate sections and print. Interactive plots and probes remain available. |
+| CLI access across all 27 development tools | `wayricad tools list`, `doctor` and `run TOOL -- --help`; includes reviewed analysis jobsets. [Command catalogue](docs/TOOL_CLI_CATALOGUE.md). |
+| Mechanical Check review | Hideable findings panel, clearer details, direct focus/isolation and separate measurement tools. [Mechanical guide](mechanical_check_plugin/README.md). |
+
+PI shared returns are fixed-current, fixed-temperature DC models. SI coupling remains a local supported-section screen; it is not a whole-board channel prediction. Automatic geometry sizing is not convergence proof, and 3D sizing stays manual. [Release notes](docs/RELEASE_NOTES_3.6.38.md).
+
+See [screenshots grouped by plugin](#plugin-previews), [offline help for all tools](docs/HELP_INDEX.md), and [panel/table controls](docs/UI_ACCESSIBILITY.md).
+
+### Analysis evidence
+
+Released tools include jointly solved shared-return copper for multi-net PI,
+multiple source/load pads per PI unit, and local coupled-line crosstalk analysis
+for SI. Read the
+[Marble validation results and model limits](docs/audits/MARBLE_COUPLED_ANALYSIS.md),
+[PI guide](quick_pi_plugin/README.md) and
+[SI guide](signal_integrity_advisor_plugin/ReadMe.md) before interpreting them
+as whole-board predictions.
+
 <a id="all-16-plugins"></a>
 <a id="all-18-plugins"></a>
 
@@ -523,43 +396,44 @@ currencies stay explicit.
 
 ## All 27 plugins
 
-Release **4.8.4** retains 27 independently installable
+Release candidate **4.8.5** retains 27 independently installable
 plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
 Select a plugin for its full guide and supported models. Download badges count
-the individual PCM ZIP in release 4.8.4, including repeat GitHub and PCM downloads;
+the individual PCM ZIP in release 4.8.5, including repeat GitHub and PCM downloads;
 they do not include earlier releases or represent unique installations.
+Candidate download links and badges become available only after publication.
 
 | Plugin | Use it for | Downloads |
 |---|---|---|
-| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (testing). | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-suite-assistant-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="review_comments_plugin/icon.png" width="24" height="24" alt="WayriCAD Review icon"> [WayriCAD Review](review_comments_plugin/README.md) | Message cards, inline replies, GitHub/GitLab comments and a separate GitHub Discussions tab; testing package. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-review-comments-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="quick_emerge_plugin/icon.png" width="24" height="24" alt="Quick EMerge beta icon"> [Quick EMerge (beta)](quick_emerge_plugin/README.md) | Read-only antenna and bounded saved-PCB region studies, field probes and reports; exploratory testing beta. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-quick-emerge-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-quick-pi-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-quick-therm-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-signal-integrity-advisor-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Route, all-net and bundle section extraction, reference-plane evidence and supported R/L/C/Z0 estimates. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-trace-impedance-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md) | BOM editing, purchasing tables and board/copper analytics. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-bom-studio-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Protocol presets, clearance matrices, scoped layer profiles and reviewed export. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-protocol-constraint-composer-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Combine projects or circuit blocks and review linked updates. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-project-fusion-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md) | Compare, edit, merge and recover assembly variants. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-variant-manager-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-embed-3d-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="portable_web_export_plugin/icon.png" width="24" height="24" alt="Portable Web Export icon"> [Portable Web Export](portable_web_export_plugin/README.md) | Preview and export selected saved project content as one traceable, self-contained offline HTML review. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-portable-web-export-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-fanout-generator-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-via-stitching-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Review routing jog cleanup with metrics, focused proposals and exclusions; native connectivity and DRC gate Apply. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-trace-refiner-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with bounded sizing, footprint-axis placement, formatting rules and exceptional short guides. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-silkscreen-label-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="component_arranger_plugin/icon.png" width="24" height="24" alt="Component Arranger icon"> [Component Arranger](component_arranger_plugin/README.md) | Preview compact anchored group placement, side/rotation/density choices and capacitor order; native validation gates Apply. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-component-arranger-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, 24 styles and explicit mirrored/overlapping core pairs. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-layer-counter-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Browse/search PCB nets and connections; review bulk reference, field and PCB-text edits. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-bulk-label-editor-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. [Connector mating, physical pin grids and CSV-to-label tools](extract_pins_plugin/CONNECTOR_TOOLS.md) are included in 4.8.2. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-extract-pins-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-harness-workbench-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="copper_balancer_plugin/icon.png" width="24" height="24" alt="Copper Balancer icon"> [Copper Balancer](copper_balancer_plugin/README.md) | Add isolated copper patterns for more even copper density. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-copper-balancer-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md) | Inspect 3D collisions, clearances and board assemblies. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-mechanical-check-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md) | Design and preview PCB or foil heating patterns. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-heater-designer-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-planar-magnetics-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
-| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness / DFM / DFA Studio](manufacturing_readiness_plugin/ReadMe.md) | Sourced process checklists, visual fabrication/assembly findings and existing manufacturing-release gates. | [![4.8.4 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.4/WayriCAD-manufacturing-readiness-4.8.4-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4) |
+| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (testing). | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-suite-assistant-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="review_comments_plugin/icon.png" width="24" height="24" alt="WayriCAD Review icon"> [WayriCAD Review](review_comments_plugin/README.md) | Message cards, inline replies, GitHub/GitLab comments and a separate GitHub Discussions tab; testing package. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-review-comments-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="quick_emerge_plugin/icon.png" width="24" height="24" alt="Quick EMerge beta icon"> [Quick EMerge (beta)](quick_emerge_plugin/README.md) | Read-only antenna and bounded saved-PCB region studies, field probes and reports; exploratory testing beta. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-quick-emerge-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-quick-pi-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-quick-therm-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="signal_integrity_advisor_plugin/icon.png" width="24" height="24" alt="Quick SI icon"> [Quick SI](signal_integrity_advisor_plugin/ReadMe.md) | Signal delay, reflections, termination and return-path screening. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-signal-integrity-advisor-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="trace_impedance_plugin/icon.png" width="24" height="24" alt="Trace RLC / Impedance icon"> [Trace RLC / Impedance](trace_impedance_plugin/ReadMe.md) | Route, all-net and bundle section extraction, reference-plane evidence and supported R/L/C/Z0 estimates. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-trace-impedance-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="bom_studio_plugin/icon.png" width="24" height="24" alt="Analytics Studio icon"> [Analytics Studio](bom_studio_plugin/README.md) | BOM editing, purchasing tables and board/copper analytics. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-bom-studio-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="protocol_constraint_composer_plugin/icon.png" width="24" height="24" alt="Constraint Studio icon"> [Constraint Studio](protocol_constraint_composer_plugin/ReadMe.md) | Protocol presets, clearance matrices, scoped layer profiles and reviewed export. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-protocol-constraint-composer-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="project_fusion_plugin/icon.png" width="24" height="24" alt="Project Fusion icon"> [Project Fusion](project_fusion_plugin/README.md) | Combine projects or circuit blocks and review linked updates. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-project-fusion-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="variant_manager_plugin/icon.png" width="24" height="24" alt="Variant Manager icon"> [Variant Manager](variant_manager_plugin/README.md) | Compare, edit, merge and recover assembly variants. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-variant-manager-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="embed_3d_plugin/icon.png" width="24" height="24" alt="Embed3D icon"> [Embed3D](embed_3d_plugin/README.md) | Collect libraries and 3D models for portable projects. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-embed-3d-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="portable_web_export_plugin/icon.png" width="24" height="24" alt="Portable Web Export icon"> [Portable Web Export](portable_web_export_plugin/README.md) | Preview and export selected saved project content as one traceable, self-contained offline HTML review. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-portable-web-export-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="fanout_generator_plugin/icon.png" width="24" height="24" alt="Fanout Generator icon"> [Fanout Generator](fanout_generator_plugin/ReadMe.md) | Preview and place escape tracks and vias. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-fanout-generator-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="via_stitching_plugin/icon.png" width="24" height="24" alt="Via Stitching icon"> [Via Stitching](via_stitching_plugin/ReadMe.md) | Add reviewed, net-connected stitching vias. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-via-stitching-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="trace_refiner_plugin/icon.png" width="24" height="24" alt="Trace Refiner icon"> [Trace Refiner](trace_refiner_plugin/README.md) | Review routing jog cleanup with metrics, focused proposals and exclusions; native connectivity and DRC gate Apply. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-trace-refiner-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="silkscreen_label_plugin/icon.png" width="24" height="24" alt="Silkscreen Label Placer icon"> [Silkscreen Label Placer](silkscreen_label_plugin/README.md) | Arrange labels with bounded sizing, footprint-axis placement, formatting rules and exceptional short guides. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-silkscreen-label-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="component_arranger_plugin/icon.png" width="24" height="24" alt="Component Arranger icon"> [Component Arranger](component_arranger_plugin/README.md) | Preview compact anchored group placement, side/rotation/density choices and capacitor order; native validation gates Apply. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-component-arranger-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="layer_counter_plugin/icon.png" width="24" height="24" alt="Layer Counter icon"> [Layer Counter](layer_counter_plugin/README.md) | Movable copper L1/L2 markers with zone keepouts, 24 styles and explicit mirrored/overlapping core pairs. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-layer-counter-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="bulk_label_editor_plugin/icon.png" width="24" height="24" alt="Bulk Label Editor icon"> [Bulk Label Editor](bulk_label_editor_plugin/ReadMe.md) | Browse/search PCB nets and connections; review bulk reference, field and PCB-text edits. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-bulk-label-editor-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="extract_pins_plugin/icon.png" width="24" height="24" alt="Pin Extractor icon"> [Pin Extractor](extract_pins_plugin/ReadMe.md) | Export pin tables, connector diagrams and signal maps. [Connector mating, physical pin grids and CSV-to-label tools](extract_pins_plugin/CONNECTOR_TOOLS.md) are included in 4.8.2. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-extract-pins-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="harness_workbench_plugin/icon.png" width="24" height="24" alt="Harness Workbench icon"> [Harness Workbench](harness_workbench_plugin/ReadMe.md) | Map connectors, cables, bundles and wire requirements. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-harness-workbench-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="copper_balancer_plugin/icon.png" width="24" height="24" alt="Copper Balancer icon"> [Copper Balancer](copper_balancer_plugin/README.md) | Add isolated copper patterns for more even copper density. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-copper-balancer-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="mechanical_check_plugin/icon.png" width="24" height="24" alt="Mechanical Check icon"> [Mechanical Check](mechanical_check_plugin/README.md) | Inspect 3D collisions, clearances and board assemblies. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-mechanical-check-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="heater_designer_plugin/icon.png" width="24" height="24" alt="Heater Designer icon"> [Heater Designer](heater_designer_plugin/ReadMe.md) | Design and preview PCB or foil heating patterns. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-heater-designer-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="planar_magnetics_plugin/icon.png" width="24" height="24" alt="Planar Magnetics icon"> [Planar Magnetics](planar_magnetics_plugin/ReadMe.md) | Design PCB coils and screen magnetic/actuator behavior. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-planar-magnetics-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
+| <img src="manufacturing_readiness_plugin/icon.png" width="24" height="24" alt="Manufacturing Readiness icon"> [Manufacturing Readiness / DFM / DFA Studio](manufacturing_readiness_plugin/ReadMe.md) | Sourced process checklists, visual fabrication/assembly findings and existing manufacturing-release gates. | [![4.8.5 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.5/WayriCAD-manufacturing-readiness-4.8.5-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) |
 
 [Silkscreen Label Placer](silkscreen_label_plugin/README.md) is available as an independent native KiCad 10 plugin in the WayriCAD package feed, with its own icon, automatic sizing and formatting rules. See its [installation guide](silkscreen_label_plugin/README.md#install-and-limits).
 
@@ -583,7 +457,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 ### Quick EMerge (beta)
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
-[Download 4.8.4](https://github.com/wayri/WayriCAD/releases/tag/v4.8.4)
+[Download 4.8.5](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5)
 
 **Simple 2D/3D workspace — 4.0.1**
 
@@ -1243,6 +1117,13 @@ retained. [DFM/DFA workflow, vendor coverage and validation limits](manufacturin
 
 ## Help and upgrades
 
+Windows KiCad 10.0.6 editor checks completed a three-net, two-bank, 20-current-pin
+series run with setup and simulation reload plus HTML, PDF, SVG and compact
+diagram inspection. A KiCad 11 development build checked the newer saved format,
+inline inference, explicit models, the full path run, setup reload and HTML.
+Its PDF, diagram and screenshots remain pending; the full KiCad 11 suite is not
+qualified. See [compatibility evidence](docs/COMPATIBILITY.md#43-candidate-editor-evidence).
+
 | Topic | Guide |
 |---|---|
 | Instructions for a specific plugin | [All 24 offline guides](docs/HELP_INDEX.md) |
@@ -1286,6 +1167,142 @@ python tools/validate_packages.py --archive-dir .validation/candidate-pcm
 
 Each plugin also has its own tests. Skipped checks do not establish native GUI
 compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.42.md).
+
+## Release history
+
+**Release 4.8.5:** PCB-driven PI/SI selection workflows and a
+sequential PI power-path diagram, explicit MQS two-port impedance, and a
+separate quasi-TEM planar PDN cavity with magnitude/reference plots. Planar
+results remain `MODELLED`, without automatic convergence; neither model is
+Palace or arbitrary-board full-wave extraction. Origin-bound live selection and
+saved-board PI/SI analyses were exercised on KiCad 10.0.6. See
+[4.8.5 scope and limits](docs/RELEASE_NOTES_4.8.5.md).
+
+**Release 4.8.4:** Portable Web Export revalidates saved-source hashes immediately
+before publishing a staged export. Original and embedded file hashes remain
+distinct, with regression coverage for stale component metadata, model-path
+rewriting and edits during output staging. Existing 4.8.3 features and the
+official WebView 0.6.0 pin are retained. See [4.8.4 release notes](docs/RELEASE_NOTES_4.8.4.md)
+and the attached `validation-4.8.4.json` release receipt for verification scope.
+
+**Release 4.8.3:** shared steady 3D Joule/Seebeck/Peltier
+studies, heater foil/flex materials, magnetics thermal feedback, explicit SI DC
+temperature correction, official WebView 0.6.0 integration and imported CAM
+short/open net comparison. No Gerber reconstruction, fabrication approval,
+3D transient/CFD, full HF temperature feedback or broad KiCad 11 acceptance is
+claimed. See [4.8.3 scope, local evidence and limits](docs/RELEASE_NOTES_4.8.3.md).
+Published source/CI identities and artifact hashes are recorded in the release's
+attached `validation-4.8.3.json` receipt; these notes do not imply a hosted CI pass.
+
+**Release 4.8.2:** DFM/DFA failure recovery, a searchable 24-process / 28-supplier
+library, custom profiles, guided offline help and headless vendor audits.
+Native assembly findings retain corrective guidance without implying complete
+process approval. See [4.8.2 release notes](docs/RELEASE_NOTES_4.8.2.md) and the
+[DFM/DFA guide](manufacturing_readiness_plugin/DFM_DFA.md).
+
+**Release 4.8.1:** coupled FEM phased arrays with up to 16 passive patch ports,
+scan steering and power diagnostics, plus simultaneous interactive 3D radiation
+and scaled 2D cuts inside Quick EMerge. The ideal array-factor mode stays
+separate. See [4.8.1 release notes](docs/RELEASE_NOTES_4.8.1.md) and the
+[illustrated FEM AESA guide](quick_emerge_plugin/FEM_AESA.md) for evidence and limits.
+
+**Release 4.8.0:** RLC protocol discovery and evidence-bounded screening,
+simpler QuickTherm power/ambient setup, EMerge 3.0.4 / emsutil 1.1.6 adapter
+support, richer antenna field/polarization and AESA steering views, and a
+searchable product website. See [4.8.0 release notes](docs/RELEASE_NOTES_4.8.0.md)
+for verification and known limits, including the unresolved Constraint Studio
+startup assertion on the audited Windows native runtime.
+
+**Release 4.7.0:** Quick EMerge adds research antenna benchmarks and detailed
+[reproduction walkthroughs](examples/quick_emerge/research_antennas/README.md).
+See [4.7.0 release notes](docs/RELEASE_NOTES_4.7.0.md).
+
+**Release 4.6.0:** Portable Web Export joins the main release as the 27th
+independently installable package. It builds one traceable, self-contained
+offline HTML review from selected saved schematic, PCB, BoM and supported 3D
+content, with an exact in-plugin preview and a headless CLI for controlled
+automation. See the [illustrated guide](portable_web_export_plugin/README.md).
+KiCad 10 remains the supported baseline; newer saved-board analysis is experimental.
+<details>
+<summary>Earlier releases and validation history</summary>
+
+**Release 4.5.0:** Review added a compact composer, quote replies, BOM and
+Gerber context, variant tags and orphan-status diagnostics. Review remains a
+testing package. [Release notes](docs/RELEASE_NOTES_4.5.0.md).
+
+**Release 4.2.0:** DFM/DFA checklists, whole-board and bundle RLC extraction,
+reference-plane evidence and PI series power trees.
+[Release notes](docs/RELEASE_NOTES_4.2.0.md).
+
+**Release 4.1.3:** smaller lossless HTML/PDF reports, restored-simulation export
+fixes, and reviewed series-path discovery with parallel components and pin groups.
+[Release notes](docs/RELEASE_NOTES_4.1.3.md).
+
+**New in 4.0.1:** clearer Quick PI setup feedback, more useful Quick SI route/eye
+status, and board-derived RLC eye simulation. Quick EMerge has simple 2D/3D
+views focused on the antenna region, 2D/3D radiation patterns and grouped
+plot/report exports. Full-value PI result-table copying and the fanout style
+picture catalogue are included.
+[Release notes](docs/RELEASE_NOTES_4.0.1.md).
+
+**New in 4.0.0:** board-first quick-tool workspaces, compact setup and results
+panels, and separate setup/result file choosers. Also includes alternating fanout,
+reviewed PI power trees, shared returns and thermal materials.
+[Release notes](docs/RELEASE_NOTES_4.0.0.md).
+
+**New in 3.6.45:** Quick EMerge beta, Review conversations, project-local
+simulation save/load, portable analysis exports and a readable, searchable tool
+launcher. [Release notes](docs/RELEASE_NOTES_3.6.45.md).
+
+## New in 3.6.42
+
+| Pin Extractor addition | Where to start |
+|---|---|
+| Mating connector pairs | [Top/bottom views, poses and contact mapping](extract_pins_plugin/CONNECTOR_TOOLS.md#review-a-mating-pair) |
+| Matching labels | [Editable modifiers, bulk assignment and individual rows](extract_pins_plugin/CONNECTOR_TOOLS.md) |
+| CSV / TSV to schematic labels | [Numbering and global/local/hierarchical labels](extract_pins_plugin/CONNECTOR_TOOLS.md#paste-csv-or-a-column-of-names) |
+| Physical pinout tables | [Actual connector rows and columns](extract_pins_plugin/CONNECTOR_TOOLS.md#extract-the-actual-rows-and-columns) |
+
+<details>
+<summary>Recent Quick-tool improvements and measured speeds · 3.6.41</summary>
+
+| Improvement | Where to start |
+|---|---|
+| Faster analysis | [PI measurements](docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md) · [SI measurements](docs/audits/QUICK_SI_SPEED_GUIDE_2026-10-28.md) · [Thermal measurements](docs/audits/QUICKTHERM_SPEED_GUIDE_2026-10-28.md) |
+| Guided Joule feedback | [Materials, cooling and model limits](quick_pi_plugin/USER_GUIDE.md) |
+| Complete analysis workflows | [Marble and White Rabbit tutorials](docs/QUICK_TOOL_EXAMPLE_BOARDS.md) · [Detailed guides](#detailed-analysis-guides) |
+| Blender visualization | [Export supported board geometry, fields and thermal frames](wayricad_runtime/BLENDER.md) |
+
+
+
+| Study | Before | 3.6.41 |
+|---|---:|---:|
+| Fresh Quick SI analysis — Marble | 7.09 s | 3.77 s |
+| Fresh Quick SI analysis — White Rabbit | 1.52 s | 0.52 s |
+| Marble multilayer thermal solve | 93.07 s | 65.02 s |
+| PI 3D field preparation benchmark | 80.9 ms | 18.2 ms |
+
+These local measurements cover the stated operations, not total startup for
+every board. SI serialized results and the compared thermal values matched.
+See the measurement links above for inputs, methods and numerical tolerances.
+
+</details>
+
+[Download 4.0.1](https://github.com/wayri/WayriCAD/releases/tag/v4.0.1) ·
+[Connector validation and known limits](docs/audits/CONNECTOR_TOOLS_2026-10-28.md)
+
+</details>
+
+<details>
+<summary>About the download counter</summary>
+
+The download counter updates automatically across all releases. It includes direct
+GitHub downloads and KiCad PCM downloads, since PCM fetches the same GitHub release
+assets. It counts downloaded files, including repeat downloads and release metadata,
+not unique users or installations. GitHub does not separate PCM from direct downloads;
+automatic source ZIP/tar downloads and repository clones are excluded.
+
+</details>
 
 ## Acknowledgements and AI disclosure
 

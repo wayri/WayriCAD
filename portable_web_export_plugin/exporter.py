@@ -19,7 +19,7 @@ SUPPORTED_MODEL_SUFFIXES = {".wrl", ".glb", ".gltf"}
 UNSUPPORTED_MODEL_SUFFIXES = {".step", ".stp", ".iges", ".igs"}
 VIEWER_VERSION = "0.6.0"
 VIEWER_ARCHIVE_SHA256 = "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4"
-EXPORTER_VERSION = "4.8.4"
+EXPORTER_VERSION = "4.8.5"
 
 
 @dataclass(frozen=True)

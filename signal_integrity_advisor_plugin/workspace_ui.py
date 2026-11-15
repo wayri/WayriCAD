@@ -28,6 +28,14 @@ class Workspace:
                                   tip='Temporarily hide panels; restore their previous sizes and visibility')
         self.pcb = self._button(header,row,'PCB',self.show_pcb,
                                tip='Read the originating editor selection or select this route and return nets')
+        self.use_selection = self._button(header,row,'Use PCB selection',panel.use_pcb_selection,
+                                         tip='Read the exact selected net and pads from the originating editor')
+        self.follow = wx.CheckBox(header,label='Follow PCB')
+        from wayricad_runtime.context import LaunchContext
+        origin=LaunchContext.capture()
+        self.follow.SetValue(bool(origin.socket and origin.token))
+        self.follow.SetToolTip('Follow selected copper while idle; ambiguous nets retain current inputs.')
+        row.Add(self.follow,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT|wx.BOTTOM,5)
         self.files = self._button(header, row, 'Files', self.show_files,
                                   tip='Save/load setup or results; export reports, Blender or a KiCad circuit')
         self._button(header, row, 'Help', self.show_help)
@@ -49,6 +57,22 @@ class Workspace:
         panel.workspace_splitter.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGING,self.limit_setup)
         panel.workspace_splitter.Bind(wx.EVT_SIZE,self.resized)
         self.refresh_summary()
+        from wayricad_runtime.selection_follow import SelectionFollower
+        origin_path=str(panel.board.GetFileName())
+        origin_fingerprints=dict(panel._source_fingerprints or {})
+        def read_selection():
+            from wayricad_runtime.analysis_selection import selected_origin_ids
+            from .service import source_fingerprints
+            from pathlib import Path
+            if source_fingerprints(origin_path)!=origin_fingerprints:
+                raise ValueError('Saved sources changed. Reopen Quick SI before following PCB selection.')
+            return selected_origin_ids(origin_path,
+                expected_sha256=origin_fingerprints.get(str(Path(origin_path).resolve())))
+        self.selection_follower=SelectionFollower(panel,self.follow,read_selection,
+            panel._apply_pcb_selection,
+            lambda: not panel._closed and not panel._busy and not panel._navigation_busy
+                    and not panel._circuit_busy and panel.saved_board,
+            lambda error: panel.status.SetLabel('PCB follow paused: '+str(error)))
 
     @staticmethod
     def _button(parent, row, label, callback, *, toggle=False, tip=''):

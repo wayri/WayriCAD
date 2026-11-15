@@ -65,9 +65,13 @@ def test_all_parallel_parts_pin_groups_nets_and_explicit_unknowns_appear_in_svg(
     tree = series_path_tree(path, saved)
     original = deepcopy(tree)
     drawing = diagram_layout(tree)
-    assert sum(c['kind'] == 'rect' for c in drawing['commands']) == 4
+    # Every source/rail/load now has its own block, in addition to four devices.
+    assert sum(c['kind'] == 'rect' for c in drawing['commands']) == 9
     assert drawing['height'] < 950  # Two complete banks need only modest vertical scrolling.
     svg = diagram_svg(tree)
+    for colour in ('#e2f1fc', '#fff2d5', '#e3f4ec', '#f1e8fb'):
+        assert colour in svg
+    assert 'Sequential power path' in svg
     ElementTree.fromstring(svg)
     for value in ('VIN', 'MID', 'OUT', 'Q1', 'Q2', 'Q3', 'Q4', 'Q1.1', 'Q1.2',
                   'Q4.3', 'Q4.4', 'J1.2', 'J2.2', 'wire length unavailable'):

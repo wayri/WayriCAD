@@ -60,9 +60,10 @@ class WorkspaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'demo-power-board.kicad_pcb';portrait_board(path)
             original=hashlib.sha256(path.read_bytes()).hexdigest()
-            with patch.object(QuickPIFrame,'_inspect'):
+            with patch.object(QuickPIFrame,'_inspect'), patch.dict('os.environ',{'KICAD_API_SOCKET':'','KICAD_API_TOKEN':''}):
                 frame=QuickPIFrame(None,str(path))
                 try:
+                    self.assertFalse(frame.board_workflow.follow.GetValue())
                     frame.net.Set(['5V_DEMO']);frame.net.SetValue('5V_DEMO');frame._terminals=[{'id':'A','label':'Source rail'},{'id':'B','label':'Load rail'}]
                     for choice,selection in ((frame.source,0),(frame.sink,1)):choice.Set(['Source rail','Load rail']);choice.SetSelection(selection)
                     frame.voltage.ChangeValue('5');frame.current.ChangeValue('2')

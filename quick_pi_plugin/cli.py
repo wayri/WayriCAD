@@ -4,6 +4,7 @@ import json
 import math
 import sys
 from pathlib import Path
+from concurrent.futures import CancelledError
 
 
 def _loads(loads, limits, powers=None):
@@ -49,6 +50,8 @@ def main(argv=None):
     parser.add_argument('--transient',type=Path,help='Explicit R/L/C load-step JSON; optional board supplies saved-file provenance. Returns 4 for limit violations.')
     parser.add_argument('--electrothermal',type=Path,help='Explicit steady/transient electrothermal study JSON. Returns 3 for nonconvergence, 4 for operating-limit violations.')
     parser.add_argument('--ac',type=Path,help='Explicit straight-conductor/return AC cross-section JSON (wayricad.pi-ac/v1): skin/proximity effects and DC plus harmonic Joule losses. No converter or HV insulation simulation.')
+    parser.add_argument('--ac-ports',type=Path,help='Explicit two-port MQS section: complex Z11/Z12/Z21/Z22, shared-factorization solves and numerical convergence evidence. Not whole-board full-wave extraction.')
+    parser.add_argument('--plane-ports',type=Path,help='Explicit triangular parallel-plate PDN cavity JSON: frequency-dependent Z11/Z12/Z21/Z22 with magnetic walls and a declared ideal reference plane.')
     parser.add_argument('--verify',action='store_true',help='Run analytical/reference benchmarks in the prepared PI runtime; no board required.')
     parser.add_argument('--net');parser.add_argument('--source');parser.add_argument('--sink')
     parser.add_argument('--voltage',type=float,default=1.);parser.add_argument('--current',type=float)
@@ -86,6 +89,12 @@ def main(argv=None):
     parser.add_argument('--command',help='Console command, including a series-component path; quote the entire command.')
     parser.add_argument('--series-file',type=Path,help='Reviewed series-editor JSON, including explicitly selected parallel R/L parts.')
     args=parser.parse_args(argv)
+    if args.ac_ports or args.plane_ports:
+        try:
+            from .ac_ports_cli import run
+            return run(args,list(sys.argv[1:] if argv is None else argv))
+        except (ValueError,RuntimeError,OSError,CancelledError) as exc:
+            print(json.dumps({'status':'ERROR','error':str(exc)}));return 2
     if args.thermoelectric_3d:
         words=list(sys.argv[1:] if argv is None else argv)
         allowed={'--thermoelectric-3d','--output','--html'}
