@@ -293,7 +293,8 @@ class PortableWebExportFrame(wx.Frame):
             if not self.preview_current or self.preview_document is None:
                 raise ValueError("Preview is stale; rebuild before export.")
             write_export_document(self.preview_document, destination,
-                                  protected_sources=self.scan.source_hashes)
+                                  protected_sources=self.scan.source_hashes,
+                                  source_snapshot=self.scan)
             manifest = self.preview_manifest
         except Exception as exc:
             wx.MessageBox(str(exc), "Portable Web Export failed", wx.OK | wx.ICON_ERROR)

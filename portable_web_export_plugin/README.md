@@ -7,6 +7,11 @@ rather than a second KiCad parser or drawing engine. The export works directly
 from disk without a server, CDN, npm installation, or recipient-side WayriCAD
 installation.
 
+**Updated in 4.8.4:** the exact saved-source snapshot is rechecked after output
+staging, immediately before atomic publication. A detected edit aborts the write,
+cleans its temporary file and preserves an existing export. Both native preview
+export and the CLI use this guard. See [4.8.4 notes](../docs/RELEASE_NOTES_4.8.4.md).
+
 **Introduced in 4.8.3:** the official WebView 0.6.0 pin,
 exact part/net inspection, ambiguity rejection, inert saved labels, separate
 source/bundled hashes and guarded atomic export. See

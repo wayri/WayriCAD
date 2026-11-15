@@ -19,7 +19,7 @@ SUPPORTED_MODEL_SUFFIXES = {".wrl", ".glb", ".gltf"}
 UNSUPPORTED_MODEL_SUFFIXES = {".step", ".stp", ".iges", ".igs"}
 VIEWER_VERSION = "0.6.0"
 VIEWER_ARCHIVE_SHA256 = "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4"
-EXPORTER_VERSION = "4.8.3"
+EXPORTER_VERSION = "4.8.4"
 
 
 @dataclass(frozen=True)
@@ -446,11 +446,13 @@ def build_export(scan: ProjectScan, selection: ExportSelection, package_root: Pa
 
 def export_html(scan: ProjectScan, selection: ExportSelection, destination: Path, package_root: Path) -> dict:
     document, manifest = build_export(scan, selection, package_root)
-    write_export_document(document, destination, protected_sources=scan.source_hashes)
+    write_export_document(document, destination, protected_sources=scan.source_hashes,
+                          source_snapshot=scan)
     return manifest
 
 
-def write_export_document(document: str, destination: Path, *, protected_sources=()) -> None:
+def write_export_document(document: str, destination: Path, *, protected_sources=(),
+                          source_snapshot: ProjectScan | None = None) -> None:
     """Atomically persist the exact HTML bytes that were reviewed in preview."""
     destination = Path(destination)
     if destination.suffix.casefold() not in {".html", ".htm"} or destination.is_symlink():
@@ -460,10 +462,14 @@ def write_export_document(document: str, destination: Path, *, protected_sources
         if destination.resolve() == source.resolve() or (destination.exists() and source.exists()
                                                         and os.path.samefile(destination, source)):
             raise ValueError("Output must not alias a saved source file.")
-    _atomic_write_bytes(document.encode("utf-8"), destination)
+    if source_snapshot is not None:
+        assert_scan_current(source_snapshot)
+    _atomic_write_bytes(document.encode("utf-8"), destination,
+                        before_publish=(lambda: assert_scan_current(source_snapshot))
+                        if source_snapshot is not None else None)
 
 
-def _atomic_write_bytes(data: bytes, destination: Path) -> None:
+def _atomic_write_bytes(data: bytes, destination: Path, *, before_publish=None) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
@@ -473,6 +479,8 @@ def _atomic_write_bytes(data: bytes, destination: Path) -> None:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
+        if before_publish is not None:
+            before_publish()
         os.replace(temporary, destination)
     finally:
         if temporary is not None:

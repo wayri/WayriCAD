@@ -191,6 +191,70 @@ class PortableExporterTests(unittest.TestCase):
                     assert_scan_current(scan)
                 source.write_bytes(original)
 
+    def test_reference_change_cannot_mix_old_metadata_with_new_board(self):
+        board = self.root / 'demo.kicad_pcb'
+        scan = scan_project(board)
+        board.write_text(BOARD.replace('"U1"', '"U99"'), encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'changed since scan'):
+            build_export(scan, ExportSelection(schematic_paths=tuple(scan.schematics)), self.package)
+
+    def test_all_manifest_hashes_describe_exact_original_and_embedded_bytes(self):
+        board = self.root / 'demo.kicad_pcb'
+        scan = scan_project(board)
+        original_bytes = {board.name: board.read_bytes(),
+                          'demo.kicad_sch': (self.root / 'demo.kicad_sch').read_bytes()}
+        document, manifest = build_export(scan, ExportSelection(
+            schematic_paths=tuple(scan.schematics),
+            model_sources=tuple(model.source for model in scan.models)), self.package)
+        for model in manifest['models']:
+            original_bytes[model['path']] = (self.root / 'models/demo.wrl').read_bytes()
+        payload = json.loads(re.search(r'const BUNDLED=(.*?);\n', document).group(1))
+        embedded = {row['path']: base64.b64decode(row['base64']) for row in payload}
+        self.assertEqual(set(original_bytes), set(embedded))
+        for record in manifest['sourceFiles']:
+            with self.subTest(path=record['path']):
+                original, bundled = original_bytes[record['path']], embedded[record['path']]
+                self.assertEqual(record['sha256'], hashlib.sha256(original).hexdigest())
+                self.assertEqual(record['bundledSha256'], hashlib.sha256(bundled).hexdigest())
+                self.assertEqual(record['bytes'], len(original))
+                self.assertEqual(record['bundledBytes'], len(bundled))
+                self.assertEqual(record['transformed'], original != bundled)
+
+    def test_source_change_during_staging_preserves_previous_export(self):
+        board = self.root / 'demo.kicad_pcb'
+        scan = scan_project(board)
+        destination = self.root / 'review.html'
+        destination.write_bytes(b'previous reviewed export')
+        real_fsync = os.fsync
+
+        def mutate_after_flush(descriptor):
+            real_fsync(descriptor)
+            board.write_text(BOARD.replace('"U1"', '"U99"'), encoding='utf-8')
+
+        with patch('portable_web_export_plugin.exporter.os.fsync', side_effect=mutate_after_flush):
+            with self.assertRaisesRegex(ValueError, 'changed since scan'):
+                write_export_document('stale preview', destination,
+                                      protected_sources=scan.source_hashes, source_snapshot=scan)
+        self.assertEqual(destination.read_bytes(), b'previous reviewed export')
+        self.assertEqual(list(self.root.glob('.review.html.*.tmp')), [])
+
+    def test_source_change_before_cli_write_creates_no_export(self):
+        from portable_web_export_plugin.exporter import export_html
+        scan = scan_project(self.root / 'demo.kicad_pcb')
+        destination = self.root / 'not-created.html'
+        real_build = build_export
+
+        def change_after_build(*args, **kwargs):
+            result = real_build(*args, **kwargs)
+            (self.root / 'demo.kicad_sch').write_bytes(SCHEMATIC.encode() + b'\n')
+            return result
+
+        with patch('portable_web_export_plugin.exporter.build_export', side_effect=change_after_build):
+            with self.assertRaisesRegex(ValueError, 'changed since scan'):
+                export_html(scan, ExportSelection(schematic_paths=tuple(scan.schematics)),
+                            destination, self.package)
+        self.assertFalse(destination.exists())
+
     def test_atomic_unique_temporary_preserves_exact_bytes_and_other_writers(self):
         destination = self.root/'review.html'
         preexisting = self.root/'review.html.tmp'
