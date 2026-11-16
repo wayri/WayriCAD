@@ -17,6 +17,11 @@ acquiring invented plots or geometry.
 [Actual saved-PCB PI, SI and thermal examples](examples/pocket-kivi/README.md)
 include the source PCB, complete portable outputs and a reproducible generator.
 
+[Public Olimex and Marble studies](examples/public-boards/README.md) exercise the
+same pipeline on the board revisions hosted by KiCad WebView. They include
+explicit operating assumptions and links for reopening the saved evidence in
+KiCad Online; source-byte mismatches must not be bypassed.
+
 Quick PI and QuickTherm **Save results** write the readable HTML report, the
 complete original numerical JSON, and a `.pocket-kivi.json` companion. Quick SI
 **Save results / Pocket KiVi** does the same for saved-board analyses. Its live

@@ -1,0 +1,249 @@
+{
+  "schema": "wayricad.public-board-study/v1",
+  "generated_at": "2026-11-16T07:13:37.010862+00:00",
+  "source_commit": "a3eec88986adb7ca34c5602988ce694f5e9209ab",
+  "python": "3.11.5",
+  "kicad": "10.0.6",
+  "producer_modules": {
+    "tools/generate_pocket_kivi_examples.py": "0526afa5a198584f0cf1e8f14c827520ea953430a7aaaa56e535fa4de9e04d92",
+    "wayricad_runtime/pocket_kivi_export.py": "f79cbf24f7c1f09ea90dc2c96f1c9766ceb3c3ed7db990857fa608a65e37c58d",
+    "wayricad_runtime/pocket_report.py": "1c891730933c9140036c8a0c7f20bc877743bd6aa27e85707fe646079594b1d7",
+    "quick_pi_plugin/service.py": "db5a5a118b5429feff77fb72fdf284382649055d9f0a51c28389e8dd396313cc",
+    "quick_pi_plugin/board_geometry.py": "f696610674653a3416aa54157cb6c5590726da156002178379770af850de6e97",
+    "quick_pi_plugin/mesh.py": "1bd771ef77857b6ff9e021ac17f702f8f30eed69ed1c5da8c5b6796f7b0c660b",
+    "quick_pi_plugin/solver.py": "14375abcf6206a049fa9a96564148572f22f83cb38dab875ff3c5c4aed740eda",
+    "signal_integrity_advisor_plugin/service.py": "a27a14daa3c2f0f122cfee47b9c3e29ef60b54019c21d2c28f1b39459511c76e",
+    "signal_integrity_advisor_plugin/quick_si.py": "ce584a4fcac861245518eb17504b43a8201a46c53dd812878a69ee5a80ac76b7",
+    "signal_integrity_advisor_plugin/measurement.py": "d1f4aec6648778c63af0c879da40cef08b2c7785ac436f9f74aaa1fc7aa455f7",
+    "signal_integrity_advisor_plugin/eye_model.py": "12b4fac21e58ca98d0a7c2b8764c1f8dd972359ce7401662b56bc550a2ac5da6",
+    "signal_integrity_advisor_plugin/board_eye.py": "62221a030a3ea856000296bece0f8fa0eb9f4352a9ff856e6860cfcf7655fc80",
+    "signal_integrity_advisor_plugin/rlc_model.py": "56b2e20c1439dfeab5cdd0f1feb1f798829420dbcbdc569e8f9d088af3fec740",
+    "signal_integrity_advisor_plugin/emerge_lines.py": "4d28ff31fd4102de2178ec9cde0313e55a79d4307347147c5238a9340439efa0",
+    "signal_integrity_advisor_plugin/circuit_scope.py": "637a3c3cdbac7749132c8da9c8fc4148d09fe31234852921ca70c9ee60a5ad26",
+    "quick_therm_plugin/service.py": "e74ab3b06d8ce8a7a50bcf377cf60f15a0fdb8151eaecfb2b544ed3cf03356f5",
+    "quick_therm_plugin/thermal_geometry.py": "f473216bc4b7195e519dea3080781fce49e116cc2c81ba92faebd6891ea70699",
+    "quick_therm_plugin/thermal_multilayer.py": "d443ada87c370a0f1f4ae450e960d39a8f89dc1f3658b68e958810b9a097d753",
+    "quick_therm_plugin/thermal_spatial_transient.py": "fdf96c0449632c7b6b30e0e4f2efb1507e1f8549874ed75561953d570267ed62"
+  },
+  "producer_source_normalization": "CRLF to LF only",
+  "generator_sha256": "c81ce71c5528966b72166576567aa1fa480b4d06353c0c4d0fb51f29cabd127e",
+  "specification_sha256": "d82348705985ee330424e7d69b561e1e6a5240186c3a25ebae8fc49929f61d6c",
+  "case": {
+    "id": "olimex-p4-si",
+    "board_id": "olimex-p4",
+    "kind": "quick-si",
+    "label": "Olimex P4 - USB DP route screen",
+    "summary": {
+      "status": "SCREENED",
+      "delay_ns": 0.18217897492750634,
+      "z0_ohm": 50.0,
+      "blockers": [
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "0bd8c21b-6df9-4bfb-a7c5-6fcd821358dd"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "b388d74a-e444-4e25-87f5-ba9f3f2f6c58"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "c7d0c5a9-583e-48c0-b4b0-9e7e459d181d"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "26689aa8-439d-45b2-9151-34fdaadf3b2e"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "0df47fbf-2ce4-4dc4-9a65-c8d9110b3178"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "41639c29-cdab-4a16-b0ac-c9ebc26960f8"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "33dfbb61-ec5b-447f-9023-9827ebf758f7"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "b637a367-bbae-42a5-9689-641c38f325fe"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "3a702a3a-e50e-4214-83b6-ee4fbd3b276e"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "4e0697ed-124e-47d6-82fd-ac2e47206c6e"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "5aff98c7-7045-4685-87f5-bc030a6cb3c4"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "29d6fb03-a405-4976-8a5d-5b2e8b94abac"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "a68268cc-74a4-46d2-9ba5-036b11095051"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "00307105-71fe-46e7-9417-eb3aee896f39"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "9866e06d-744f-47a0-9238-c42346a1c680"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "cd0be3ec-975c-4507-bd78-e245b07f7ff0"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "4ce992b0-07c4-441b-be4c-1ae27486a49c"
+          }
+        },
+        {
+          "code": "REFERENCE_PLANE_MISSING",
+          "message": "No adjacent named-ground filled copper covers this trace section.",
+          "action": "Refill zones and verify the intended reference-net name and continuous coverage; otherwise select an explicit reference layer for review.",
+          "context": {
+            "layer": "B.Cu",
+            "item_uuid": "658c143f-4846-49bf-892c-d56d15ddb591"
+          }
+        }
+      ],
+      "eye_status": "UNAVAILABLE",
+      "eye_limitations": []
+    },
+    "assumptions": [
+      "1 ns edge, 100 MHz evaluation, 20 ohm source, 50 ohm load, uniform 50 ohm impedance and effective permittivity 3.2 are declared inputs, not extracted channel qualification."
+    ],
+    "limitations": [
+      "One leg only; not USB differential compliance or a measured eye. Reference and branch coverage findings remain in the full result."
+    ],
+    "upstream_url": "https://github.com/OLIMEX/ESP32-P4-DevKit/tree/26705d36407a07324348927dfd30fbf4ffc1d94c",
+    "license": "CERN-OHL-S-2.0",
+    "status": "computed",
+    "result_path": "olimex-p4-si.pocket-kivi.json",
+    "source_path": "../../public-hardware/olimex-models.kicad_pcb",
+    "source_sha256": "a4437ed0a73856a355b95a5ff13051cfa2511b95e45f2dbaa06bcd520c4cfbfe",
+    "source_bytes": 3164432,
+    "result_sha256": "7a7e512a20487014967da198fa355ea7cdd5ed8da55d88442c39a290798214f1",
+    "result_bytes": 33326,
+    "producer_version": "4.8.5",
+    "elapsed_s": 0.531,
+    "request": {
+      "mode": "screen",
+      "net": "/USB_DP",
+      "start": "U1.50",
+      "end": "EXT2.19",
+      "reference": "Auto",
+      "inputs": {
+        "rise_ns": 1.0,
+        "frequency_mhz": 100.0,
+        "source_ohm": 20.0,
+        "load_ohm": 50.0,
+        "z0_ohm": 50.0,
+        "epsilon_eff": 3.2,
+        "eye_bitrate_mbps": 100.0,
+        "eye_swing_v": 1.0,
+        "eye_load_pf": 2.0
+      }
+    },
+    "saved_inputs": {
+      "olimex-models.kicad_pcb": "a4437ed0a73856a355b95a5ff13051cfa2511b95e45f2dbaa06bcd520c4cfbfe",
+      "olimex-models.kicad_pro": null,
+      "olimex-models.kicad_dru": null
+    },
+    "description": "/USB_DP: U1.50 to EXT2.19, single-ended illustrative screen"
+  }
+}

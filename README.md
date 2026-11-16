@@ -15,10 +15,37 @@
 from 27 independently installable development packages. Processing runs locally after setup.
 KiCad 10 is the native validation target; KiCad 11 support remains experimental.
 
+<a id="install-and-open"></a>
+
+## Install in KiCad (PCM)
+
+1. In **KiCad Manager**, open **Plugin and Content Manager**. On the
+   **Repository** tab, choose **Manage...**, then add this repository URL:
+
+   ```text
+   https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
+   ```
+
+2. Select **WayriCAD Plugin Repository**, open **Plugins**, and click **Install**
+   for the tools you want. Then open **Pending** and choose **Apply Pending Changes**.
+3. For IPC tools, enable **Enable KiCad API** and configure Python under
+   **Preferences > Plugins**. Allow first-time dependency setup to finish.
+4. Restart **PCB Editor**, open and save your project, then launch a tool from
+   **Tools > External Plugins** or the toolbar.
+
+**Already installed?** Refresh the repository in PCM, queue the available updates,
+apply pending changes, and restart PCB Editor.
+
+[Detailed installation and offline setup](docs/INSTALLATION.md) ·
+[Troubleshooting](docs/TROUBLESHOOTING.md) ·
+[Download individual PCM ZIPs](https://github.com/wayri/WayriCAD/releases/latest)
+
+For a downloaded ZIP, use **Install from File** without unpacking it.
+Fusion, Variant Manager, Silkscreen Label Placer, Trace Refiner, Component Arranger
+and Layer Counter use the native plugin loader and do not require the IPC API.
+
 [Download 4.8.5](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) ·
 [Release notes and validation limits](docs/RELEASE_NOTES_4.8.5.md)
-
-See the release's validation receipt for exact source, CI and asset identities.
 
 [Install](#install-and-open) · [Choose a tool](#all-27-plugins) ·
 [Showcase](#showcase) · [Guides](#detailed-analysis-guides) ·
@@ -30,6 +57,7 @@ See the release's validation receipt for exact source, CI and asset identities.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
+| Reopen real board results across tools | [Olimex / Marble studies and interactive gallery](docs/examples/public-boards/README.md) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
 | Download or update | [Release 4.8.5](https://github.com/wayri/WayriCAD/releases/tag/v4.8.5) · [Release notes](docs/RELEASE_NOTES_4.8.5.md) |
 | Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
@@ -48,26 +76,6 @@ formerly named KiWay; the maintained source and PCM feed use WayriCAD.
 [Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
 [Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
 GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
-
-## Install and open
-
-1. Open **Plugin and Content Manager** in KiCad Manager. Add this repository:
-
-   ```text
-   https://raw.githubusercontent.com/wayri/WayriCAD/develop/pcm/repo.json
-   ```
-
-2. Select **WayriCAD Plugin Repository** and install the tools you want. You can
-   also download a PCM ZIP from [Releases](https://github.com/wayri/WayriCAD/releases)
-   and use **Install from File**, without unpacking it.
-3. For IPC tools, enable the API and configure Python in **Preferences → Plugins**.
-   Allow the first dependency setup to finish, then restart PCB Editor.
-4. Open and save your project. Launch a tool from **Tools → External Plugins** or
-   the toolbar. **WayriCAD — All tools…** searches the installed tools if the menu is crowded.
-
-Fusion, Variant Manager, Silkscreen Label Placer, Trace Refiner, Component Arranger and Layer Counter use the native plugin loader and do not need the IPC API enabled.
-First-time setup may need internet access. For setup problems or offline use,
-use the [help table](#help-and-upgrades) below.
 
 <a id="choose-a-kicad-workflow"></a>
 
@@ -336,7 +344,8 @@ File actions remain available while the board fills the workspace.
   schematic springs guide placement only where drawn wires match exact same-net
   PCB pads. Native validation still gates Apply.
 
-Refresh the WayriCAD repository in Plugin and Content Manager, install updates, then restart PCB Editor.
+<details>
+<summary>More shipped workflows, measured improvements and validation evidence</summary>
 
 | Improvement | Workflow |
 |---|---|
@@ -385,6 +394,8 @@ for SI. Read the
 [SI guide](signal_integrity_advisor_plugin/ReadMe.md) before interpreting them
 as whole-board predictions.
 
+</details>
+
 <a id="all-16-plugins"></a>
 <a id="all-18-plugins"></a>
 
@@ -396,7 +407,7 @@ as whole-board predictions.
 
 ## All 27 plugins
 
-Release candidate **4.8.5** retains 27 independently installable
+Release **4.8.5** contains 27 independently installable
 plugins. Quick EMerge
 is marked **beta / testing**; Review and Assistant are also testing packages.
 Individual versions, runtime requirements and limits are in their guides.
@@ -1178,6 +1189,8 @@ results remain `MODELLED`, without automatic convergence; neither model is
 Palace or arbitrary-board full-wave extraction. Origin-bound live selection and
 saved-board PI/SI analyses were exercised on KiCad 10.0.6. See
 [4.8.5 scope and limits](docs/RELEASE_NOTES_4.8.5.md).
+The release's [validation receipt](https://github.com/wayri/WayriCAD/releases/download/v4.8.5/validation-4.8.5.json)
+records the exact source, CI and asset identities.
 
 **Release 4.8.4:** Portable Web Export revalidates saved-source hashes immediately
 before publishing a staged export. Original and embedded file hashes remain
@@ -1255,7 +1268,7 @@ reviewed PI power trees, shared returns and thermal materials.
 simulation save/load, portable analysis exports and a readable, searchable tool
 launcher. [Release notes](docs/RELEASE_NOTES_3.6.45.md).
 
-## New in 3.6.42
+### New in 3.6.42
 
 | Pin Extractor addition | Where to start |
 |---|---|

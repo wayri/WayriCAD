@@ -6,6 +6,7 @@ pcm/*.json text eol=lf
 
 # Saved simulation fixtures and receipts are bound to their exact file bytes.
 docs/examples/pocket-kivi/* -text whitespace=cr-at-eol
+docs/examples/public-boards/*.json -text whitespace=cr-at-eol
 
 # Research numerical evidence and capture receipts retain their recorded bytes.
 examples/quick_emerge/research_antennas/images/*.json -text whitespace=cr-at-eol

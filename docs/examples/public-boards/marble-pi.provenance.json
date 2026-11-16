@@ -1,0 +1,87 @@
+{
+  "schema": "wayricad.public-board-study/v1",
+  "generated_at": "2026-11-16T07:12:55.735809+00:00",
+  "source_commit": "a3eec88986adb7ca34c5602988ce694f5e9209ab",
+  "python": "3.11.5",
+  "kicad": "10.0.6",
+  "producer_modules": {
+    "tools/generate_pocket_kivi_examples.py": "0526afa5a198584f0cf1e8f14c827520ea953430a7aaaa56e535fa4de9e04d92",
+    "wayricad_runtime/pocket_kivi_export.py": "f79cbf24f7c1f09ea90dc2c96f1c9766ceb3c3ed7db990857fa608a65e37c58d",
+    "wayricad_runtime/pocket_report.py": "1c891730933c9140036c8a0c7f20bc877743bd6aa27e85707fe646079594b1d7",
+    "quick_pi_plugin/service.py": "db5a5a118b5429feff77fb72fdf284382649055d9f0a51c28389e8dd396313cc",
+    "quick_pi_plugin/board_geometry.py": "f696610674653a3416aa54157cb6c5590726da156002178379770af850de6e97",
+    "quick_pi_plugin/mesh.py": "1bd771ef77857b6ff9e021ac17f702f8f30eed69ed1c5da8c5b6796f7b0c660b",
+    "quick_pi_plugin/solver.py": "14375abcf6206a049fa9a96564148572f22f83cb38dab875ff3c5c4aed740eda",
+    "signal_integrity_advisor_plugin/service.py": "a27a14daa3c2f0f122cfee47b9c3e29ef60b54019c21d2c28f1b39459511c76e",
+    "signal_integrity_advisor_plugin/quick_si.py": "ce584a4fcac861245518eb17504b43a8201a46c53dd812878a69ee5a80ac76b7",
+    "signal_integrity_advisor_plugin/measurement.py": "d1f4aec6648778c63af0c879da40cef08b2c7785ac436f9f74aaa1fc7aa455f7",
+    "signal_integrity_advisor_plugin/eye_model.py": "12b4fac21e58ca98d0a7c2b8764c1f8dd972359ce7401662b56bc550a2ac5da6",
+    "signal_integrity_advisor_plugin/board_eye.py": "62221a030a3ea856000296bece0f8fa0eb9f4352a9ff856e6860cfcf7655fc80",
+    "signal_integrity_advisor_plugin/rlc_model.py": "56b2e20c1439dfeab5cdd0f1feb1f798829420dbcbdc569e8f9d088af3fec740",
+    "signal_integrity_advisor_plugin/emerge_lines.py": "4d28ff31fd4102de2178ec9cde0313e55a79d4307347147c5238a9340439efa0",
+    "signal_integrity_advisor_plugin/circuit_scope.py": "637a3c3cdbac7749132c8da9c8fc4148d09fe31234852921ca70c9ee60a5ad26",
+    "quick_therm_plugin/service.py": "e74ab3b06d8ce8a7a50bcf377cf60f15a0fdb8151eaecfb2b544ed3cf03356f5",
+    "quick_therm_plugin/thermal_geometry.py": "f473216bc4b7195e519dea3080781fce49e116cc2c81ba92faebd6891ea70699",
+    "quick_therm_plugin/thermal_multilayer.py": "d443ada87c370a0f1f4ae450e960d39a8f89dc1f3658b68e958810b9a097d753",
+    "quick_therm_plugin/thermal_spatial_transient.py": "fdf96c0449632c7b6b30e0e4f2efb1507e1f8549874ed75561953d570267ed62"
+  },
+  "producer_source_normalization": "CRLF to LF only",
+  "generator_sha256": "c81ce71c5528966b72166576567aa1fa480b4d06353c0c4d0fb51f29cabd127e",
+  "specification_sha256": "d82348705985ee330424e7d69b561e1e6a5240186c3a25ebae8fc49929f61d6c",
+  "case": {
+    "id": "marble-pi",
+    "board_id": "marble",
+    "kind": "quick-pi",
+    "label": "marble - DC copper conduction",
+    "summary": {
+      "voltage_drop_V": 0.0005779622262110716,
+      "drop_over_current_ohm": 0.005779622262110716,
+      "total_power_W": 5.7796222621107096e-05,
+      "current_balance_error_A": 1.942890293094024e-15,
+      "energy_relative_error": 1.1724405628473915e-15,
+      "floating_nodes": 0,
+      "floating_triangles": 0
+    },
+    "assumptions": [
+      "Normalized illustrative 1 V / 0.1 A fixed-temperature DC copper study; not the board's actual rail voltage, demand or rating. Endpoint direction requires review.",
+      "12-layer native-copy stackup has uniform 0.105454 mm dielectric and Er 4.5. These are saved native-copy assumptions, NOT verified fabrication stackup."
+    ],
+    "limitations": [
+      "Computed study, not measured hardware. No convergence or board qualification claimed.",
+      "Fixed-temperature 2.5D copper only; no regulator or package model. Unloaded branches and disconnected copper remain in evidence."
+    ],
+    "upstream_url": "https://github.com/BerkeleyLab/Marble/tree/a426777d92c0f22a546d4740b419a3937e0c1f90",
+    "license": "CERN-OHL-1.2",
+    "status": "computed",
+    "result_path": "marble-pi.pocket-kivi.json",
+    "source_path": "../../public-hardware/marble-models.kicad_pcb",
+    "source_sha256": "4317235e5bfb8e7808cd4f05d938e0ce5472d107e8bd9035b9b3bbd2e3a633eb",
+    "source_bytes": 44057226,
+    "result_sha256": "fafae4ccba289ef037ee3e581da98ac04abc67796c19767d89c0de37b0d4f78e",
+    "result_bytes": 2677981,
+    "producer_version": "4.8.5",
+    "elapsed_s": 7.703,
+    "request": {
+      "action": "solve",
+      "net": "/FPGA/FPGA_PWR&MISC/VCCADC",
+      "source_terminal": "723d63e3-add4-4679-a840-fc5ba6c917aa",
+      "sink_terminal": "9d7771ae-8394-4e9b-a43a-c62257277142",
+      "source_voltage": 1,
+      "sink_current": 0.1,
+      "edge_mm": 0.5,
+      "plating_mm": 0.025,
+      "max_cells": 50000,
+      "mesh_backend": "vtk",
+      "model_dimension": "2.5d",
+      "options": {
+        "temperature_c": 20
+      }
+    },
+    "saved_inputs": {
+      "marble-models.kicad_pcb": "4317235e5bfb8e7808cd4f05d938e0ce5472d107e8bd9035b9b3bbd2e3a633eb",
+      "marble-models.kicad_pro": null,
+      "marble-models.kicad_dru": null
+    },
+    "description": "/FPGA/FPGA_PWR&MISC/VCCADC: L27.2 to U1.M12"
+  }
+}

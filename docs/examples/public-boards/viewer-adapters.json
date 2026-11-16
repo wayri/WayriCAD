@@ -1,0 +1,41 @@
+{
+  "schema": "wayricad.viewer-adapter-check/v1",
+  "checked_at": "2026-11-16T07:15:40.875Z",
+  "module_hashes": {
+    "analysis-data.js": "527fa763938e256a8a419b0bb4be2f9df36df4c0dbfd8473963fe28a4db6e997",
+    "analysis-spatial.js": "e54ae11f5dd7b56063b2acd3dd21ded6e6b91eaeca430f84fd6cc4c56669f6c3"
+  },
+  "checks": [
+    {
+      "id": "olimex-p4-pi",
+      "plots": 3,
+      "sourceBinding": "passed"
+    },
+    {
+      "id": "olimex-p4-thermal",
+      "plots": 4,
+      "sourceBinding": "passed"
+    },
+    {
+      "id": "marble-pi",
+      "plots": 36,
+      "sourceBinding": "passed"
+    },
+    {
+      "id": "marble-thermal",
+      "plots": 12,
+      "sourceBinding": "passed"
+    },
+    {
+      "id": "olimex-p4-si",
+      "plots": 1,
+      "sourceBinding": "passed"
+    },
+    {
+      "id": "marble-si",
+      "plots": 1,
+      "sourceBinding": "passed"
+    }
+  ],
+  "scope": "Actual local KiCad Online readers. Does not establish browser registration, solver accuracy or every host/device."
+}

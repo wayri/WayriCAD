@@ -1,0 +1,453 @@
+{
+  "schema": "wayricad.public-board-studies/v1",
+  "boards": [
+    {
+      "id": "olimex-p4",
+      "name": "OLIMEX ESP32-P4-DevKit Rev.D1",
+      "filename": "olimex-models.kicad_pcb",
+      "sha256": "a4437ed0a73856a355b95a5ff13051cfa2511b95e45f2dbaa06bcd520c4cfbfe",
+      "bytes": 3164432,
+      "upstream_revision": "26705d36407a07324348927dfd30fbf4ffc1d94c",
+      "license": "CERN-OHL-S-2.0",
+      "source_role": "Exact hosted display derivative; model paths and equivalent legacy footprint identity keyword normalized. Not upstream-identical bytes.",
+      "stackup_evidence_limit": "Saved stackup values are explicitly present; fabrication/material accuracy has not been independently verified.",
+      "saved_stackup": [
+        {
+          "name": "F.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 1",
+          "kind": "prepreg",
+          "thickness_mm": 0.127,
+          "epsilon_r": 4.25
+        },
+        {
+          "name": "In1.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.017,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 2",
+          "kind": "core",
+          "thickness_mm": 1.2,
+          "epsilon_r": 4.3
+        },
+        {
+          "name": "In2.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.017,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 3",
+          "kind": "prepreg",
+          "thickness_mm": 0.127,
+          "epsilon_r": 4.25
+        },
+        {
+          "name": "B.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        }
+      ]
+    },
+    {
+      "id": "marble",
+      "name": "BerkeleyLab Marble",
+      "filename": "marble-models.kicad_pcb",
+      "sha256": "4317235e5bfb8e7808cd4f05d938e0ce5472d107e8bd9035b9b3bbd2e3a633eb",
+      "bytes": 44057226,
+      "upstream_revision": "a426777d92c0f22a546d4740b419a3937e0c1f90",
+      "license": "CERN-OHL-1.2",
+      "source_role": "Exact hosted display derivative; model paths and equivalent legacy footprint identity keyword normalized. Not upstream-identical bytes.",
+      "stackup_evidence_limit": "12-layer native-copy stackup has uniform 0.105454 mm dielectric and Er 4.5. These are saved native-copy assumptions, NOT verified fabrication stackup.",
+      "saved_stackup": [
+        {
+          "name": "F.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 1",
+          "kind": "core",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In1.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 2",
+          "kind": "prepreg",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In2.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 3",
+          "kind": "core",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In3.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 4",
+          "kind": "prepreg",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In4.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 5",
+          "kind": "core",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In5.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 6",
+          "kind": "prepreg",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In6.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 7",
+          "kind": "core",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In7.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 8",
+          "kind": "prepreg",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In8.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 9",
+          "kind": "core",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In9.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 10",
+          "kind": "prepreg",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In10.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 11",
+          "kind": "core",
+          "thickness_mm": 0.105454,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "B.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        }
+      ]
+    },
+    {
+      "id": "olimex-poe-m2-online",
+      "name": "OLIMEX ESP32-P4-DevKit Rev.D1",
+      "filename": "ESP32-PoE_Rev_M2.kicad_pcb",
+      "sha256": "7c9f634768ff4e8aee67b8f2f83d0495ab00e2f50209c5dd133a9f39e8bce9fa",
+      "bytes": 2809205,
+      "upstream_revision": "deb38a377d50eadb04ddc7118a17a5ae58b1ee53",
+      "license": null,
+      "source_role": "Online gallery retained board; measured hash matches pinned local provenance.",
+      "stackup_evidence_limit": "Saved stackup values are explicitly present; fabrication/material accuracy has not been independently verified.",
+      "saved_stackup": [
+        {
+          "name": "F.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 1",
+          "kind": "core",
+          "thickness_mm": 0.48,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In1.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 2",
+          "kind": "prepreg",
+          "thickness_mm": 0.48,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "In2.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        },
+        {
+          "name": "dielectric 3",
+          "kind": "core",
+          "thickness_mm": 0.48,
+          "epsilon_r": 4.5
+        },
+        {
+          "name": "B.Cu",
+          "kind": "copper",
+          "thickness_mm": 0.035,
+          "epsilon_r": 0
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "olimex-p4-pi",
+      "board_id": "olimex-p4",
+      "kind": "quick-pi",
+      "label": "olimex-p4 - DC copper conduction",
+      "summary": "/SD1_VDD: L1.2 to MICRO_SD1.4",
+      "assumptions": [
+        "Normalized illustrative 1 V / 0.1 A fixed-temperature DC copper study; not the board's actual rail voltage, demand or rating. Endpoint direction requires review.",
+        "Saved stackup values are explicitly present; fabrication/material accuracy has not been independently verified."
+      ],
+      "limitations": [
+        "Computed study, not measured hardware. No convergence or board qualification claimed.",
+        "Fixed-temperature 2.5D copper only; no regulator or package model. Unloaded branches and disconnected copper remain in evidence."
+      ],
+      "upstream_url": "https://github.com/OLIMEX/ESP32-P4-DevKit/tree/26705d36407a07324348927dfd30fbf4ffc1d94c",
+      "license": "CERN-OHL-S-2.0",
+      "request": {
+        "action": "solve",
+        "net": "/SD1_VDD",
+        "source_terminal": "1e82dab8-9843-43c5-8f86-e448f6216eb4",
+        "sink_terminal": "b0535faa-21a7-45dc-9819-cd975608167c",
+        "source_voltage": 1,
+        "sink_current": 0.1,
+        "edge_mm": 0.5,
+        "plating_mm": 0.025,
+        "max_cells": 50000,
+        "mesh_backend": "vtk",
+        "model_dimension": "2.5d",
+        "options": {
+          "temperature_c": 20
+        }
+      }
+    },
+    {
+      "id": "olimex-p4-thermal",
+      "board_id": "olimex-p4",
+      "kind": "quick-therm",
+      "label": "olimex-p4 - steady board heat field",
+      "summary": "Illustrative 0.75 W board-surface thermal study",
+      "assumptions": [
+        "Illustrative steady board-surface heat field: 0.5 W and 0.25 W loads, 25 degC ambient; assumed material/cooling values. No actual dissipation, temperature rating, junction temperature or convergence claim.",
+        "Saved stackup values are explicitly present; fabrication/material accuracy has not been independently verified."
+      ],
+      "limitations": [
+        "Computed study, not measured hardware. No convergence or board qualification claimed.",
+        "Coarse 24-cell-long-axis layered board screen; assumed cooling and material values. Not junction temperature or CFD."
+      ],
+      "upstream_url": "https://github.com/OLIMEX/ESP32-P4-DevKit/tree/26705d36407a07324348927dfd30fbf4ffc1d94c",
+      "license": "CERN-OHL-S-2.0",
+      "request": {
+        "action": "quick_therm",
+        "input_mode": "manual",
+        "environment": "air",
+        "ambient_c": 25,
+        "references": [
+          "U1",
+          "U2"
+        ],
+        "manual_values": {
+          "U1": {
+            "power_w": 0.5
+          },
+          "U2": {
+            "power_w": 0.25
+          }
+        },
+        "thermal_model_kind": "multilayer",
+        "board_power_only": true,
+        "thermal_network_settings": {
+          "mesh_mode": "manual",
+          "dielectric_k_w_mk": 0.3,
+          "copper_k_w_mk": 385,
+          "via_plating_mm": 0.025,
+          "board_emissivity": 0.8,
+          "board_airflow_m_s": 1,
+          "board_h_w_m2k": 9,
+          "grid_cells_long_axis": 24,
+          "source_refinement_factor": 1
+        }
+      }
+    },
+    {
+      "id": "marble-pi",
+      "board_id": "marble",
+      "kind": "quick-pi",
+      "label": "marble - DC copper conduction",
+      "summary": "/FPGA/FPGA_PWR&MISC/VCCADC: L27.2 to U1.M12",
+      "assumptions": [
+        "Normalized illustrative 1 V / 0.1 A fixed-temperature DC copper study; not the board's actual rail voltage, demand or rating. Endpoint direction requires review.",
+        "12-layer native-copy stackup has uniform 0.105454 mm dielectric and Er 4.5. These are saved native-copy assumptions, NOT verified fabrication stackup."
+      ],
+      "limitations": [
+        "Computed study, not measured hardware. No convergence or board qualification claimed.",
+        "Fixed-temperature 2.5D copper only; no regulator or package model. Unloaded branches and disconnected copper remain in evidence."
+      ],
+      "upstream_url": "https://github.com/BerkeleyLab/Marble/tree/a426777d92c0f22a546d4740b419a3937e0c1f90",
+      "license": "CERN-OHL-1.2",
+      "request": {
+        "action": "solve",
+        "net": "/FPGA/FPGA_PWR&MISC/VCCADC",
+        "source_terminal": "723d63e3-add4-4679-a840-fc5ba6c917aa",
+        "sink_terminal": "9d7771ae-8394-4e9b-a43a-c62257277142",
+        "source_voltage": 1,
+        "sink_current": 0.1,
+        "edge_mm": 0.5,
+        "plating_mm": 0.025,
+        "max_cells": 50000,
+        "mesh_backend": "vtk",
+        "model_dimension": "2.5d",
+        "options": {
+          "temperature_c": 20
+        }
+      }
+    },
+    {
+      "id": "marble-thermal",
+      "board_id": "marble",
+      "kind": "quick-therm",
+      "label": "marble - steady board heat field",
+      "summary": "Illustrative 0.75 W board-surface thermal study",
+      "assumptions": [
+        "Illustrative steady board-surface heat field: 0.5 W and 0.25 W loads, 25 degC ambient; assumed material/cooling values. No actual dissipation, temperature rating, junction temperature or convergence claim.",
+        "12-layer native-copy stackup has uniform 0.105454 mm dielectric and Er 4.5. These are saved native-copy assumptions, NOT verified fabrication stackup."
+      ],
+      "limitations": [
+        "Computed study, not measured hardware. No convergence or board qualification claimed.",
+        "Coarse 24-cell-long-axis layered board screen; assumed cooling and material values. Not junction temperature or CFD."
+      ],
+      "upstream_url": "https://github.com/BerkeleyLab/Marble/tree/a426777d92c0f22a546d4740b419a3937e0c1f90",
+      "license": "CERN-OHL-1.2",
+      "request": {
+        "action": "quick_therm",
+        "input_mode": "manual",
+        "environment": "air",
+        "ambient_c": 25,
+        "references": [
+          "U1",
+          "U4"
+        ],
+        "manual_values": {
+          "U1": {
+            "power_w": 0.5
+          },
+          "U4": {
+            "power_w": 0.25
+          }
+        },
+        "thermal_model_kind": "multilayer",
+        "board_power_only": true,
+        "thermal_network_settings": {
+          "mesh_mode": "manual",
+          "dielectric_k_w_mk": 0.3,
+          "copper_k_w_mk": 385,
+          "via_plating_mm": 0.025,
+          "board_emissivity": 0.8,
+          "board_airflow_m_s": 1,
+          "board_h_w_m2k": 9,
+          "grid_cells_long_axis": 24,
+          "source_refinement_factor": 1
+        }
+      }
+    }
+    ,{
+      "id": "olimex-p4-si",
+      "board_id": "olimex-p4",
+      "kind": "quick-si",
+      "label": "Olimex P4 - USB DP route screen",
+      "summary": "/USB_DP: U1.50 to EXT2.19, single-ended illustrative screen",
+      "assumptions": ["1 ns edge, 100 MHz evaluation, 20 ohm source, 50 ohm load, uniform 50 ohm impedance and effective permittivity 3.2 are declared inputs, not extracted channel qualification."],
+      "limitations": ["One leg only; not USB differential compliance or a measured eye. Reference and branch coverage findings remain in the full result."],
+      "upstream_url": "https://github.com/OLIMEX/ESP32-P4-DevKit/tree/26705d36407a07324348927dfd30fbf4ffc1d94c",
+      "license": "CERN-OHL-S-2.0",
+      "request": {"mode":"screen","net":"/USB_DP","start":"U1.50","end":"EXT2.19","reference":"Auto","inputs":{"rise_ns":1.0,"frequency_mhz":100.0,"source_ohm":20.0,"load_ohm":50.0,"z0_ohm":50.0,"epsilon_eff":3.2,"eye_bitrate_mbps":100.0,"eye_swing_v":1.0,"eye_load_pf":2.0}}
+    },{
+      "id": "marble-si",
+      "board_id": "marble",
+      "kind": "quick-si",
+      "label": "Marble - Ethernet MDC route screen",
+      "summary": "/ETH_PHY/MII_MDC: U6.8 to U54.16, illustrative route screen",
+      "assumptions": ["1 ns edge, 100 MHz evaluation, 20 ohm source, 50 ohm load, uniform 50 ohm impedance and effective permittivity 3.2 are declared inputs, not measured behavior.","The native-copy uniform saved stackup is not verified fabrication data."],
+      "limitations": ["MDC is a single-ended management signal, not an Ethernet differential data channel. Via/stub, branch and reference unknowns remain visible; an unavailable eye is not replaced with an ideal eye."],
+      "upstream_url": "https://github.com/BerkeleyLab/Marble/tree/a426777d92c0f22a546d4740b419a3937e0c1f90",
+      "license": "CERN-OHL-1.2",
+      "request": {"mode":"screen","net":"/ETH_PHY/MII_MDC","start":"U6.8","end":"U54.16","reference":"Auto","inputs":{"rise_ns":1.0,"frequency_mhz":100.0,"source_ohm":20.0,"load_ohm":50.0,"z0_ohm":50.0,"epsilon_eff":3.2,"eye_bitrate_mbps":100.0,"eye_swing_v":1.0,"eye_load_pf":2.0}}
+    }
+  ]
+}
