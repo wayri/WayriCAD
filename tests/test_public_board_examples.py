@@ -42,7 +42,7 @@ class PublicBoardInputs(unittest.TestCase):
             path = Path(temporary) / 'public.kicad_pcb'
             path.write_bytes(b'(kicad_pcb)')
             spec = dict(filename=path.name, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
-            self.assertEqual(generator.checked_board(temporary, spec), path)
+            self.assertEqual(generator.checked_board(temporary, spec), path.resolve())
             path.write_bytes(b'(kicad_pcb changed)')
             with self.assertRaisesRegex(ValueError, 'fingerprint mismatch'):
                 generator.checked_board(temporary, spec)
