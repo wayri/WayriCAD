@@ -44,8 +44,8 @@ For a downloaded ZIP, use **Install from File** without unpacking it.
 Fusion, Variant Manager, Silkscreen Label Placer, Trace Refiner, Component Arranger
 and Layer Counter use the native plugin loader and do not require the IPC API.
 
-[Download 4.8.7](https://github.com/wayri/WayriCAD/releases/tag/v4.8.7) ·
-[Release notes and validation limits](docs/RELEASE_NOTES_4.8.7.md)
+[4.8.8 release candidate](docs/RELEASE_NOTES_4.8.8.md) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.8.8.md)
 
 [Install](#install-and-open) · [Choose a tool](#all-27-plugins) ·
 [Showcase](#showcase) · [Guides](#detailed-analysis-guides) ·
@@ -1180,6 +1180,11 @@ Each plugin also has its own tests. Skipped checks do not establish native GUI
 compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.42.md).
 
 ## Release history
+
+**Release 4.8.8 candidate:** QuickTherm automatic Run selects a supported saved
+board model and mesh, fills blank starting values without replacing edits, and
+preserves older advanced studies. Native execution evidence and remaining gates
+are recorded in [4.8.8 scope and validation](docs/RELEASE_NOTES_4.8.8.md).
 
 **Release 4.8.7:** Review and Portable Web Export share the audited WebView
 source-preview pin, occurrence-aware hierarchy and improved 3D inspection.
