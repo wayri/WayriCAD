@@ -13,6 +13,9 @@
   retain their advanced choices through backward-compatible migration.
 - Unknown selected powers, unsupported layer-dependent physics and conflicting
   boundaries remain actionable errors, not silent model substitutions.
+- Native test launches isolate stdin from invalid Windows handles, retain
+  UTF-8 diagnostics and correctly replace the startup plot before selection
+  assertions. Bounded traceback capture preserves useful timeout evidence.
 - Updated offline help, user guides and a repeatable native acceptance tool
   cover source and independently installed plugin validation.
 
@@ -25,11 +28,12 @@ hashes stayed unchanged. The Encoder thin-sheet run modeled 0.6 W with a
 measured thermal accuracy or stackup-resolved validation. Junction temperatures
 remain unknown without package data.
 
-The new automatic-mode native regression passed. A broad native run recorded
-323 passes and 3 skips; follow-up native checks still have two unresolved UI
-timeouts. Hosted CI, final native rechecks, installed-payload verification and
-asset receipts are release gates, not completed claims. See the
+The complete native QuickTherm suite passed **326 tests and 223 subtests**, with
+three optional CalculiX/Gmsh integration skips. Both previously failing native
+UI checks passed without relaxing their assertions or increasing timeouts.
+The attached release receipt identifies final hosted CI, immutable assets and
+installed-payload verification separately. See the
 [detailed validation record](../quick_therm_plugin/ONE_CLICK_VALIDATION.md).
 
-This release candidate follows the separate 4.8.7 viewer update. Neither prior
-release assets nor the public PCM feed are replaced during candidate testing.
+This release follows the separate 4.8.7 viewer update. Prior release binaries
+remain immutable; feed promotion occurs only after new assets are verified.

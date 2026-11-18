@@ -11,6 +11,8 @@ import sys
 sys.path.insert(0,sys.argv[1])
 import wx
 from unittest.mock import patch
+import faulthandler
+faulthandler.dump_traceback_later(20)
 from quick_therm_plugin.heating_setup_ui import HeatingStudyDialog
 from quick_therm_plugin.ui import QuickThermFrame
 from quick_therm_plugin.tests.test_heating_setup import settings
@@ -65,6 +67,7 @@ with patch.object(QuickThermFrame,'_inspect'):
  frame._busy=True;frame._therm_controls();assert not frame.therm_study_setup.IsEnabled()
  frame._busy=False;frame.Close();app.Yield()
 print('Native heating guide lifecycle passed')
+faulthandler.cancel_dump_traceback_later()
 '''
 
 

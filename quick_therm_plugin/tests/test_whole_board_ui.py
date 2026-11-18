@@ -188,7 +188,7 @@ class NativeWholeBoardWorkflowTests(unittest.TestCase):
     def test_manual_active_edit_and_independent_paths_in_separate_process(self):
         root=Path(__file__).resolve().parents[2]
         run=subprocess.run([sys.executable,'-B','-I','-c',MANUAL_FLOW,str(root)],
-                           capture_output=True,text=True,timeout=30)
+                           stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=30)
         self.assertEqual(run.returncode,0,run.stdout+'\n'+run.stderr)
         self.assertIn('explicit optional path clearing passed',run.stdout)
 

@@ -1,8 +1,8 @@
 # Automatic Run validation
 
 Source branch: `codex/quicktherm-one-click`, based on
-`d481ee90ac67edd780ddfe88c40db79c8dd6fd60`. This is a local source update,
-not a published release or a completed local installation.
+`d481ee90ac67edd780ddfe88c40db79c8dd6fd60`. This records source validation;
+publication and installed-payload evidence are recorded in the release receipt.
 
 ## Behavior
 
@@ -38,7 +38,7 @@ python tools/verify_quick_therm_quick_start.py --worker-python <prepared-python>
 The verifier also accepts `--plugin-root <installed-plugin-directory>` to reject
 source-runtime fallback when checking the final installed payload.
 
-## Checks and remaining gates
+## Checks
 
 - New native automatic-Run regression passed: model selection, blank defaults,
   edited-value retention, manual mesh, old-study migration, explicit unknown
@@ -47,17 +47,23 @@ source-runtime fallback when checking the final installed payload.
 - Broad native pytest run: 323 passed, 3 skipped, 223 subtests passed; three
   Windows inherited-stdin failures were identified. Explicit DEVNULL stdin and
   UTF-8 diagnostics were added without changing behavioral assertions.
-- Follow-up native subset: 7 passed, 2 timed out (heating-guide lifecycle and
-  multi-selection). These are unresolved; a fully green native suite is not
-  claimed. The normal real-board Run and new automatic-mode test passed.
+- An intermediate follow-up had two UI timeouts. Both tests subsequently passed
+  in isolation and in the complete native suite. Native launches now isolate
+  stdin, use UTF-8 file diagnostics where needed, replace the startup placeholder
+  before selection assertions, and retain bounded traceback diagnostics. No
+  numerical tolerance, behavioral assertion or timeout was weakened.
+- Final complete native suite: **326 passed, 3 skipped, 223 subtests passed** in
+  173.69 seconds. All three skips require optional Gmsh/CalculiX integration
+  dependencies or opt-in; the built-in solver and native UI checks ran.
 - An earlier Python 3.14 source-suite run was interrupted and is not acceptance
   evidence.
 - A single-plugin PCM was built and inspected on D:, with 221 payload files
   and 8,697,176 uncompressed bytes. No suite-wide feed was changed.
-- Installation and installed-payload validation were suspended when C: crossed
-  the explicitly authorized 18 GiB minimum. The last observed capacity was
-  17.29 GiB on C: and 430.17 GiB on D:. No existing user data was removed.
+- Local work was suspended below the authorized 18 GiB C: minimum. A separately
+  coordinated verified cleanup restored capacity before final native validation.
+  Temporary outputs remained on D:. No user board or shared cache was removed
+  by this QuickTherm task.
 
-Complete the remaining native checks and install with a verified backup after
-capacity is restored above the authorized threshold. Keep local result files,
-test logs and machine paths out of published packages.
+The release receipt records exact final CI, installer hashes, local backups and
+installed-payload acceptance. Keep local result files, test logs and machine
+paths out of published packages.

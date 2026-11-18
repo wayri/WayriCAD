@@ -30,6 +30,8 @@ NATIVE_FLOW=r'''
 import sys
 from pathlib import Path
 from unittest.mock import patch
+import faulthandler
+faulthandler.dump_traceback_later(20)
 sys.path.insert(0,sys.argv[1])
 import wx
 from quick_therm_plugin.ui import QuickThermFrame
@@ -57,6 +59,7 @@ with patch.object(frame,'_thermal_selection_text'),patch.object(frame,'_draw_the
  assert frame.therm_table.GetSelectedItemCount()==0
 frame._closed=True;frame.Destroy();app.Yield()
 print('Native multi-row reverse sync, queued latest selection and incremental plot highlight passed.')
+faulthandler.cancel_dump_traceback_later()
 '''
 
 
