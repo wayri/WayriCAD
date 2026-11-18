@@ -148,6 +148,8 @@ class ThermalCouplingTests(unittest.TestCase):
             runtime.mkdir()
             (runtime/'__init__.py').touch()
             shutil.copy2(kernel.__file__, runtime/'thermal_multilayer.py')
+            for name in ('thermal_contacts.py', 'thermal_linear.py'):
+                shutil.copy2(Path(kernel.__file__).with_name(name), runtime/name)
             shutil.copy2(source/'thermal_example.json', Path(folder)/'input.json')
             code = ("import sys; sys.path.insert(0, sys.argv[1]); "
                     "from planar_magnetics_plugin.thermal_coupling import main; "
