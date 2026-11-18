@@ -72,7 +72,7 @@ print('Native heating guide lifecycle passed')
 class NativeHeatingSetupTests(unittest.TestCase):
     def test_guide_validation_apply_run_and_stale_result_lifecycle(self):
         root=Path(__file__).resolve().parents[2]
-        completed=subprocess.run([sys.executable,'-c',SCRIPT,str(root)],capture_output=True,
+        completed=subprocess.run([sys.executable,'-c',SCRIPT,str(root)],stdin=subprocess.DEVNULL,capture_output=True,
                                  text=True,encoding='utf-8',timeout=35)
         self.assertEqual(completed.returncode,0,completed.stdout+'\n'+completed.stderr)
         self.assertIn('Native heating guide lifecycle passed',completed.stdout)

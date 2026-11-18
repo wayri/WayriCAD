@@ -3,7 +3,7 @@
 QuickTherm reads a saved KiCad PCB and performs component, board and scheduled
 transient thermal screening. It is independently installable and does not require
 Quick PI. Thermal inputs entered in its workspace do not change the PCB.
-This guide describes the 4.0.0 workspace and implemented thermal models. Screenshots retain their capture
+This guide describes the current workspace and implemented thermal models. Screenshots retain their capture
 versions and stated assumptions; older images are not new validation runs.
 
 ## Workspace controls
@@ -44,17 +44,24 @@ QuickTherm board-first workspace using the public saved thermal example. [Captur
 2. Start on **Component inputs**. Check only the parts whose heat you intend to
    include. Enter actual dissipated watts; a part's rated maximum power is not
    its operating dissipation.
-3. For a first independent air screen, enter each part's reviewed RθJA in K/W.
-   Enter junction limits if you want conditional PASS/FAIL decisions. Missing
-   thermal paths remain unknown.
-4. Open **Board + results**. Choose **Air** and the actual ambient temperature.
-   Keep the optional board model disabled for this simple screen.
-5. Click **Run thermal**. Review solved/selected counts and unknown or excluded
+3. Click **Run**. **Automatic setup** is enabled by default: it chooses a
+   supported saved-stackup model or a labelled thin-sheet screen and sizes the
+   mesh. No external solver or package resistance is required. Ambient defaults
+   to 20 C; change it in Setup if needed. Material/cooling defaults are illustrative.
+4. Review solved/selected counts and unknown or excluded
    sources before reading the largest temperature as a board-wide result.
-6. Select parts in the table and board. Use **Export…** to retain HTML and JSON.
-   For a physical board field, continue with the model and boundary sections below.
+5. Select parts in the table and board. Use **Files** to retain reports and results.
 
-The simple air equation is `Tj = Tamb + P × RθJA`. For example, 0.5 W with
+Automatic setup fills blank starting material/ambient fields but retains edited
+values and explicit component scope. Without a selection, Run includes available
+valid known powers. Unknown power is never replaced by zero. Choosing a model or
+manual mesh exits automatic mode. Old saved studies load in advanced mode to
+preserve their settings; re-enable Automatic setup to return to the normal flow.
+Layer-dependent physics still requires a physical stackup. Junction temperatures
+remain unknown without package thermal data; that does not block the board field.
+
+For the optional advanced component-only air model, the equation is
+`Tj = Tamb + P × RθJA`. For example, 0.5 W with
 40 K/W at 25 °C gives 45 °C. This is an equation example, not a hardware result.
 
 ![Scanned component inputs](examples/quicktherm-input-3.6.38.png)

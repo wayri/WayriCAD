@@ -2,6 +2,23 @@
 
 ## Quick start
 
+1. Open **Components** and enter dissipated watts for the heat-producing parts.
+2. Click **Run**. Ambient starts at 20 C and can be edited; **Setup** is optional.
+3. Inspect the board temperatures, probes and heat balance.
+
+**Automatic setup** is on by default. Each run selects the built-in layered
+model when a supported saved physical stackup exists, otherwise an explicitly
+labelled thin-sheet screen. It enables automatic meshing and fills blank
+starting material/ambient values without replacing entered values. No CalculiX
+installation or package thermal resistance is needed for this board screen.
+The illustrative defaults below remain assumptions, not measured properties.
+
+Choosing a model or manual mesh turns automatic setup off. Existing saved studies
+without an automatic-mode flag load as advanced studies, preserving their model
+and mesh choices. Re-enable **Automatic setup** to return to the simple workflow.
+Unsupported layer-dependent studies, unknown selected powers and conflicting
+physical boundaries still stop with an explanation rather than changing physics.
+
 ### Solver setup and recovery
 
 Click **Run** with no selected sources to include all available valid saved or
@@ -84,8 +101,8 @@ python tools/verify_quick_therm_quick_start.py --worker-python "C:/Program Files
 | Step | Action |
 | --- | --- |
 | 1. Prepare inputs | Save the PCB and use **Components** to choose parts and review their power inputs. |
-| 2. Define the model | Open **Setup** for materials, cooling/environment and steady or transient settings. |
-| 3. Run and inspect | Choose **Run**, then use Top/Bottom/3D views, probes and component temperatures. Use time playback when transient frames exist. |
+| 2. Run and inspect | Choose **Run**; automatic setup selects a supported board model and mesh. Inspect views and probes. |
+| 3. Optional advanced study | Open **Setup** to change cooling, materials, model or time settings. Explicit model/mesh changes leave automatic mode. |
 | 4. Keep the study | **Files** saves or loads setup and simulation data separately and exports reports. |
 
 [Latest release](https://github.com/wayri/WayriCAD/releases/latest) ·

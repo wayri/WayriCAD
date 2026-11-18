@@ -54,7 +54,7 @@ print('Sidebar bounds verified across three window sizes and expanded input sect
 class SidebarLayoutTests(unittest.TestCase):
     def test_expanded_controls_stay_inside_sidebar(self):
         root=Path(__file__).resolve().parents[2]
-        result=subprocess.run([sys.executable,'-c',NATIVE_FLOW,str(root)],cwd=root,
+        result=subprocess.run([sys.executable,'-c',NATIVE_FLOW,str(root)],cwd=root,stdin=subprocess.DEVNULL,
                               capture_output=True,text=True,timeout=40,
                               creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         self.assertEqual(result.returncode,0,result.stdout+'\n'+result.stderr)
