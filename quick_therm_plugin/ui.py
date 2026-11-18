@@ -254,6 +254,8 @@ class QuickThermFrame(wx.Frame):
             message = "Cancelled." if self._cancel.is_set() else str(error)
             self.status.SetLabel(message)
             self.therm_status.SetLabel(message)
+            self.therm_analytics.SetLabel('Analysis did not complete. '+message)
+            _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
         else:
             try:
                 finished(answer)
@@ -261,6 +263,8 @@ class QuickThermFrame(wx.Frame):
             except Exception as exc:
                 self.status.SetLabel(str(exc))
                 self.therm_status.SetLabel(str(exc))
+                self.therm_analytics.SetLabel('Result could not be displayed. '+str(exc))
+                _wrap_text(self.therm_analytics,self.therm_analytics.GetLabel())
         self._buttons()
         if getattr(self,'_pending_thermal_selection',None):self._flush_thermal_selection()
 
@@ -1065,7 +1069,8 @@ class QuickThermFrame(wx.Frame):
             self.therm_ccx_status.SetLabel(str(exc))
             return False
         if not solver:
-            self.therm_ccx_status.SetLabel('CalculiX ccx is missing. Locate it above or add it to PATH.')
+            self.therm_ccx_status.SetLabel('CalculiX is not installed. Run in CalculiX mode installs the verified Windows solver automatically (59 MiB download). Offline: locate ccx above.')
+            self.therm_ccx_status.Wrap(250)
             return False
         self.therm_ccx_status.SetLabel('Ready: '+Path(solver).name+' · Gmsh will be checked when the model runs.')
         chosen=self.therm_ccx_executable.GetValue().strip()
@@ -1152,11 +1157,10 @@ class QuickThermFrame(wx.Frame):
         if self._busy:return
         self.book.SetSelection(0)
         self._toggle_thermal_pane(self.therm_setup_splitter,self._therm_input_page,self.therm_result_splitter,True,340)
-        changed=not self.therm_model_enabled.GetValue()
         self.therm_model_enabled.SetValue(True)
         self.therm_model.Collapse(False)
         self._therm_controls()
-        if changed:self._invalidate_thermal()
+        self._invalidate_thermal()
         self._thermal_default_view=True
         page=self._therm_input_page
         page.Layout();page.FitInside()
@@ -1220,6 +1224,11 @@ class QuickThermFrame(wx.Frame):
             self.therm_model_kind.SetSelection(1)
             self._therm_controls()
         references=[self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount()) if self.therm_refs.IsChecked(i)]
+        if not references and not self._copper_loss_import:
+            try:
+                references=self.therm_inputs.include_known_power()
+            except ValueError as exc:
+                self.on_manual_setup();self.status.SetLabel(str(exc));return
         sinks={ref:self.virtual_heatsinks[ref] for ref in references if ref in self.virtual_heatsinks}
         unsinked=set(references)-set(sinks)
         field=self.therm_jb if environment=='vacuum' else self.therm_ja
@@ -1230,7 +1239,8 @@ class QuickThermFrame(wx.Frame):
         board_power_only=self.therm_model_enabled.GetValue() and not sinks
         power_only=board_power_only or calculix or (environment=='vacuum' and self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==1) or environment not in ('air','vacuum') or self.therm_time_enabled.GetValue()
         if not references and not self._copper_loss_import:
-            self.therm_status.SetLabel('Select at least one dissipating component before running QuickTherm.');return
+            self.on_manual_setup()
+            self.therm_status.SetLabel('No valid dissipated power is available. Enter watts for the heat-producing parts, then Run. Unknown power is not zero.');return
         if manual:
             try:
                 # Commit the active grid editor before taking a detached worker copy.
@@ -1287,8 +1297,8 @@ class QuickThermFrame(wx.Frame):
                 if model_index==2 and sinks:
                     raise ValueError('CalculiX board mode does not model virtual heatsinks.')
                 if model_index==2 and not self.on_calculix_check():
-                    self.therm_status.SetLabel(self.therm_ccx_status.GetLabel())
-                    return
+                    if self.therm_ccx_executable.GetValue().strip():
+                        raise ValueError(self.therm_ccx_status.GetLabel())
                 settings={} if model_index==2 else {
                     'board_k_w_mk':float(self.therm_k.GetValue()),
                     'board_emissivity':float(self.therm_emissivity.GetValue()),

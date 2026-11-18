@@ -1,6 +1,6 @@
 """WayriCAD Bulk Label Editor plugin package."""
 
-__version__ = "4.8.5"
+__version__ = "4.8.6"
 
 try:
     from .bulk_label_editor_plugin import BulkLabelEditorPlugin

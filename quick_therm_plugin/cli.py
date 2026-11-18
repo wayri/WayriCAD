@@ -35,6 +35,8 @@ def main(argv=None):
                         help="New directory retaining Gmsh/CalculiX input and result evidence")
     parser.add_argument("--run-calculix", action="store_true",
                         help="Run ccx and import checked board temperatures")
+    parser.add_argument('--no-solver-install', action='store_true',
+                        help='Disable first-run CalculiX download; require an existing solver.')
     parser.add_argument("--calculix-exe", type=Path,
                         help="Explicit ccx executable; otherwise discover it on PATH")
     parser.add_argument("--timeout", type=float, default=1800.0)
@@ -79,7 +81,7 @@ def main(argv=None):
             allowed = {"environment", "ambient_c", "field_map", "references", "heatsinks",
                        "vacuum_board_to_environment_k_per_w", "thermal_network_settings",
                        "thermal_network_component_field", "thermal_model_kind", "mesh_acceptance",
-                       "limit_fields", "probes", "calculix_settings", "transient_settings",
+                       "limit_fields", "probes", "calculix_settings", "calculix_auto_install", "transient_settings",
                        "input_mode", "manual_values", "manual_temperature_limits", "board_power_only"}
             if not isinstance(settings, dict) or set(settings) - allowed:
                 raise ValueError("QuickTherm config has unsupported settings.")
@@ -155,6 +157,8 @@ def main(argv=None):
             request["calculix_run"] = True
         if args.calculix_exe:
             request["calculix_executable"] = str(args.calculix_exe.resolve())
+        if args.no_solver_install:
+            request['calculix_auto_install'] = False
         if request.get("calculix_export_dir") and not isinstance(request.get("calculix_settings"), dict):
             raise ValueError("--calculix-dir needs calculix_settings in --config.")
         if request.get("calculix_settings") and not request.get("calculix_export_dir") and request.get("thermal_model_kind") != "calculix":

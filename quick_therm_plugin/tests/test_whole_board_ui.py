@@ -103,7 +103,9 @@ with patch('wayricad_runtime.runtime_setup.ensure_runtime',return_value=Path(sys
                 frame.therm_ambient.ChangeValue('25');frame.therm_k.ChangeValue('35')
                 frame.therm_emissivity.ChangeValue('.8');frame.therm_air_board.ChangeValue('1')
                 frame.therm_grid.SetValue(12)
+                frame.therm_refs.Check(0,False)
                 state['phase']='run';frame.on_quick_therm()
+                assert frame.therm_refs.IsChecked(0),'Run auto-includes available known power'
                 print('Native requested study: '+frame.therm_status.GetLabel(),flush=True)
             elif state['phase']=='run' and frame.thermal_bundle and not frame._busy:
                 print('Native physical study complete',flush=True)

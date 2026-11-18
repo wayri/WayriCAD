@@ -1,5 +1,5 @@
 """Independent native KiCad silkscreen placement action."""
-__version__ = '4.8.5'
+__version__ = '4.8.6'
 try:
     import pcbnew
     import wx

@@ -171,6 +171,9 @@ def write_diagnostic_report(path,bundle,*,pocket_kivi=False):
                         html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in (
                             mount['id'],_number(mount['temperature_c']),_number(mount['heat_flux_w'])))+'</tr>'
                     html+='</table><p>Positive fixture heat flow leaves the board; negative flow enters it.</p>'
+                    for mount in network['mounts']:
+                        if mount.get('shared_contact_ids') and mount['id']==mount['shared_contact_ids'][0]:
+                            html+='<p>Shared mesh-cell contacts '+escape(', '.join(mount['shared_contact_ids']))+': '+_number(mount['shared_cell_heat_flux_w'],'W')+' total. Individual contact heat flows are unresolved; this total is counted once.</p>'
             else:
                 field=network['board_field']
                 html+='<p>The top and bottom board views show one shared thin-sheet midplane field, not separate surface solves.</p>'

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from .thermal_contacts import add_fixed_contact, resolve_mount_fluxes
+from .thermal_linear import solve_thermal_linear
 
 def _inside(point, ring):
     """Even-odd polygon containment; boundary counts as inside."""
@@ -96,7 +98,6 @@ def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_so
         import numpy as np
         from scipy.sparse import coo_matrix, diags
         from scipy.sparse.csgraph import connected_components
-        from scipy.sparse.linalg import spsolve
     except ImportError as exc:
         raise RuntimeError("Layer-resolved QuickTherm requires NumPy and SciPy.") from exc
     if not isinstance(settings, Mapping):
@@ -348,9 +349,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_so
                  (xs[cells[ci][0]]-mount["x_mm"])**2+(ys[cells[ci][1]]-mount["y_mm"])**2)
         ni = node(li, ci)
         if resistance == 0:
-            if ni in fixed:
-                raise ValueError("Two ideal mount boundaries map to one thermal cell; refine the grid or combine contacts.")
-            fixed[ni] = temp
+            add_fixed_contact(fixed, ni, temp)
         else:
             contact_edges.append((ni, 1/resistance, temp))
         mounts.append({"id": mount_id, "side": side, "temperature_c": temp,
@@ -404,12 +403,22 @@ def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_so
             rhs = sources+contact_rhs+slope*temp-loss
             if len(fixed_ids):
                 rhs[free] -= matrix[free][:, fixed_ids] @ temp[fixed_ids]
-            candidate = spsolve(matrix[free][:, free], rhs[free])
-            if not np.all(np.isfinite(candidate)) or np.max(candidate)>10000 or np.min(candidate)<-273.15:
+            candidate = solve_thermal_linear(matrix[free][:, free], rhs[free])
+            if not np.all(np.isfinite(candidate)):
+                raise ValueError("Thermal solve diverged; check power and boundary inputs.")
+            if np.any(surface_e):
+                step = candidate-temp[free]
+                scale = max(100.0, float(np.max(kelvin[free])))
+                damping = min(1.0, scale/max(float(np.max(np.abs(step))), 1e-30))
+                cooling = step < 0
+                if np.any(cooling):
+                    damping = min(damping, float(np.min(.9*kelvin[free][cooling]/-step[cooling])))
+                candidate = temp[free]+damping*step
+            if np.max(candidate)>10000 or np.min(candidate)<-273.15:
                 raise ValueError("Thermal solve diverged; check power and boundary inputs.")
             change = float(np.max(np.abs(candidate-temp[free])))
             temp[free] = candidate
-            if change <= 1e-7:
+            if not np.any(surface_e) or change <= 1e-7:
                 break
         else:
             raise ValueError("Layer-resolved thermal solve did not converge.")
@@ -437,15 +446,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_so
     radiation = float(np.sum(rad_terms))
     residual_nodes = np.asarray(laplacian@temp + contact_g*temp-contact_rhs +
                                 conv_terms+rad_terms-sources)
-    for mount in mounts:
-        ni = mount.pop("node_index")
-        if mount["contact_r_k_w"] == 0:
-            # At a Dirichlet node, the balancing fixture flux is the negative
-            # of its unconstrained equation residual. Positive leaves board.
-            mount["heat_flux_w"] = float(-residual_nodes[ni])
-        else:
-            mount["heat_flux_w"] = float((temp[ni]-mount["temperature_c"])/mount["contact_r_k_w"])
-    mount_flux = math.fsum(item["heat_flux_w"] for item in mounts)
+    mount_flux = resolve_mount_fluxes(mounts, temp, residual_nodes)
     input_w = float(np.sum(sources))
     residual = input_w-convection-radiation-mount_flux
     tolerance = max(1e-5, abs(input_w)*1e-4)

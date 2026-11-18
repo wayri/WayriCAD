@@ -2,6 +2,46 @@
 
 ## Quick start
 
+### Solver setup and recovery
+
+Click **Run** with no selected sources to include all available valid saved or
+edited power inputs automatically. Unknown/invalid powers are excluded and the
+included scope remains visible. An explicit nonempty selection is preserved:
+missing power on selected parts opens Component inputs rather than dropping
+those parts. If no power is known, enter watts for the heat-producing parts,
+then Run. Automatic geometry-based meshing and supported saved stackup selection
+remain the defaults. No package resistance is required for board temperatures.
+
+The built-in thin-sheet and multilayer solvers do not require CalculiX. The
+multilayer solver now equilibrates its sparse conductance matrix, refines linear
+solutions when needed and checks their backward error. Radiation steps are
+damped to avoid rejecting a valid equilibrium because of an oversized first
+Newton step. These are numerical robustness improvements, not new CFD physics
+or a substitute for mesh convergence and measured validation.
+
+Compatible zero-resistance fixture contacts in the same mesh cell are combined.
+Their shared reaction is counted once in the heat balance; individual contact
+heat flows remain **Unknown**. Conflicting temperatures still stop with an
+actionable mesh/contact message. A failed run no longer retains an
+"Analysis running" message in the results panel.
+
+For optional **CalculiX 3D steady conduction**, Windows x64 first-run setup
+downloads the official 2.23 static solver (59 MiB), verifies pinned SHA-256 hashes,
+checks that it launches and installs it atomically in a user-local cache. It
+does not modify KiCad, the system PATH or an existing user-selected solver.
+Gmsh is prepared by the existing managed scientific runtime. Subsequent runs
+reuse the verified solver. Source and provenance are retained in the cache.
+
+Offline: use **Locate CalculiX**, `--calculix-exe`, or `WAYRICAD_CCX`.
+`--no-solver-install` disables automatic downloads. Linux/macOS users currently
+install ccx with their OS package manager and select its executable.
+`WAYRICAD_SOLVER_CACHE` selects the managed solver cache location. A corrupted
+cache is rejected, not silently overwritten. No alternative engine is silently
+substituted for a requested CalculiX run. CalculiX mode retains its existing
+geometry/contact limitations and explicit lower-face boundary requirements.
+
+Upstream: [CalculiX downloads, source and license](https://www.dhondt.de/).
+
 **Introduced in 4.8.3:** Files now opens an explicit volumetric
 current/Joule/heat study using the same numerical kernel, construction format
 and offline 3D viewer as Heater Designer and Quick PI. CLI:

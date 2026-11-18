@@ -292,7 +292,15 @@ def execute(request):
                 if manifest["status"] != "deck_ready":
                     raise ValueError("CalculiX mesh preparation failed: " +
                                      manifest.get("diagnostic", manifest["status"]))
-                manifest = run_calculix(directory, ccx=request.get("calculix_executable"),
+                from .thermal_calculix import find_calculix
+                executable = find_calculix(request.get("calculix_executable"))
+                if not executable and request.get('calculix_auto_install', True):
+                    from .solver_setup import ensure_calculix
+                    started = time.monotonic()
+                    executable = ensure_calculix(progress=lambda done, total:
+                        emit_progress('Preparing verified CalculiX solver', done, total,
+                                      time.monotonic()-started, None))
+                manifest = run_calculix(directory, ccx=executable,
                                         display_grid_mm=settings.get("display_grid_mm"))
                 if manifest["status"] != "solved":
                     raise ValueError("CalculiX result unavailable: " +

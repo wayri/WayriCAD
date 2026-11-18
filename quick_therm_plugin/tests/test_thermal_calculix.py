@@ -170,12 +170,16 @@ class CalculixBridgeTests(unittest.TestCase):
             manifest = {**audit, "mesh_file": "board.msh", "result_file": "board.frd",
                         "gmsh_mesh_size_mm": 2, "calculix_deck": "board.inp", "status": "deck_ready"}
             (directory/"manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-            with patch("quick_therm_plugin.thermal_calculix.find_calculix", return_value="example-ccx"), \
+            executable = directory/'example-ccx'
+            executable.write_bytes(b'fixture solver identity')
+            with patch("quick_therm_plugin.thermal_calculix.find_calculix", return_value=str(executable)), \
                  patch("quick_therm_plugin.thermal_calculix.subprocess.run") as process:
                 process.return_value.returncode = 0
                 outcome = run_calculix(directory, ccx="example-ccx")
             self.assertEqual(outcome["status"], "solved")
             self.assertEqual(outcome["result_status"], "field_validated")
+            import hashlib
+            self.assertEqual(outcome['solver_sha256'], hashlib.sha256(executable.read_bytes()).hexdigest())
             self.assertLess(abs(outcome["heat_balance"]["bottom_outflow_w"]-power), .05*power)
             field = json.loads((directory/"board_field.json").read_text(encoding="utf-8"))
             self.assertEqual([layer["name"] for layer in field["layers"]], ["F.Cu", "B.Cu"])
@@ -275,7 +279,7 @@ class CalculixBridgeTests(unittest.TestCase):
             metadata = json.loads(path.read_text(encoding="utf-8"))
             metadata.update(status="deck_ready", calculix_deck="board.inp")
             path.write_text(json.dumps(metadata), encoding="utf-8")
-            with patch("quick_therm_plugin.thermal_calculix.shutil.which", return_value=None):
+            with patch("quick_therm_plugin.thermal_calculix.find_calculix", return_value=None):
                 outcome = run_calculix(out)
             self.assertEqual(outcome["status"], "needs_calculix")
             self.assertEqual(outcome["result_status"], "not_solved")

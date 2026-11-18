@@ -181,9 +181,13 @@ class ComponentInputPanel(wx.Panel):
         return self.model.effective_values(selected_only, include_limits)
 
     def _include_known_power(self,event=None):
+        self.include_known_power()
+
+    def include_known_power(self):
         self.commit_pending_edits(validate=False)
-        self.model.include_known_power()
+        selected=self.model.include_known_power()
         self._refresh_rows();self._notify()
+        return selected
 
     def selected_references(self):
         return self.model.selected_references()

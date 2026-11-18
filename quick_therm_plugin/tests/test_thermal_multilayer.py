@@ -36,6 +36,25 @@ def inputs(environment="air"):
 
 
 class MultilayerThermalTests(unittest.TestCase):
+    def test_shared_ideal_contacts_conserve_heat_without_inventing_individual_flux(self):
+        from wayricad_runtime.thermal_multilayer import solve_multilayer_thermal as shared_solve
+        for solver in (solve_multilayer_thermal, shared_solve):
+            geometry, view, result, settings = inputs('vacuum')
+            geometry['mounting_holes'].append(dict(geometry['mounting_holes'][0], id='MH2'))
+            settings.update(board_emissivity=0, mount_boundaries=[
+                dict(id=identifier, temperature_c=20, contact_r_k_w=0)
+                for identifier in ('MH1', 'MH2')])
+            solved = solver(geometry, view, result, settings)
+            self.assertAlmostEqual(solved['heat_balance']['mount_flux_w'], 1, places=5)
+            self.assertLess(abs(solved['heat_balance']['residual_w']), 1e-5)
+            for mount in solved['mounts']:
+                self.assertIsNone(mount['heat_flux_w'])
+                self.assertAlmostEqual(mount['shared_cell_heat_flux_w'], 1, places=5)
+                self.assertEqual(mount['shared_contact_ids'], ['MH1', 'MH2'])
+            settings['mount_boundaries'][1]['temperature_c'] = 30
+            with self.assertRaisesRegex(ValueError, 'Conflicting fixture temperatures'):
+                solver(geometry, view, result, settings)
+
     def test_radiation_newton_overshoot_does_not_reject_valid_equilibrium(self):
         geometry, view, result, settings = inputs("vacuum")
         settings.update(board_h_w_m2k=0, board_emissivity=.85)
