@@ -32,7 +32,8 @@ hashes and stale-write safeguards remain distinct.
 ## Verification
 
 - Exact upstream build: build:3d, build and 645 tests passed, no skips.
-- Portable exporter: 19 tests and 6 subtests passed; four Node control tests passed.
+- Focused exporter/Review asset/host checks: 33 passed, two dependency-gated skips
+  and six subtests; four Node control tests passed.
 - Browser KERO offline export: native PCB/3D rendering, exact R1 and /ST11_OUT
   lookup, selection clearing, BoM-to-board navigation, six-sheet hierarchy and
   power subsheet navigation passed. Expand reached 100% and returned to 0%.
@@ -56,9 +57,13 @@ that observation. Its custody checks were not relaxed. A separate direct run
 also encountered an invalid inherited stdin handle. Targeted viewer tests and
 actual native/browser rendering are separate evidence from this incomplete gate.
 
-The requested 390x844 browser override did not apply: DOM width stayed 1706 CSS
-pixels. Narrow-screen visual acceptance is therefore not claimed. Desktop
-rendering was observed. Native editor IPC cross-selection, live providers and
+The requested browser viewport override did not apply: DOM width stayed 1706 CSS
+pixels. A subsequent same-origin iframe supplied an actual 390x844 CSS-pixel
+viewport. Its measured document width and scroll width were both 390; PCB and
+3D navigation and Fit were exercised and visually inspected. Header view tabs
+remain horizontally scrollable; the sidebar is independently scrollable.
+This is an embedded narrow-viewport check, not a physical-device benchmark.
+Native editor IPC cross-selection, live providers and
 all-platform native UI were not exercised in this refresh.
 
 KERO is the only design used for visual/native acceptance. Saved-result checks
