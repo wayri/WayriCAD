@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WayriCAD saved-result integration acceptance</title>
+<style>body{font:14px system-ui;background:#101820;color:#edf4f8;margin:16px}.panes{display:grid;grid-template-columns:1fr 1fr;gap:12px}#board{height:520px;min-width:0}#result{min-width:0}pre{white-space:pre-wrap}@media(max-width:760px){.panes{grid-template-columns:1fr}}</style>
+<h1>Saved-result integration acceptance</h1><button id="run">Run retained PI / SI / thermal checks</button><pre id="checks">Not run</pre><div class="panes"><div id="board"></div><div id="result"></div></div>
+<script src="kicad-webview.min.js"></script><script>
+document.querySelector('#run').onclick=async()=>{
+ const output=document.querySelector('#checks');output.textContent='Running';const messages=[];
+ const check=(ok,message)=>{if(!ok)throw Error(message);messages.push('PASS '+message);output.textContent=messages.join('\n');};
+ let board,result;
+ const state=expected=>new Promise((resolve,reject)=>{if(result.getSourceState()===expected)return resolve();const timeout=setTimeout(()=>{result.removeEventListener('sourcechange',listener);reject(Error('Source state did not become '+expected));},5000);const listener=()=>{if(result.getSourceState()===expected){clearTimeout(timeout);result.removeEventListener('sourcechange',listener);resolve();}};result.addEventListener('sourcechange',listener);});
+ try{
+  for(const name of ['quick-pi','quick-si','quick-therm','quick-therm-transient']){
+   board?.dispose();result?.dispose();
+   board=new KiCadWebView.Viewer('#board',{theme:'dark'});
+   result=new KiCadWebView.WayriCADResultsViewer('#result',{theme:'dark',boardViewer:board});
+   const path=name==='quick-si'?'si-channel.kicad_pcb':'example.kicad_pcb';
+   const bytes=new Uint8Array(await (await fetch(path)).arrayBuffer());
+   await board.loadFiles([{path,bytes}],{file:path,view:'pcb'});
+   const saved=await (await fetch(name+'.pocket-kivi.json')).json(),before=JSON.stringify(saved);
+   await result.load(saved);await state('matching');
+   check(JSON.stringify(result.getResults().raw)===before,name+': original data, units and coordinates retained');
+   result.setPalette('viridis');check(result.getSourceState()==='matching',name+': palette preserves registration');
+   const part=board.getParts().find(item=>item.uuid);
+   if(part){check(board.selectPart(part.id,{locate:false}),name+': exact saved part selection');board.clearSelection();check(board.getSelection()===null,name+': clear selection');}
+   if(name==='quick-pi'){await board.setView('3d');board.setRenderQuality('photoreal-fast');result.setBoardOverlay(true);check(board.getRenderStats()!=null,'PI: native 3D mounted');await result.setView('3d');check(result.getView()==='3d','PI: independent saved XYZ field mounted');await result.setView('2d');}
+   await board.loadFiles([{path,bytes:new TextEncoder().encode(new TextDecoder().decode(bytes)+'\n')}],{file:path,view:'pcb'});
+   await state('stale');check(result.getSourceState()==='stale',name+': byte mismatch rejects registration');
+   await board.loadFiles([{path,bytes}],{file:path,view:'pcb'});await state('matching');check(true,name+': exact source reload restores matching');
+  }
+  result.dispose();board.dispose();result=board=null;check(document.querySelector('#result').children.length===0,'dispose releases results host');
+  output.textContent+='\nCOMPLETE';
+ }catch(error){output.textContent+='\nFAIL '+error.message;}
+};
+</script></html>

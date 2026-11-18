@@ -1,6 +1,6 @@
 """Bounded, read-only audit of the pinned full ESM or legacy viewer closure.
 
-The bundled 0.6.0 MPL-2.0 distribution is unmodified. Optional external roots
+The bundled source-preview MPL-2.0 distribution is unmodified. Optional external roots
 are snapshotted, never fetched or imported from another plugin installation.
 """
 from __future__ import annotations
@@ -193,7 +193,7 @@ def asset_manifest(root: str | Path, *, include_3d: bool = True,
         if layout in ('distribution', 'distribution-package'):
             expected = release_pin()['files'][_distribution_sources()[name]]
             if size != expected['bytes'] or digest != expected['sha256']:
-                raise ValueError('KiCad WebView distribution differs from the pinned 0.6.0 release: ' + name)
+                raise ValueError('KiCad WebView distribution differs from the pinned source-preview build: ' + name)
         captured[name] = data
         records.append(WebAsset(name, size, digest))
     verify_module_closure(captured)

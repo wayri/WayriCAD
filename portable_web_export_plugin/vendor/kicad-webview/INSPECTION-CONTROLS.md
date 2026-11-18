@@ -1,6 +1,6 @@
 # Highlight and layer inspection
 
-Each embed has independent settings. In **Highlight settings**, choose Dim context, Bright only, or Isolate selection, and Accent color or Source colors. The style applies to saved parts, pads and nets in PCB, schematic and 3D views. Isolate removes unrelated selectable content while retaining board context. Clearing selection restores source materials and geometry; hidden layers remain hidden. The properties popup remains optional through inspectOnSelect.
+Each embed has independent settings. Source/layer colors are the default for highlights; Accent color remains optional. Plated vias stay gold in 2D and 3D, including selected nets. Clicking saved copper highlights its complete source net by default; the inspector retains the clicked object properties and explicitly reports the full-net scope. Disable “Highlight entire net” for individual-object inspection. In **Highlight settings**, choose Dim context, Bright only, or Isolate selection, and Accent color or Source colors. The style applies to saved parts, pads and nets in PCB, schematic and 3D views. Isolate removes unrelated selectable content while retaining board context. Clearing selection restores source materials and geometry; hidden layers remain hidden. The properties popup remains optional through inspectOnSelect.
 
 Open **Layers** for searchable saved layer names, colors and primitive counts. All, None, Front, Back and Copper presets change visibility. In 2D PCB view, Focus dims or isolates one layer, Fit focused layer frames its saved geometry, Clear layer focus leaves visibility in place, and Restore view restores the visibility saved before presets/focus. [ and ] cycle layers; Shift+F fits the focused layer when the drawing has keyboard focus. Text fields keep their normal keyboard behavior.
 
@@ -36,3 +36,6 @@ New local integrations also accept initial highlightStyle, highlightColor and ap
 createStandaloneHTML() is available from the main library export as well as its standalone module. It accepts those initial options alongside the classic viewer script, license/source notices and bundled files. Its exported HTML keeps connect-src 'none'; the new controls do not require a network connection.
 
 Advanced project viewers provide a Layers navigator tab for the active pane, reusing each pane's layer API. Layer visibility remains local to that pane even when saved part/net selection is linked.
+
+
+[Stable panels and contextual inset previews](PANELS-AND-INSETS.md) document inspector sizing, selection-linked previews and source/lifetime limits.

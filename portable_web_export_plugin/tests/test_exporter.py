@@ -17,7 +17,7 @@ from portable_web_export_plugin.exporter import (
     scan_project,
     write_export_document,
     assert_scan_current,
-    VIEWER_VERSION, VIEWER_ARCHIVE_SHA256,
+    VIEWER_VERSION, VIEWER_ARCHIVE_SHA256, VIEWER_SOURCE_COMMIT,
     load_viewer_assets, _render_html,
 )
 from portable_web_export_plugin.cli import main as cli_main
@@ -70,6 +70,7 @@ class PortableExporterTests(unittest.TestCase):
             files.append({"path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
         (vendor / "PINNED-DISTRIBUTION.json").write_text(json.dumps({
             "kind": "wayricad-integration-pin", "version": VIEWER_VERSION,
+            "sourceCommit": VIEWER_SOURCE_COMMIT, "distributionKind": "source-preview",
             "upstreamArchiveSHA256": VIEWER_ARCHIVE_SHA256, "files": files}), encoding="utf-8")
 
     def tearDown(self):
@@ -306,7 +307,23 @@ class PortableExporterTests(unittest.TestCase):
         script, notices = load_viewer_assets(package)
         self.assertGreater(len(script),1_000_000)
         self.assertIn('Integration-authored',notices)
-        self.assertIn('668f973db5e931ff',notices)
+        self.assertIn(VIEWER_ARCHIVE_SHA256,notices)
+        self.assertIn('2945c855df8698af4dfe70fd6e31f729400c5eda',notices)
+        self.assertIn('source-preview',notices)
+
+    def test_source_preview_identity_is_required_even_with_matching_version(self):
+        path=self.package/'vendor'/'kicad-webview'/'PINNED-DISTRIBUTION.json'
+        pin=json.loads(path.read_text())
+        pin['sourceCommit']='0'*40
+        path.write_text(json.dumps(pin),encoding='utf-8')
+        with self.assertRaisesRegex(ValueError,'source-preview artifact'):
+            load_viewer_assets(self.package)
+
+    def test_refresh_tool_and_exporter_share_the_reviewed_build_identity(self):
+        from portable_web_export_plugin.tools import pin_webview
+        self.assertEqual(pin_webview.VERSION,VIEWER_VERSION)
+        self.assertEqual(pin_webview.ARCHIVE_SHA256,VIEWER_ARCHIVE_SHA256)
+        self.assertEqual(pin_webview.SOURCE_COMMIT,VIEWER_SOURCE_COMMIT)
 
 
 if __name__ == "__main__":

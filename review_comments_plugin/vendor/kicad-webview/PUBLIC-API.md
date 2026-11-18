@@ -73,3 +73,12 @@ Version 0.4.0 adds registered native 3D PCB fields, `WayriCADResultsViewer.getRe
 ## Native BOM and board analytics (0.5.0)
 
 `BOMViewer`, `buildBOM`, `analyzeBoard` and `bomToCSV` are exported by the full SDK and dedicated `./bom` entry. See [BOM API, examples and limits](BOM-ANALYTICS.md).
+
+
+[Stable panels and contextual inset previews](PANELS-AND-INSETS.md) document inspector sizing, selection-linked previews and source/lifetime limits.
+
+## 0.7 text context and loading
+
+`LoadOptions` accepts `textVariables: Record<string, string>` and `instancePath` for a saved repeated-sheet instance. Supply at most 256 variables; keys are bounded to 200 characters and values to 8,192 characters. `loadFiles` and `loadArchive` accept one supplied `.kicad_pro` for its `text_variables`; explicit variables override project values and the context is retained through `openFile`. No project file or ancestor is fetched automatically. Hierarchical context is limited to loaded local bundles, so standalone drawings may show unresolved text.
+
+Numeric `@{...}` expressions use a bounded deterministic subset with `abs`, `sqrt`, `floor`, `ceil`, `pow`, `min`, `max`, `sum` and `avg`; arbitrary code, units and arbitrary LaTeX are unsupported. Rendering is a diagnostic preview and does not alter the raw AST. The accessible host-local loading overlay shows stages and indeterminate progress, offers Stop and respects reduced motion; stale completions cannot replace newer loads.
