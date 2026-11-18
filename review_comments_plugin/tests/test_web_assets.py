@@ -79,7 +79,7 @@ class WebAssetsTests(unittest.TestCase):
         pin=json.loads((root/'REVIEW-PIN.json').read_text(encoding='utf-8'))
         self.assertEqual(pin['version'],'0.8.0')
         self.assertEqual(pin['license'],'MPL-2.0')
-        self.assertEqual(pin['source_commit'],'2945c855df8698af4dfe70fd6e31f729400c5eda')
+        self.assertEqual(pin['source_commit'],'470e9d1638b8f2af0af7e26928a04b1ad459b8eb')
         self.assertEqual(pin['distribution_kind'],'source-preview')
         for name,record in pin['files'].items():
             data=(root/name).read_bytes()

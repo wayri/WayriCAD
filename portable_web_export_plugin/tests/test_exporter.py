@@ -308,7 +308,7 @@ class PortableExporterTests(unittest.TestCase):
         self.assertGreater(len(script),1_000_000)
         self.assertIn('Integration-authored',notices)
         self.assertIn(VIEWER_ARCHIVE_SHA256,notices)
-        self.assertIn('2945c855df8698af4dfe70fd6e31f729400c5eda',notices)
+        self.assertIn('470e9d1638b8f2af0af7e26928a04b1ad459b8eb',notices)
         self.assertIn('source-preview',notices)
 
     def test_source_preview_identity_is_required_even_with_matching_version(self):

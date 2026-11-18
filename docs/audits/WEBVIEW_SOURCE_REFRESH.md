@@ -2,14 +2,15 @@
 
 ## Pin and scope
 
-Public upstream main was checked at `2945c855df8698af4dfe70fd6e31f729400c5eda`.
+The release pin is `470e9d1638b8f2af0af7e26928a04b1ad459b8eb`, including the merged overlapping-copper depth and expanded-via context fixes. The earlier `2945c855` integration remains the historical baseline.
 Package version remains 0.8.0; this **source-preview** is not the published
 npm/CDN 0.8.0 artifact. The local source-build archive SHA-256 is
-`7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9`.
+`9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45`.
 Both Portable Web Export's classic script and Review's independent ESM script
 use the same artifact. Their pin receipts retain source links and file hashes.
 MPL-2.0 and dependency notices are preserved. No upstream release, store entry,
-4.8.6 binary or PCM feed was changed by this refresh.
+4.8.6 binary was changed by this refresh. Release/feed promotion is a separate
+step recorded by the 4.8.7 release receipt, not implied by this local audit.
 
 Audit found these two runtime entrypoints; native PI/SI/thermal tools produce
 portable data rather than bundling separate WebView parsers. No unrelated
@@ -31,7 +32,8 @@ hashes and stale-write safeguards remain distinct.
 
 ## Verification
 
-- Exact upstream build: build:3d, build and 645 tests passed, no skips.
+- Exact upstream 470 build: build:3d, build and 649 tests passed, no skips.
+- Independent pin audit: all 19 Portable and 9 Review files match the exact archive members, byte lengths and SHA-256 values.
 - Focused exporter/Review asset/host checks: 33 passed, two dependency-gated skips
   and six subtests; four Node control tests passed.
 - Browser KERO offline export: native PCB/3D rendering, exact R1 and /ST11_OUT
@@ -73,3 +75,7 @@ than invented. Independent thermal 3D needs declared saved elevation; no missing
 elevation is guessed. Expand suspends registered fields/measurements until the
 physical assembled pose returns. The separate unmerged cursor-probe development
 branch remains intact; it is not falsely attributed to this public source pin.
+
+## Release gate
+
+The earlier source integration passed full hosted CI run 44358394529 across all seven Python/platform jobs and the PI reference benchmark, without relaxing custody checks or the Node decoder timeout. The version-aligned 4.8.7 source and final 470 browser checks require a separate final receipt. This document distinguishes earlier browser evidence from that pending revalidation.

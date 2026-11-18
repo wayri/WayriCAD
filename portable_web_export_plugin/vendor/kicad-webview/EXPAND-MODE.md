@@ -1,6 +1,6 @@
 # Expand mode and net shine-through
 
-Available in the 0.8.0 website SDK. The stable npm/CDN 0.7.0 package is unchanged.
+Expand mode is available in stable 0.8.0. The current source preview adds context fading for unselected vias while expanded; the published npm/CDN 0.8.0 package is unchanged.
 
 ```js
 await viewer.load('/designs/project.json', {view:'3d'});
@@ -28,4 +28,4 @@ The overlay respects layer visibility and the existing accent/source highlight-c
 
 This is a visual inspection aid, not a simulation of emitted light, current or voltage. Source models, geometry and retained results keep their own provenance and limits.
 
-Selected nets use native layer colors by default; plated vias stay gold. Accent color remains an optional highlight setting. The inspector distinguishes the clicked object from its full-net highlight.
+Selected nets use native layer colors by default. In expanded Dim mode, only the selected net's via caps and stretched barrels retain gold; unrelated vias become gray with 24% fragment opacity, including when selected and unselected vias share one batch. Net changes update that emphasis without moving source geometry. Clearing selection restores the original materials and colors; collapsing restores the assembled-board via policy. Bright and Isolate remain explicit alternative highlight styles. Accent color remains an optional highlight setting. The inspector distinguishes the clicked object from its full-net highlight.

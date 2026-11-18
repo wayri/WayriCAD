@@ -18,9 +18,9 @@ MAX_INPUT_BYTES = 64 * 1024 * 1024
 SUPPORTED_MODEL_SUFFIXES = {".wrl", ".glb", ".gltf"}
 UNSUPPORTED_MODEL_SUFFIXES = {".step", ".stp", ".iges", ".igs"}
 VIEWER_VERSION = "0.8.0"
-VIEWER_SOURCE_COMMIT = "2945c855df8698af4dfe70fd6e31f729400c5eda"
-VIEWER_ARCHIVE_SHA256 = "7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9"
-EXPORTER_VERSION = "4.8.6"
+VIEWER_SOURCE_COMMIT = "470e9d1638b8f2af0af7e26928a04b1ad459b8eb"
+VIEWER_ARCHIVE_SHA256 = "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45"
+EXPORTER_VERSION = "4.8.7"
 
 
 @dataclass(frozen=True)
@@ -549,7 +549,7 @@ function openSheet(path){return openTab('schematic',path);}
 const sheets=document.querySelector('#sheets');let projectTree=null;if(MANIFEST.sheets.length){sheets.style.height='360px';projectTree=new KiCadWebView.ProjectTree(sheets,{theme:'dark',onSelect:node=>openSheet(node.path)});projectTree.setFiles(files.filter(file=>MANIFEST.sheets.includes(file.path)).map(file=>({path:file.path,source:new TextDecoder('utf-8',{fatal:true}).decode(file.bytes)})),{entry:MANIFEST.boardPath});}else document.querySelector('#hierarchy').hidden=true;
 function findViewerPart(component){return review.findPart(component,viewer.getParts());}
 async function focusComponent(component){if(activeTab==='bom'&&!await openTab(MANIFEST.tabs.pcb?'pcb':MANIFEST.tabs.schematic?'schematic':'3d'))return;const part=findViewerPart(component);if(part&&viewer.selectPart(part.id,{locate:true})){selectedId=component.id;review.showSelection(document.querySelector('#selection'),[component.reference,component.value||'No value',component.footprint||'No footprint']);viewer.setInspectorOpen(true);}else{viewer.clearSelection();status.textContent=`${component.reference}: no unique saved identity in this drawing. Choose its sheet or inspect the source.`;}}
-function acceptSelection(item){const component=review.componentForItem(item,MANIFEST.components);selectedId=component?.id||'';review.showSelection(document.querySelector('#selection'),item?[item.reference||item.netName||item.name||item.type||'Saved object',item.value||'',item.footprint||'']:['Nothing selected']);document.querySelectorAll('#bom-body tr').forEach(row=>row.classList.toggle('selected',Boolean(selectedId)&&row.dataset.ids?.split(',').includes(selectedId)));}
+function acceptSelection(item){if(!item)document.querySelector('#lookup-status').textContent='';const component=review.componentForItem(item,MANIFEST.components);selectedId=component?.id||'';review.showSelection(document.querySelector('#selection'),item?[item.reference||item.netName||item.name||item.type||'Saved object',item.value||'',item.footprint||'']:['Nothing selected']);document.querySelectorAll('#bom-body tr').forEach(row=>row.classList.toggle('selected',Boolean(selectedId)&&row.dataset.ids?.split(',').includes(selectedId)));}
 viewer.addEventListener('select',event=>{if(event.detail?.path!==undefined&&event.detail.path!==viewer.path)return;acceptSelection(event.detail?.item);});
 viewer.addEventListener('error',event=>status.textContent=event.detail?.message||'Viewer error');
 viewer.addEventListener('ready',()=>{document.body.dataset.viewerReady='true';document.querySelector('#inspect-find').disabled=false;document.querySelector('#lookup-status').textContent='';if(!viewer.getSelection())acceptSelection(null);if(viewer.view==='3d')viewer.setRenderQuality('photoreal-fast');});

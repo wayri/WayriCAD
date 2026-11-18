@@ -3,15 +3,15 @@
   "version": "0.8.0",
   "license": "MPL-2.0",
   "source_archive_url": null,
-  "source_archive_sha256": "7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9",
-  "source_url": "https://github.com/wayri/kicad-webview/tree/2945c855df8698af4dfe70fd6e31f729400c5eda",
-  "source_commit": "2945c855df8698af4dfe70fd6e31f729400c5eda",
+  "source_archive_sha256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
+  "source_url": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
+  "source_commit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
   "distribution_kind": "source-preview",
   "note": "Tested source build; not published npm/CDN 0.8.0. Unmodified covered source linked above.",
   "files": {
     "kivi-viewer.js": {
-      "bytes": 1787492,
-      "sha256": "2a14ebe4ad4bb1f06d63f4c4ba7072c69494a60abd2029dfb81251085c1f90c1"
+      "bytes": 1788653,
+      "sha256": "140bd3e62de20056453777c3205cfa8492c746d30e2dcf177384e66e9d387cb2"
     },
     "LICENSE": {
       "bytes": 17099,

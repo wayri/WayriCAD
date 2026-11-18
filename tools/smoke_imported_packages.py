@@ -73,8 +73,8 @@ portable_board.write_text('(kicad_pcb (version 20240108) (generator pcbnew) (uui
 portable_document,portable_manifest=build_export(scan_project(portable_board),ExportSelection(include_schematic=False),portable_root)
 assert portable_manifest['viewer']=='KiCad WebView 0.8.0'
 assert portable_manifest['viewerDistribution']=='source-preview'
-assert portable_manifest['viewerSourceCommit']=='2945c855df8698af4dfe70fd6e31f729400c5eda'
-assert portable_manifest['viewerArtifactSHA256']=='7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9'
+assert portable_manifest['viewerSourceCommit']=='470e9d1638b8f2af0af7e26928a04b1ad459b8eb'
+assert portable_manifest['viewerArtifactSHA256']=='9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45'
 assert 'WayriCADPortableReview' in portable_document
 from manufacturing_readiness_plugin.dfm_cli import main as dfm_main
 import contextlib,io,json

@@ -3,9 +3,9 @@
   "kind": "wayricad-integration-pin",
   "version": "0.8.0",
   "upstreamAssetURL": null,
-  "upstreamArchiveSHA256": "7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9",
-  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/2945c855df8698af4dfe70fd6e31f729400c5eda",
-  "sourceCommit": "2945c855df8698af4dfe70fd6e31f729400c5eda",
+  "upstreamArchiveSHA256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
+  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
+  "sourceCommit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
   "distributionKind": "source-preview",
   "note": "Integration-authored inventory of a tested source build, not the published npm/CDN 0.8.0 artifact.",
   "legalContext": "Upstream legal text is retained verbatim. The exact covered source is linked by immutable commit above; no unrelated SPIKE source is included.",
@@ -13,8 +13,8 @@
     {
       "path": "EXPAND-MODE.md",
       "sourcePath": "dist/EXPAND-MODE.md",
-      "bytes": 3697,
-      "sha256": "11a0fce1e5149f4362fb72f21a18d17ce8d6834372e0a2593a35a34f1b2bef5a"
+      "bytes": 4216,
+      "sha256": "bbd0e846eff43ac814973b5dd62fc58f719c521eefa1fd6240355b355a45e810"
     },
     {
       "path": "FZSTD-LICENSE",
@@ -115,8 +115,8 @@
     {
       "path": "kicad-webview.min.js",
       "sourcePath": "dist/kicad-webview.min.js",
-      "bytes": 1787640,
-      "sha256": "39190c919c99da6bc7cb3c165352d8bc78c36ce3e92bb5109c9242147694b512"
+      "bytes": 1788801,
+      "sha256": "9f3a415716b57fec6c7bd902024f2fe77211fdece462a66bc3b69d5640539b6b"
     },
     {
       "path": "licenses/Pocket-KiView-Source-Available-1.0.txt",

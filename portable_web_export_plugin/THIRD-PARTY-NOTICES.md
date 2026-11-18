@@ -3,11 +3,11 @@
 Portable Web Export embeds an unmodified prebuilt distribution of **KiCad WebView**:
 
 - Source: <https://github.com/wayri/kicad-webview>
-- Pinned build: 0.8.0 source-preview at `2945c855df8698af4dfe70fd6e31f729400c5eda`, not published npm/CDN 0.8.0
+- Pinned build: 0.8.0 source-preview at `470e9d1638b8f2af0af7e26928a04b1ad459b8eb`, not published npm/CDN 0.8.0
 - License: Mozilla Public License 2.0
-- Matching source: <https://github.com/wayri/kicad-webview/tree/2945c855df8698af4dfe70fd6e31f729400c5eda>
+- Matching source: <https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb>
 - Artifact: locally built and tested source-preview archive
-- Archive SHA-256: `7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9`
+- Archive SHA-256: `9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45`
 - Local integration inventory: `vendor/kicad-webview/PINNED-DISTRIBUTION.json`
 
 That inventory is integration-authored; upstream supplies no `RELEASE.json`.

@@ -39,7 +39,7 @@ counts. Switching themes retains drafts and field values.
 
 **Introduced in 4.8.3:** source bundles the unmodified
 **KiCad WebView 0.8.0 source-preview** full ESM distribution at
-`2945c855df8698af4dfe70fd6e31f729400c5eda` (not the published npm/CDN artifact)
+`470e9d1638b8f2af0af7e26928a04b1ad459b8eb` (not the published npm/CDN artifact)
 under MPL-2.0, with its licenses and notices; no separate viewer setup is needed.
 Its integration-owned [pin receipt](vendor/kicad-webview/REVIEW-PIN.json) records
 the official archive identity and exact file hashes. The pane serves an in-memory snapshot of those assets through

@@ -6,8 +6,8 @@ import tarfile
 from pathlib import Path
 
 VERSION = "0.8.0"
-SOURCE_COMMIT = "2945c855df8698af4dfe70fd6e31f729400c5eda"
-ARCHIVE_SHA256 = "7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9"
+SOURCE_COMMIT = "470e9d1638b8f2af0af7e26928a04b1ad459b8eb"
+ARCHIVE_SHA256 = "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45"
 ASSET_URL = None
 FILES = {name: "dist/"+name for name in (
     "kicad-webview.min.js", "LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md",

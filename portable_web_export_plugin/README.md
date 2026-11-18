@@ -78,7 +78,7 @@ active viewer; viewer selections highlight their BoM rows. BoM rows can be
 grouped by value/footprint or shown as individual references.
 
 The pinned viewer is the **KiCad WebView 0.8.0 source-preview** build at
-`2945c855df8698af4dfe70fd6e31f729400c5eda`, not the published npm/CDN artifact. The sidebar's
+`470e9d1638b8f2af0af7e26928a04b1ad459b8eb`, not the published npm/CDN artifact. The sidebar's
 **Exact saved identity** control locates a part by exact case-sensitive reference,
 UUID or saved ID, or a net by exact name/ID in the currently loaded drawing.
 Substring filtering remains separate in **Filter BoM**. Duplicate names/UUIDs
