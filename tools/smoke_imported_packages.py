@@ -71,7 +71,10 @@ assert (portable_root/'resources/review_controls.js').is_file()
 portable_board=Path(sys.argv[1])/'portable-smoke.kicad_pcb'
 portable_board.write_text('(kicad_pcb (version 20240108) (generator pcbnew) (uuid 11111111-1111-1111-1111-111111111111))',encoding='utf-8')
 portable_document,portable_manifest=build_export(scan_project(portable_board),ExportSelection(include_schematic=False),portable_root)
-assert portable_manifest['viewer']=='KiCad WebView 0.6.0'
+assert portable_manifest['viewer']=='KiCad WebView 0.8.0'
+assert portable_manifest['viewerDistribution']=='source-preview'
+assert portable_manifest['viewerSourceCommit']=='2945c855df8698af4dfe70fd6e31f729400c5eda'
+assert portable_manifest['viewerArtifactSHA256']=='7312c12b89c696b68b69ef9538ec7bbee42ae4d9c8894b96968214e7a19eb1d9'
 assert 'WayriCADPortableReview' in portable_document
 from manufacturing_readiness_plugin.dfm_cli import main as dfm_main
 import contextlib,io,json
