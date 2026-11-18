@@ -11,9 +11,9 @@
     "matplotlib": "3.10.8"
   },
   "producer_versions": {
-    "Quick PI": "4.8.5",
-    "Quick SI": "4.8.5",
-    "QuickTherm": "4.8.5"
+    "Quick PI": "4.8.6",
+    "Quick SI": "4.8.6",
+    "QuickTherm": "4.8.6"
   },
   "source_files": {
     "example.kicad_pcb": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e",
@@ -41,17 +41,17 @@
     "signal_integrity_advisor_plugin/rlc_model.py": "56b2e20c1439dfeab5cdd0f1feb1f798829420dbcbdc569e8f9d088af3fec740",
     "signal_integrity_advisor_plugin/emerge_lines.py": "4d28ff31fd4102de2178ec9cde0313e55a79d4307347147c5238a9340439efa0",
     "signal_integrity_advisor_plugin/circuit_scope.py": "637a3c3cdbac7749132c8da9c8fc4148d09fe31234852921ca70c9ee60a5ad26",
-    "quick_therm_plugin/service.py": "e74ab3b06d8ce8a7a50bcf377cf60f15a0fdb8151eaecfb2b544ed3cf03356f5",
+    "quick_therm_plugin/service.py": "c263a32fa0d94fafe13e6ac030161f3d523d11e2ac55066e1fab2a879fe0d566",
     "quick_therm_plugin/thermal_geometry.py": "f473216bc4b7195e519dea3080781fce49e116cc2c81ba92faebd6891ea70699",
-    "quick_therm_plugin/thermal_multilayer.py": "d443ada87c370a0f1f4ae450e960d39a8f89dc1f3658b68e958810b9a097d753",
+    "quick_therm_plugin/thermal_multilayer.py": "76bda283737538f29a2eb417cd980de367d4c44f6d9bdca30143ddd07ca8ac6c",
     "quick_therm_plugin/thermal_spatial_transient.py": "fdf96c0449632c7b6b30e0e4f2efb1507e1f8549874ed75561953d570267ed62"
   },
   "producer_source_normalization": "CRLF to LF only",
   "files": {
-    "quick-pi.pocket-kivi.json": "2aa92029678092cbaa1a5a7cb6c5db58e36bc14b7baa0843d2a283f51796d7f8",
-    "quick-si.pocket-kivi.json": "71cc96f79fa5a34d717d6963085b5422141b59c4acf48f6f545e1c80eb565ce0",
-    "quick-therm.pocket-kivi.json": "8f2c1d1515203166ff4577a3c185dcb62e95339c0a265bf1c82a9fa4990887c1",
-    "quick-therm-transient.pocket-kivi.json": "d06fdef0486d9f1c011f9c60a8a5d3e873677182d373cc7795df74e735275cd1",
+    "quick-pi.pocket-kivi.json": "b1fb222b58bac189adc94058acb2e3c5b41f00e38f3ec96073e57e3625579a3a",
+    "quick-si.pocket-kivi.json": "074af1928d14c81841069a49a2da0ac2918b7f834b8a13b6addb9b5ce5944294",
+    "quick-therm.pocket-kivi.json": "22f2d139faac288a26f8bf20ac35230e8aee7343d389400ae740e9f0da5948ab",
+    "quick-therm-transient.pocket-kivi.json": "3af5e8bb384c256cd438c53c34c6376ac87c3724c4ee0b87bfdf621727b4b213",
     "si-channel.kicad_pcb": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995",
     "example.kicad_pro": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4",
     "si-channel.kicad_pro": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe"
