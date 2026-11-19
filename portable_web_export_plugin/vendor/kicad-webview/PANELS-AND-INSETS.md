@@ -94,3 +94,8 @@ selection after loading. Its initial selection is applied locally; opening it
 cannot replay an earlier click or clear the parent's selection. An explicit
 `selection` (including `null`) initializes only the preview. Subsequent clicks
 continue to cross-select through the normal saved-identity checks.
+
+
+## Next release: repeated-sheet previews
+
+Unreleased source retains the selected saved UUID occurrence when opening an inset. Navigating to another occurrence of the same filename closes the old preview, preventing stale inherited sheet text. Insets still have independent cameras; fitting the preview does not fit the parent. This does not add cross-sheet netlist inference.

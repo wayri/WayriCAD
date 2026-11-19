@@ -5,10 +5,10 @@ import json
 import tarfile
 from pathlib import Path
 
-VERSION = "0.8.0"
-SOURCE_COMMIT = "470e9d1638b8f2af0af7e26928a04b1ad459b8eb"
-ARCHIVE_SHA256 = "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45"
-ASSET_URL = None
+VERSION = "1.1.0"
+SOURCE_COMMIT = "9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc"
+ARCHIVE_SHA256 = "da0b378858ab5e66386f4ab1e4fb809aa346a481b195819ab5b7fdc7f8ef5263"
+ASSET_URL = "https://registry.npmjs.org/@wayrisignals/kicad-webview/-/kicad-webview-1.1.0.tgz"
 FILES = {name: "dist/"+name for name in (
     "kicad-webview.min.js", "LICENSE", "LICENSING.md", "THIRD-PARTY-NOTICES.md",
     "THREE-LICENSE", "FZSTD-LICENSE", "SPIKE-ENGINE-NOTICE.md", "SOURCE-PROVENANCE.json",
@@ -21,7 +21,7 @@ FILES.update({"PUBLIC-API.d.ts": "types/index.d.ts", "UPSTREAM-PACKAGE.json": "p
 
 def pin(archive, destination):
     if hashlib.sha256(archive.read_bytes()).hexdigest() != ARCHIVE_SHA256:
-        raise ValueError("Archive does not match the verified source-preview build.")
+        raise ValueError("Archive does not match the verified npm release.")
     payloads = {}
     with tarfile.open(archive, "r:gz") as source:
         for name, origin in FILES.items():
@@ -35,8 +35,8 @@ def pin(archive, destination):
     manifest = dict(schema=1, kind="wayricad-integration-pin", version=VERSION,
                     upstreamAssetURL=ASSET_URL, upstreamArchiveSHA256=ARCHIVE_SHA256,
                     matchingSourceURL="https://github.com/wayri/kicad-webview/tree/"+SOURCE_COMMIT,
-                    sourceCommit=SOURCE_COMMIT, distributionKind="source-preview",
-                    note="Integration-authored inventory of a tested source build, not the published npm/CDN 0.8.0 artifact.",
+                    sourceCommit=SOURCE_COMMIT, distributionKind="npm-release",
+                    note="Integration-authored inventory of the official KiCad WebView npm package.",
                     legalContext="Upstream legal text is retained verbatim. The exact covered source is linked by immutable commit above; no unrelated SPIKE source is included.",
                     files=[])
     for name, data in sorted(payloads.items()):
@@ -53,7 +53,7 @@ def pin(archive, destination):
 def pin_review(archive, destination):
     """Keep Review independently installable with the same verified build."""
     if hashlib.sha256(archive.read_bytes()).hexdigest() != ARCHIVE_SHA256:
-        raise ValueError('Unexpected source-preview archive.')
+        raise ValueError('Unexpected npm release archive.')
     names = ('kivi-viewer.js', 'LICENSE', 'LICENSING.md', 'THIRD-PARTY-NOTICES.md',
              'THREE-LICENSE', 'FZSTD-LICENSE', 'SPIKE-ENGINE-NOTICE.md',
              'SOURCE-PROVENANCE.json', 'PUBLIC-API.md')
@@ -67,11 +67,11 @@ def pin_review(archive, destination):
             (destination/name).write_bytes(data)
             records[name] = dict(bytes=len(data), sha256=hashlib.sha256(data).hexdigest())
     receipt = dict(schema='wayricad.review-viewer-pin/v1', version=VERSION,
-                   license='MPL-2.0', source_archive_url=None,
+                   license='MPL-2.0', source_archive_url=ASSET_URL,
                    source_archive_sha256=ARCHIVE_SHA256,
                    source_url='https://github.com/wayri/kicad-webview/tree/'+SOURCE_COMMIT,
-                   source_commit=SOURCE_COMMIT, distribution_kind='source-preview',
-                   note='Tested source build; not published npm/CDN 0.8.0. Unmodified covered source linked above.',
+                   source_commit=SOURCE_COMMIT, distribution_kind='npm-release',
+                   note='Official KiCad WebView npm package. Unmodified covered source linked above.',
                    files=records)
     (destination/'REVIEW-PIN.json').write_text(json.dumps(receipt, indent=2)+'\n', encoding='utf-8')
 
@@ -82,6 +82,6 @@ if __name__ == "__main__":
     parser.add_argument('--review-destination', type=Path)
     args = parser.parse_args()
     manifest = pin(args.archive, Path(__file__).resolve().parents[1]/"vendor"/"kicad-webview")
-    print("Pinned", len(manifest["files"]), "source-preview assets at", SOURCE_COMMIT)
+    print("Pinned", len(manifest["files"]), "npm release assets at", SOURCE_COMMIT)
     if args.review_destination:
         pin_review(args.archive, args.review_destination)

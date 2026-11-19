@@ -1,8 +1,8 @@
 # SPIKE browser geometry bundle
 
-Built from the owner-provided subset in engine/spike-source and adapters in engine/spike. This supplied owner-authored subset is MPL-2.0; see LICENSE and LICENSING.md. Other SPIKE software is not relicensed. Matching source: https://github.com/wayri/kicad-webview/tree/v0.8.0 . Original extraction provenance and valid earlier grants remain intact.
+Built from the owner-provided subset in engine/spike-source and adapters in engine/spike. This supplied owner-authored subset is MPL-2.0; see LICENSE and LICENSING.md. Other SPIKE software is not relicensed. Matching source: https://github.com/wayri/kicad-webview/tree/v1.1.0 . Original extraction provenance and valid earlier grants remain intact.
 
-boardParser.ts: beaaec3200004b94cc6ae88f9e07a719cb536f3a168f85848f71262f0576f180
+boardParser.ts: eb423df54ef3beb3a8ee5b14dc90fa8c47cb9c953332eba102e132006362da67
 numericRange.ts: 0f42b33aac2914088166391c05ae83286d38e368af220ded974c8b3373329778
 layerPalette.ts: 0ab3d7f002f98fafc7d2a3e06cfaecfd7bc7e85418f6f8745b9afc7d243038c7
 trackGeometry.ts: c936a734d313194a5a3e9925f6fea5770eaf4ea430a7abe8314b64f4b80ad21f

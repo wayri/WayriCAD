@@ -77,8 +77,8 @@ and the BoM. Selecting a BoM row focuses the corresponding component in the
 active viewer; viewer selections highlight their BoM rows. BoM rows can be
 grouped by value/footprint or shown as individual references.
 
-The pinned viewer is the **KiCad WebView 0.8.0 source-preview** build at
-`470e9d1638b8f2af0af7e26928a04b1ad459b8eb`, not the published npm/CDN artifact. The sidebar's
+The pinned viewer is the **KiCad WebView 1.1.0** npm release. Its viewer preserves saved rounded pads
+and copper-zone contours and uses less memory to prepare large drawings. The sidebar's
 **Exact saved identity** control locates a part by exact case-sensitive reference,
 UUID or saved ID, or a net by exact name/ID in the currently loaded drawing.
 Substring filtering remains separate in **Filter BoM**. Duplicate names/UUIDs
@@ -88,7 +88,7 @@ before looking up a sheet-local part or net.
 
 Selection opens the viewer's own property inspector, retaining saved original
 fields as read-only text. Use the viewer's existing Layers, fit, highlight,
-appearance and 3D camera/explode controls; the host does not maintain a duplicate
+appearance and 3D camera/expand controls; the host does not maintain a duplicate
 layer/camera implementation. PCB/3D tabs reopen the saved board; schematic tabs
 open an included schematic rather than applying a schematic view to PCB bytes.
 

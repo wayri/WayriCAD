@@ -17,9 +17,9 @@ from typing import Iterable
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 SUPPORTED_MODEL_SUFFIXES = {".wrl", ".glb", ".gltf"}
 UNSUPPORTED_MODEL_SUFFIXES = {".step", ".stp", ".iges", ".igs"}
-VIEWER_VERSION = "0.8.0"
-VIEWER_SOURCE_COMMIT = "470e9d1638b8f2af0af7e26928a04b1ad459b8eb"
-VIEWER_ARCHIVE_SHA256 = "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45"
+VIEWER_VERSION = "1.1.0"
+VIEWER_SOURCE_COMMIT = "9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc"
+VIEWER_ARCHIVE_SHA256 = "da0b378858ab5e66386f4ab1e4fb809aa346a481b195819ab5b7fdc7f8ef5263"
 EXPORTER_VERSION = "4.8.8"
 
 
@@ -305,8 +305,8 @@ def load_viewer_assets(package_root: Path) -> tuple[str, str]:
     if (release.get("kind") != "wayricad-integration-pin" or
             release.get("upstreamArchiveSHA256") != VIEWER_ARCHIVE_SHA256 or
             release.get('sourceCommit') != VIEWER_SOURCE_COMMIT or
-            release.get('distributionKind') != 'source-preview'):
-        raise ValueError("Viewer pin does not identify the tested source-preview artifact.")
+            release.get('distributionKind') != 'npm-release'):
+        raise ValueError("Viewer pin does not identify the pinned npm release.")
     expected = {item["path"]: item for item in release.get("files", []) if isinstance(item, dict)}
     if len(expected) != len(release.get("files", [])):
         raise ValueError("Viewer pin contains duplicate or invalid file records.")
@@ -423,7 +423,7 @@ def build_export(scan: ProjectScan, selection: ExportSelection, package_root: Pa
         "schema": 1,
         "exporter": f"WayriCAD Portable Web Export {EXPORTER_VERSION}",
         "viewer": f"KiCad WebView {VIEWER_VERSION}",
-        "viewerDistribution": "source-preview",
+        "viewerDistribution": "npm-release",
         "viewerSourceCommit": VIEWER_SOURCE_COMMIT,
         "viewerArtifactSHA256": VIEWER_ARCHIVE_SHA256,
         "title": scan.board.stem,

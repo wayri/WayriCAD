@@ -1,20 +1,20 @@
 {
   "schema": 1,
   "kind": "wayricad-integration-pin",
-  "version": "0.8.0",
-  "upstreamAssetURL": null,
-  "upstreamArchiveSHA256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
-  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
-  "sourceCommit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
-  "distributionKind": "source-preview",
-  "note": "Integration-authored inventory of a tested source build, not the published npm/CDN 0.8.0 artifact.",
+  "version": "1.1.0",
+  "upstreamAssetURL": "https://registry.npmjs.org/@wayrisignals/kicad-webview/-/kicad-webview-1.1.0.tgz",
+  "upstreamArchiveSHA256": "da0b378858ab5e66386f4ab1e4fb809aa346a481b195819ab5b7fdc7f8ef5263",
+  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc",
+  "sourceCommit": "9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc",
+  "distributionKind": "npm-release",
+  "note": "Integration-authored inventory of the official KiCad WebView npm package.",
   "legalContext": "Upstream legal text is retained verbatim. The exact covered source is linked by immutable commit above; no unrelated SPIKE source is included.",
   "files": [
     {
       "path": "EXPAND-MODE.md",
       "sourcePath": "dist/EXPAND-MODE.md",
-      "bytes": 4216,
-      "sha256": "bbd0e846eff43ac814973b5dd62fc58f719c521eefa1fd6240355b355a45e810"
+      "bytes": 4573,
+      "sha256": "c1149aaab79bc699e793cabe5652a831435cce30996a0a2668323bb5a92b9834"
     },
     {
       "path": "FZSTD-LICENSE",
@@ -25,14 +25,14 @@
     {
       "path": "INSPECTION-CONTROLS.md",
       "sourcePath": "dist/INSPECTION-CONTROLS.md",
-      "bytes": 4603,
-      "sha256": "21787a715cb7029500c8021e58beba3e97408d50e66e5d3454fac84dc1e3fce1"
+      "bytes": 6502,
+      "sha256": "d9502879d8867abc08c2222080103407c5ef22cf253cd69192a869e7afcd3522"
     },
     {
       "path": "LARGE-PROJECTS.md",
       "sourcePath": "dist/LARGE-PROJECTS.md",
-      "bytes": 2054,
-      "sha256": "2deeb8c098708682d9ebf57b792c762eea6b7b88b404b384adfb8e74540585ce"
+      "bytes": 4678,
+      "sha256": "a2e9ab0abc5665443cdda93b6d45f254f19b2ed66ba3d1bdfb4418823100110e"
     },
     {
       "path": "LICENSE",
@@ -49,20 +49,20 @@
     {
       "path": "PANELS-AND-INSETS.md",
       "sourcePath": "dist/PANELS-AND-INSETS.md",
-      "bytes": 5229,
-      "sha256": "2c61cf89116491b8a8b7f5de760aec2591cb7b52b638a7072a83f3d35460c934"
+      "bytes": 5612,
+      "sha256": "e418c693777e292d0fa64d2bae32a4274eceb345609e713156b164af9bf725f5"
     },
     {
       "path": "PUBLIC-API.d.ts",
       "sourcePath": "types/index.d.ts",
-      "bytes": 19750,
-      "sha256": "70ce14b6a5cccf7ca2b0118ca07aae3e7eeca9d492b3249c2f52fb24d4754bfc"
+      "bytes": 20541,
+      "sha256": "63b932473d28f22d473482c8c8f67418352fe0611c82440b75efbb4160dc40f6"
     },
     {
       "path": "PUBLIC-API.md",
       "sourcePath": "dist/PUBLIC-API.md",
-      "bytes": 11801,
-      "sha256": "7659f2f1155bebfeb9518b8b16c3d970acd7b0af128c2730cf266c95b8fd5dbd"
+      "bytes": 11742,
+      "sha256": "2086da97c367a26b17c6004e7171f78a2f4c68eced518c4873cc4c73566905f1"
     },
     {
       "path": "SOURCE-PROVENANCE.json",
@@ -74,13 +74,13 @@
       "path": "SPIKE-ENGINE-NOTICE.md",
       "sourcePath": "dist/SPIKE-ENGINE-NOTICE.md",
       "bytes": 956,
-      "sha256": "7cc2a9a75eba0f47eb6847a87dfe800b2c6e2adaebe0f68e4f37793721549aa6"
+      "sha256": "790654985254908162294522cbcf7756f35c73dc3de42422f908716ad87c4bf1"
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
       "sourcePath": "dist/THIRD-PARTY-NOTICES.md",
-      "bytes": 2016,
-      "sha256": "310effa5a0757c99aac5682224b590f50352cf9807cb2963b93214619835a075"
+      "bytes": 2084,
+      "sha256": "137bd9357f8bbb89081dce9e3139cfde4f252b1a99846606370dd96b4e018488"
     },
     {
       "path": "THREE-LICENSE",
@@ -91,8 +91,8 @@
     {
       "path": "UPSTREAM-PACKAGE.json",
       "sourcePath": "package.json",
-      "bytes": 4332,
-      "sha256": "5062613d2df05f5457fe1a6b0efb237c9cb962ac13340c02aea6d5ce0d873641"
+      "bytes": 4830,
+      "sha256": "befc3ac770cd4741c82c7d42a29ce1c73f7ab864fc96ce4fd7a909a4e09cc3c2"
     },
     {
       "path": "UPSTREAM-SYNC.md",
@@ -115,8 +115,8 @@
     {
       "path": "kicad-webview.min.js",
       "sourcePath": "dist/kicad-webview.min.js",
-      "bytes": 1788801,
-      "sha256": "9f3a415716b57fec6c7bd902024f2fe77211fdece462a66bc3b69d5640539b6b"
+      "bytes": 1818034,
+      "sha256": "46fb0ee565451098bcc292554c05b13fc882467a56dfae3ebadf19c3e6810af7"
     },
     {
       "path": "licenses/Pocket-KiView-Source-Available-1.0.txt",

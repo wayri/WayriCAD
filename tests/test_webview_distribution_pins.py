@@ -6,8 +6,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE_SHA256 = '9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45'
-SOURCE_COMMIT = '470e9d1638b8f2af0af7e26928a04b1ad459b8eb'
+ARCHIVE_SHA256 = 'da0b378858ab5e66386f4ab1e4fb809aa346a481b195819ab5b7fdc7f8ef5263'
+SOURCE_COMMIT = '9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc'
 SOURCE_URL = 'https://github.com/wayri/kicad-webview/tree/'+SOURCE_COMMIT
 
 
@@ -20,9 +20,9 @@ class WebViewDistributionTests(unittest.TestCase):
             with self.subTest(package=package):
                 base = ROOT / package / 'vendor/kicad-webview'
                 pin = json.loads((base / filename).read_text(encoding='utf-8'))
-                self.assertEqual(pin['version'], '0.8.0')
+                self.assertEqual(pin['version'], '1.1.0')
                 self.assertEqual(pin.get('source_commit', pin.get('sourceCommit')), SOURCE_COMMIT)
-                self.assertEqual(pin.get('distribution_kind', pin.get('distributionKind')), 'source-preview')
+                self.assertEqual(pin.get('distribution_kind', pin.get('distributionKind')), 'npm-release')
                 self.assertEqual(pin.get('source_archive_sha256', pin.get('upstreamArchiveSHA256')), ARCHIVE_SHA256)
                 self.assertEqual(pin.get('source_url', pin.get('matchingSourceURL')), SOURCE_URL)
                 records = pin['files']

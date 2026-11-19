@@ -37,9 +37,7 @@ show a visible keyboard-focus outline. Sign-in fields have persistent labels;
 composer updates preserve the chosen theme, including warnings and character
 counts. Switching themes retains drafts and field values.
 
-**Introduced in 4.8.3:** source bundles the unmodified
-**KiCad WebView 0.8.0 source-preview** full ESM distribution at
-`470e9d1638b8f2af0af7e26928a04b1ad459b8eb` (not the published npm/CDN artifact)
+Review bundles the unmodified **KiCad WebView 1.1.0** full ESM npm distribution
 under MPL-2.0, with its licenses and notices; no separate viewer setup is needed.
 Its integration-owned [pin receipt](vendor/kicad-webview/REVIEW-PIN.json) records
 the official archive identity and exact file hashes. The pane serves an in-memory snapshot of those assets through
@@ -50,7 +48,7 @@ file to the provider conversation. Pins and regions are local drafts until
 matching remain the authority for displayed markers and publication.
 
 Optional overrides: set `WAYRICAD_REVIEW_VIEWER_ROOT` before launch or choose
-**Viewer assets…**. Select the exact verified source-preview package root or its complete `dist`
+**Viewer assets…**. Select the exact verified 1.1.0 package root or its complete `dist`
 folder, not a lone script or the lite/classic bundle. All nine pinned ESM/notice
 files must match. Earlier reviewed `web-library/extension` and `src/engine`
 source layouts remain supported with their original notices and closure checks.

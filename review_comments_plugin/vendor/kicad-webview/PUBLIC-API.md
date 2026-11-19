@@ -1,6 +1,6 @@
-# Embed API 1.0-beta
+# Embed API 1.0
 
-Use the documented package entry point, not internal renderer globals. Public declarations ship in `types/index.d.ts`. `EMBED_API_VERSION` identifies this beta contract. The legacy full ESM entry and classic `KiCadWebView` global expose the same compact viewer; `ProjectViewer` adds read-only project navigation. Browser visitors need no Node server.
+Use the documented package entry point, not internal renderer globals. Public declarations ship in `types/index.d.ts`. `EMBED_API_VERSION` identifies the stable core contract. The legacy full ESM entry and classic `KiCadWebView` global expose the same compact viewer; `ProjectViewer` adds read-only project navigation. Browser visitors need no Node server.
 
 ```js
 const viewer = new KiCadWebView.Viewer('#board', {theme:'dark'});
@@ -18,7 +18,7 @@ Loading: `load`/`loadProject` accept a hosted drawing, manifest or supported rep
 
 Selection: `getParts`/`selectPart` use saved identities; `getNets`/`selectNet` prefer per-drawing net IDs and allow a name only when unique. PCB pads/traces/vias/zones highlight their complete saved net by default. Uncheck “Highlight entire net” for object-only highlighting. Hidden layers stay hidden. `clearSelection` clears highlight/selection; `setInspectorOpen` controls the inspector. Schematic connectivity comes from bounded per-file source wires/labels/terminals and is not KiCad's netlist; implicit hidden power pins, buses and repeated-sheet instance resolution are limited. `getSheets` returns saved child-sheet links and resolves only project-listed targets.
 
-View: `setView` accepts schematic for schematic files, PCB/3D for boards, or manufacturing for CAM. `fit`, `getLayers`/`setLayers` and `setTheme` reuse the existing viewer controls. `getCamera` returns a copied 2D camera snapshot for PCB/schematic or null otherwise. `setCamera` accepts that complete snapshot; center is saved mm, zoom is CSS pixels/mm and flipped is boolean. It does not control the 3D camera or manufacturing camera in this beta. Camera events describe changes, not every paint. `setMeasuring` currently controls the manufacturing ruler; 3D surface measurement remains a viewer control rather than a public programmable API.
+View: `setView` accepts schematic for schematic files, PCB/3D for boards, or manufacturing for CAM. `fit`, `getLayers`/`setLayers` and `setTheme` reuse the existing viewer controls. `getCamera` returns a copied 2D camera snapshot for PCB/schematic or null otherwise. `setCamera` accepts that complete snapshot; center is saved mm, zoom is CSS pixels/mm and flipped is boolean. It does not control the 3D camera or manufacturing camera; use the dedicated 3D camera methods. Camera events describe changes, not every paint. `setMeasuring` currently controls the manufacturing ruler; 3D surface measurement remains a viewer control rather than a public programmable API.
 
 Events are native CustomEvents with typed `detail`: `ready` (path/view/revision/warnings), `select` (item/path/view/multi), `error` (Error), `viewchange` (view/path), `camerachange` (copied camera/view/path), `analysis` (fields/provenance), and `measure` (CAM measurement). The custom element forwards these under `kicad:` names. Event listeners should be attached before loading. Analysis APIs and result provenance are documented in ANALYSIS.md. ProjectViewer events and saved-UUID linking limits are documented in ADVANCED-VIEWER.md.
 

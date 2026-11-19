@@ -1,16 +1,17 @@
 /* Copyright (c) 2026 wayri. SPDX-License-Identifier: MPL-2.0 */
 export as namespace KiCadWebView;
-export declare const EMBED_API_VERSION: '1.0-beta';
+export declare const EMBED_API_VERSION: '1.0';
 export type Theme = 'light' | 'dark';
 export type HighlightMode = 'dim' | 'bright' | 'isolate';
 export type HighlightColor = 'accent' | 'source';
 export interface HighlightStyle { mode: HighlightMode; color: HighlightColor; }
-export type LayerPreset = 'all' | 'none' | 'front' | 'back' | 'copper';
-export interface LayerState { layers: string[]; visible: string[]; focused: string | null; focusMode: 'dim' | 'isolate'; canFocus: boolean; canRestore: boolean; }
+export type LayerPreset = 'all' | 'overview' | 'none' | 'front' | 'back' | 'copper';
+export interface LayerState { preset: LayerPreset | null; layers: string[]; visible: string[]; focused: string | null; focusMode: 'dim' | 'isolate'; canFocus: boolean; canRestore: boolean; }
 export type BoardAppearance = 'realistic' | 'layers' | 'translucent';
 export interface RenderActivityStats { documentVisible: boolean; intersecting: boolean; hasSize: boolean; contextAvailable: boolean; paused: boolean; dirty: boolean; pending: boolean; requestCount: number; scheduledFrames: number; renderCallbacks: number; suppressedInvalidations: number; cancelledFrames: number; skippedFrames: number; resumeCount: number; observesIntersection: boolean; }
 export interface SelectionWorkloadStats { netOnlyUpdates: number; netRecordsScanned: number; netBoundsAvoided: number; boundsEvaluations: number; outlineVerticesWritten: number; }
-export interface RenderStats { renderActivity: RenderActivityStats; selectionWorkload: SelectionWorkloadStats; appearance: BoardAppearance; drawCalls: number; renderCount: number; loadedModelCount: number; componentCount: number; modelUpdates: { requestCount: number; flushCount: number; pending: boolean; cpuMilliseconds: number }; [key: string]: unknown; }
+export interface ZoneRenderStats {contours:number;copperContours:number;nonCopperContours:number;points:number;unfilled:number;invalid:number;omitted:number;layers:number;retainsCoordinateCopies:boolean;budgetBytes:number;retainedBytes:number;renderedContours:number;vertices:number;rejected:number;}
+export interface RenderStats {zones?:ZoneRenderStats; modelGraph?: {limit:number;admittedNodes:number;rejectedTemplates:number;rejectedOccurrences:number;decodeConcurrency:number;imagePreflight:'png-jpeg'}; padGeometryCache?: {entries:number;hits:number;uncached:number}; selectionMaterials?: {capturedObjects:number;sharedDimMaterials:number}; renderActivity: RenderActivityStats; selectionWorkload: SelectionWorkloadStats; appearance: BoardAppearance; drawCalls: number; renderCount: number; loadedModelCount: number; componentCount: number; modelUpdates: { requestCount: number; flushCount: number; pending: boolean; cpuMilliseconds: number }; [key: string]: unknown; }
 export type Camera3DPreset = 'top' | 'bottom' | 'front' | 'back' | 'left' | 'right' | 'isometric';
 export type DrawingView = 'pcb' | 'schematic' | '3d' | 'manufacturing';
 export interface ProjectFile { path: string; url: string; }
@@ -85,7 +86,7 @@ export declare class KiCadViewer extends EventTarget {
   /** Optional studio presets: photoreal-fast omits screen-space effects; presentation adds GPU-intensive effects. Returns actual quality after fallback. */
   setRenderQuality(quality: 'low'|'balanced'|'high'|'presentation'|'photoreal-fast'): 'low'|'balanced'|'high'|'presentation'|'photoreal-fast';
   /** Animate 0–100% expansion: lift components, separate colored copper, fade substrate, stretch vias. */
-  setExpand(value:number):number; getExpand():number;
+  setExpand(value:number, options?: {animate?: boolean}):number; getExpand():number;
   /** @deprecated Use setExpand/getExpand. */
   setExplode(value:number):number;
   getExplode():number;
@@ -122,7 +123,7 @@ export declare class AdvancedKiCadViewer extends EventTarget {
   load(input: string | URL | ProjectManifest, options?: LoadOptions): Promise<boolean>;
   loadFiles(files: Iterable<File | LocalSource>, options?: LoadOptions): Promise<boolean>;
   loadArchive(bytes: Uint8Array | ArrayBuffer, options?: LoadOptions): Promise<boolean>;
-  openFile(path: string, options?: { pane?: 0 | 1; signal?: AbortSignal }): Promise<boolean>;
+  openFile(path: string, options?: { pane?: 0 | 1; signal?: AbortSignal; instancePath?: string }): Promise<boolean>;
   getFiles(): { path: string; url?: string }[]; getActiveViewer(): KiCadViewer;
   setActivePane(pane: 0 | 1): void; setLayout(layout: 'split' | 'single'): void;
   setNavigatorOpen(open: boolean): void; setTheme(theme: Theme): void;
@@ -170,6 +171,7 @@ export declare function linkViewers(viewers: KiCadViewer[], options?: {enabled?:
 export interface SavedView {
   path: string; sha256: string; view: 'pcb' | 'schematic' | '3d';
   camera?: Camera2D; camera3D?: Camera3D; layers?: string[]; selection?: ViewSelection | null;
+  instancePath?: string | null; expand?: number;
 }
 export interface ViewState {
   schema: 'kicad-webview.views/v1'; views: SavedView[];
@@ -177,7 +179,7 @@ export interface ViewState {
 }
 export interface RestoreViewOptions {
   signal?: AbortSignal; current?: () => boolean;
-  openFile?: (index: number, path: string, signal?: AbortSignal) => boolean | Promise<boolean>;
+  openFile?: (index: number, path: string, signal?: AbortSignal, options?: {instancePath?: string}) => boolean | Promise<boolean>;
 }
 export declare function captureViewState(viewers: KiCadViewer[], options?: Pick<ViewState,'theme'|'layout'|'activePane'|'linkedSelection'>): Promise<ViewState>;
 export declare function restoreViewState(viewers: KiCadViewer[], state: ViewState, options?: RestoreViewOptions): Promise<boolean>;

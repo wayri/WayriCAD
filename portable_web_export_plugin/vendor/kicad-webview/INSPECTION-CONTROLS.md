@@ -1,5 +1,24 @@
 # Highlight and layer inspection
 
+
+## Unreleased source additions
+
+These changes are prepared in source and are not part of the published 1.0.0 package yet.
+
+In the **2D PCB** Layers menu, **Overview** shows only saved `F.Cu`, `B.Cu`, `F.SilkS`, `B.SilkS` and `Edge.Cuts` layers. It is a distinct explicit preset; it stays selected when the board has only those layers and All happens to show the same set. Inner copper, fabrication and courtyard layers are excluded. Manual layer edits, focus/clear focus, Restore and document replacement clear the chosen-preset indicator. Restore retains the original visibility snapshot across consecutive presets and focus operations. Overview does not change the camera and is not offered for 3D or manufacturing views.
+
+```js
+viewer.setLayerPreset('overview'); // unreleased source API; requires 2D PCB
+console.log(viewer.getLayerState().preset); // 'overview'
+viewer.setLayers(['F.Cu', 'Edge.Cuts']); // preset becomes null
+viewer.restoreLayerView();
+```
+
+PCB Dim net context uses 0.045 opacity, neutral gray including unrelated vias. Selected saved copper is drawn after that context, with physical drill cutouts last. Matching vias retain gold; hidden layers and layer/net isolation remain respected. Schematic context stays at 0.38; Bright and cleared source drawing order remain unchanged. No blurred glow is added. Rendering honors saved primitive opacity in addition to context opacity.
+
+
+The project sheet browser now passes saved root/sheet UUID occurrence paths when opening repeated sheets. Independent `ProjectTree` selections expose `instancePath`; hosts can pass it to `project.openFile(node.path, {instancePath: node.instancePath})`. This preserves loaded schematic text context for repeated occurrences; it does not infer a hierarchical netlist or fetch unlisted ancestors. Load the listed schematic sources together for ancestor-dependent text resolution.
+
 Each embed has independent settings. Source/layer colors are the default for highlights; Accent color remains optional. Plated vias stay gold in 2D and 3D, including selected nets. Clicking saved copper highlights its complete source net by default; the inspector retains the clicked object properties and explicitly reports the full-net scope. Disable “Highlight entire net” for individual-object inspection. In **Highlight settings**, choose Dim context, Bright only, or Isolate selection, and Accent color or Source colors. The style applies to saved parts, pads and nets in PCB, schematic and 3D views. Isolate removes unrelated selectable content while retaining board context. Clearing selection restores source materials and geometry; hidden layers remain hidden. The properties popup remains optional through inspectOnSelect.
 
 Open **Layers** for searchable saved layer names, colors and primitive counts. All, None, Front, Back and Copper presets change visibility. In 2D PCB view, Focus dims or isolates one layer, Fit focused layer frames its saved geometry, Clear layer focus leaves visibility in place, and Restore view restores the visibility saved before presets/focus. [ and ] cycle layers; Shift+F fits the focused layer when the drawing has keyboard focus. Text fields keep their normal keyboard behavior.
