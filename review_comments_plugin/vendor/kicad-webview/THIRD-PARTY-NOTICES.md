@@ -1,6 +1,6 @@
 # Third-party notices
 
-The owner-authored KiCad WebView software is MPL-2.0. Matching preferred source for this release: https://github.com/wayri/kicad-webview/tree/v0.1.0-beta.2. Preserve LICENSE and these notices when distributing builds. Historical extraction records are in SOURCE-PROVENANCE.json; current source is maintained in this repository.
+The owner-authored KiCad WebView software is MPL-2.0. Obtain matching preferred source from https://github.com/wayri/kicad-webview using the exact version or revision recorded in the distribution banner and release metadata. Preserve LICENSE and these notices when distributing builds. Historical extraction records are in SOURCE-PROVENANCE.json; current source is maintained in this repository.
 
 | Component | License / notice | Scope |
 | --- | --- | --- |

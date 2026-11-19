@@ -1,17 +1,17 @@
 {
   "schema": "wayricad.review-viewer-pin/v1",
-  "version": "0.8.0",
+  "version": "1.1.0",
   "license": "MPL-2.0",
-  "source_archive_url": null,
-  "source_archive_sha256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
-  "source_url": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
-  "source_commit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
-  "distribution_kind": "source-preview",
-  "note": "Tested source build; not published npm/CDN 0.8.0. Unmodified covered source linked above.",
+  "source_archive_url": "https://registry.npmjs.org/@wayrisignals/kicad-webview/-/kicad-webview-1.1.0.tgz",
+  "source_archive_sha256": "da0b378858ab5e66386f4ab1e4fb809aa346a481b195819ab5b7fdc7f8ef5263",
+  "source_url": "https://github.com/wayri/kicad-webview/tree/9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc",
+  "source_commit": "9e0a72ee5bedf509e3a5fe2d213cad1d6844bffc",
+  "distribution_kind": "npm-release",
+  "note": "Official KiCad WebView npm package. Unmodified covered source linked above.",
   "files": {
     "kivi-viewer.js": {
-      "bytes": 1788653,
-      "sha256": "140bd3e62de20056453777c3205cfa8492c746d30e2dcf177384e66e9d387cb2"
+      "bytes": 1817886,
+      "sha256": "8ac076474888efc2f9f4dc8d8ae2fe069c98a74556f3ea4a277f5803d42de55c"
     },
     "LICENSE": {
       "bytes": 17099,
@@ -22,8 +22,8 @@
       "sha256": "6efff6ced7e7f5b43834fb276c095199f90199aa67370244c6a59ef53033cc1e"
     },
     "THIRD-PARTY-NOTICES.md": {
-      "bytes": 2016,
-      "sha256": "310effa5a0757c99aac5682224b590f50352cf9807cb2963b93214619835a075"
+      "bytes": 2084,
+      "sha256": "137bd9357f8bbb89081dce9e3139cfde4f252b1a99846606370dd96b4e018488"
     },
     "THREE-LICENSE": {
       "bytes": 1102,
@@ -35,15 +35,15 @@
     },
     "SPIKE-ENGINE-NOTICE.md": {
       "bytes": 956,
-      "sha256": "7cc2a9a75eba0f47eb6847a87dfe800b2c6e2adaebe0f68e4f37793721549aa6"
+      "sha256": "790654985254908162294522cbcf7756f35c73dc3de42422f908716ad87c4bf1"
     },
     "SOURCE-PROVENANCE.json": {
       "bytes": 28419,
       "sha256": "a70b3e4212c556f7147f3008a0d2f9a94208dd4aee142d2e5c9223e03b749285"
     },
     "PUBLIC-API.md": {
-      "bytes": 11801,
-      "sha256": "7659f2f1155bebfeb9518b8b16c3d970acd7b0af128c2730cf266c95b8fd5dbd"
+      "bytes": 11742,
+      "sha256": "2086da97c367a26b17c6004e7171f78a2f4c68eced518c4873cc4c73566905f1"
     }
   }
 }
