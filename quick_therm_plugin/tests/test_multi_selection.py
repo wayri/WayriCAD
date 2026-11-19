@@ -30,6 +30,8 @@ NATIVE_FLOW=r'''
 import sys
 from pathlib import Path
 from unittest.mock import patch
+import faulthandler
+faulthandler.dump_traceback_later(20)
 sys.path.insert(0,sys.argv[1])
 import wx
 from quick_therm_plugin.ui import QuickThermFrame
@@ -40,6 +42,8 @@ with patch.object(QuickThermFrame,'_inspect'):
 frame.Show();app.Yield()
 frame._thermal_rows=[({'id':'a','reference':'U1'},{}),({'id':'b','reference':'U2'},{})]
 for i in range(2):frame.therm_table.InsertItem(i,'U'+str(i+1))
+# Replace the startup placeholder, just as the first result draw does.
+frame.therm_figure.clear()
 axes=frame.therm_figure.add_subplot()
 _install_component_hover(axes,[dict(id='a',position=[1,1],label='U1 30C'),dict(id='b',position=[2,2],label='U2 40C')],None)
 frame._busy=True
@@ -55,6 +59,7 @@ with patch.object(frame,'_thermal_selection_text'),patch.object(frame,'_draw_the
  assert frame.therm_table.GetSelectedItemCount()==0
 frame._closed=True;frame.Destroy();app.Yield()
 print('Native multi-row reverse sync, queued latest selection and incremental plot highlight passed.')
+faulthandler.cancel_dump_traceback_later()
 '''
 
 
@@ -63,5 +68,5 @@ print('Native multi-row reverse sync, queued latest selection and incremental pl
 class NativeSelectionTests(unittest.TestCase):
     def test_table_multi_selection_and_reverse_sync(self):
         root=Path(__file__).resolve().parents[2]
-        result=subprocess.run([sys.executable,'-c',NATIVE_FLOW,str(root)],capture_output=True,text=True,timeout=60)
+        result=subprocess.run([sys.executable,'-c',NATIVE_FLOW,str(root)],stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=60)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)

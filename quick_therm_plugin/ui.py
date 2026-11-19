@@ -413,8 +413,13 @@ class QuickThermFrame(wx.Frame):
         page=wx.ScrolledWindow(self.therm_setup_splitter,style=wx.VSCROLL);page.SetScrollRate(0,10);layout=wx.BoxSizer(wx.VERTICAL)
         page.SetMinSize((self.FromDIP(300), -1))
         self._therm_input_page=page
-        note=wx.StaticText(page,label='Review component inputs, choose the heat model, then run.')
+        note=wx.StaticText(page,label='Enter component power, then Run. Setup is automatic unless you choose advanced settings.')
         note.Wrap(270);layout.Add(note,0,wx.EXPAND|wx.ALL,8)
+        self.therm_auto_setup=wx.CheckBox(page,label='Automatic setup')
+        self.therm_auto_setup.SetValue(True)
+        self.therm_auto_setup.SetToolTip('Use the saved stackup when supported, otherwise thin-sheet screening. Enable automatic mesh and fill blank starting values; retain edited materials, cooling and source scope.')
+        self.therm_auto_setup.Bind(wx.EVT_CHECKBOX,self._automatic_setup_changed)
+        layout.Add(self.therm_auto_setup,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         self.therm_study_setup=wx.Button(page,label='Heating study…')
         self.therm_study_setup.SetToolTip('Review source power, cooling assumptions, steady/transient mode and playback work before running.')
         self.therm_study_setup.Bind(wx.EVT_BUTTON,self.on_heating_study)
@@ -799,7 +804,7 @@ class QuickThermFrame(wx.Frame):
         self.therm_model_jb.Bind(wx.EVT_COMBOBOX,self._invalidate_thermal)
         self.therm_grid.Bind(wx.EVT_SPINCTRL,self._invalidate_thermal)
         self.therm_grid.Bind(wx.EVT_TEXT,self._invalidate_thermal)
-        self.therm_auto_mesh.Bind(wx.EVT_CHECKBOX,self._invalidate_thermal)
+        self.therm_auto_mesh.Bind(wx.EVT_CHECKBOX,self._manual_mesh_changed)
         self.therm_model_enabled.Bind(wx.EVT_CHECKBOX,self._therm_model_changed)
         self.therm_model_kind.Bind(wx.EVT_CHOICE,self._therm_model_changed)
         self.therm_blur.Bind(wx.EVT_CHOICE,self._invalidate_thermal)
@@ -815,6 +820,7 @@ class QuickThermFrame(wx.Frame):
         for ctrl in (self.therm_time_enabled,self.therm_env,self.therm_ambient,self.therm_input_mode,
                      self.therm_model_enabled,self.therm_model_kind,self.therm_study_setup):ctrl.Enable(not self._busy)
         self.therm_populate_defaults.Enable(not self._busy)
+        self.therm_auto_setup.Enable(not self._busy)
         for ctrl in (self.therm_time_duration,self.therm_time_step,self.therm_frame_interval,self.therm_time_initial,
                      self.therm_copper_capacity,self.therm_dielectric_capacity,self.therm_power_schedule,
                      self.therm_sink_capacity,self.therm_schedule_interpolation,self.therm_power_steps):
@@ -1145,11 +1151,41 @@ class QuickThermFrame(wx.Frame):
         else:self._draw_thermal()
 
     def _therm_model_changed(self,event):
+        self.therm_auto_setup.SetValue(False)
         self.therm_grid.SetRange(24 if self.therm_model_kind.GetSelection()==1 else 12,80)
         self._therm_controls()
         self._invalidate_thermal(event)
         if self.therm_model_enabled.GetValue() and self.therm_model_kind.GetSelection()==2:
             self.on_calculix_check()
+
+    def _manual_mesh_changed(self,event):
+        self.therm_auto_setup.SetValue(False)
+        self._therm_controls();self._invalidate_thermal(event)
+
+    def _automatic_setup_changed(self,event=None):
+        self._invalidate_thermal(event)
+        self._therm_controls()
+
+    def _prepare_automatic_setup(self,environment):
+        if not self.therm_auto_setup.GetValue():return
+        from .screening_setup import automatic_model,requires_multilayer
+        needs_layers=requires_multilayer(environment,self.therm_time_enabled.GetValue(),
+            bool(self._component_storage),bool(self._package_contacts),bool(self._copper_loss_import))
+        selected=automatic_model(bool(self.inventory.get('thermal_stackup',{}).get('available')),needs_layers)
+        self.therm_model_enabled.SetValue(True)
+        self.therm_model_kind.SetSelection(selected)
+        self.therm_auto_mesh.SetValue(True)
+        self.therm_grid.SetRange(24 if selected else 12,80)
+        defaults={'therm_ambient':20.,'therm_k':STARTING_VALUES['board_k_w_mk'],
+            'therm_dielectric_k':STARTING_VALUES['dielectric_k_w_mk'],
+            'therm_copper_k':STARTING_VALUES['copper_k_w_mk'],
+            'therm_plating':STARTING_VALUES['via_plating_mm'],
+            'therm_emissivity':STARTING_VALUES['board_emissivity'],
+            'therm_air_board':0.,'therm_air_sink':0.}
+        for name,value in defaults.items():
+            control=getattr(self,name)
+            if not control.GetValue().strip():control.ChangeValue(f'{value:g}')
+        self._therm_controls()
 
 
     def on_whole_board_setup(self,event=None):
@@ -1216,6 +1252,9 @@ class QuickThermFrame(wx.Frame):
     def on_quick_therm(self,event=None):
         if self._busy:return
         environment=('air','vacuum','forced_air','potting','sealed')[self.therm_env.GetSelection()]
+        try:self._prepare_automatic_setup(environment)
+        except ValueError as exc:
+            self.therm_status.SetLabel(str(exc));self.status.SetLabel(str(exc));return
         from .screening_setup import requires_multilayer,missing_power_message
         if self.therm_model_kind.GetSelection()!=2 and requires_multilayer(
                 environment,self.therm_time_enabled.GetValue(),bool(self._component_storage),

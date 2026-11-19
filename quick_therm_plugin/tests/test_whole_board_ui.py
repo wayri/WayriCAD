@@ -188,7 +188,7 @@ class NativeWholeBoardWorkflowTests(unittest.TestCase):
     def test_manual_active_edit_and_independent_paths_in_separate_process(self):
         root=Path(__file__).resolve().parents[2]
         run=subprocess.run([sys.executable,'-B','-I','-c',MANUAL_FLOW,str(root)],
-                           capture_output=True,text=True,timeout=30)
+                           stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=30)
         self.assertEqual(run.returncode,0,run.stdout+'\n'+run.stderr)
         self.assertIn('explicit optional path clearing passed',run.stdout)
 
@@ -209,9 +209,9 @@ class NativeWholeBoardWorkflowTests(unittest.TestCase):
             # pipe reader and exposes the window's actual return code directly.
             with log.open('w',encoding='utf-8') as output:
                 try:
-                    run=subprocess.run([sys.executable,'-B','-I','-c',NATIVE_FLOW,str(root),
+                    run=subprocess.run([sys.executable,'-B','-I','-X','utf8','-c',NATIVE_FLOW,str(root),
                                         str(target)],
-                                       stdout=output,stderr=subprocess.STDOUT,text=True,timeout=90)
+                                       stdin=subprocess.DEVNULL,stdout=output,stderr=subprocess.STDOUT,text=True,timeout=90)
                 except subprocess.TimeoutExpired:
                     output.flush()
                     self.fail('Bounded native process timed out:\n'+log.read_text(encoding='utf-8'))

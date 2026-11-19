@@ -11,6 +11,8 @@ import sys
 sys.path.insert(0,sys.argv[1])
 import wx
 from unittest.mock import patch
+import faulthandler
+faulthandler.dump_traceback_later(20)
 from quick_therm_plugin.heating_setup_ui import HeatingStudyDialog
 from quick_therm_plugin.ui import QuickThermFrame
 from quick_therm_plugin.tests.test_heating_setup import settings
@@ -65,6 +67,7 @@ with patch.object(QuickThermFrame,'_inspect'):
  frame._busy=True;frame._therm_controls();assert not frame.therm_study_setup.IsEnabled()
  frame._busy=False;frame.Close();app.Yield()
 print('Native heating guide lifecycle passed')
+faulthandler.cancel_dump_traceback_later()
 '''
 
 
@@ -72,7 +75,7 @@ print('Native heating guide lifecycle passed')
 class NativeHeatingSetupTests(unittest.TestCase):
     def test_guide_validation_apply_run_and_stale_result_lifecycle(self):
         root=Path(__file__).resolve().parents[2]
-        completed=subprocess.run([sys.executable,'-c',SCRIPT,str(root)],capture_output=True,
+        completed=subprocess.run([sys.executable,'-c',SCRIPT,str(root)],stdin=subprocess.DEVNULL,capture_output=True,
                                  text=True,encoding='utf-8',timeout=35)
         self.assertEqual(completed.returncode,0,completed.stdout+'\n'+completed.stderr)
         self.assertIn('Native heating guide lifecycle passed',completed.stdout)

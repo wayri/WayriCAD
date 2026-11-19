@@ -1,10 +1,16 @@
 """The first board screen needs known power, not invented package properties."""
 import unittest
 from quick_therm_plugin.component_inputs import ComponentInputsModel
-from quick_therm_plugin.screening_setup import STARTING_VALUES,requires_multilayer,missing_power_message
+from quick_therm_plugin.screening_setup import STARTING_VALUES,requires_multilayer,missing_power_message,automatic_model
 
 
 class ScreeningSetupTests(unittest.TestCase):
+    def test_automatic_model_uses_saved_stackup_and_rejects_unsupported_physics(self):
+        self.assertEqual(automatic_model(False),0)
+        self.assertEqual(automatic_model(True),1)
+        self.assertEqual(automatic_model(True,True),1)
+        with self.assertRaisesRegex(ValueError,'saved physical stackup'):
+            automatic_model(False,True)
     def test_include_known_power_is_explicit_and_does_not_replace_unknown_with_zero(self):
         model=ComponentInputsModel({'components':[
             {'reference':'U1','properties':{'Power_W':'1 W'}},

@@ -10,7 +10,7 @@ TEXT=('therm_ambient','therm_board_r','therm_explicit_h','therm_enclosure_c','th
       'therm_air_board','therm_air_sink','therm_sink_area','therm_mount_temp','therm_mount_r')
 CHOICES=('therm_input_mode','therm_env','therm_schedule_interpolation','therm_power','therm_ja',
          'therm_jb','therm_jc','therm_limit_min','therm_limit_max','therm_model_kind','therm_model_jb','therm_blur')
-FLAGS=('therm_time_enabled','therm_model_enabled','therm_auto_mesh','therm_mount_mechanical','therm_step_models')
+FLAGS=('therm_time_enabled','therm_model_enabled','therm_auto_mesh','therm_mount_mechanical','therm_step_models','therm_auto_setup')
 OPTIONS=dict(text=TEXT,choices=CHOICES,flags=FLAGS,integers=('therm_grid',))
 DATA=('manual_values','manual_temperature_limits','virtual_heatsinks','_component_storage',
       '_package_contacts','_copper_loss_import','_thermal_materials')
@@ -29,6 +29,12 @@ def capture(frame):
 def validate(frame,state):
     if not isinstance(state,dict) or set(state)!={'controls','data','component_inputs','mounting_ids'}:
         raise ValueError('Incomplete QuickTherm setup.')
+    state=deepcopy(state)
+    # Older studies are explicit configurations, not requests for automatic setup.
+    controls=state.get('controls')
+    flags=controls.get('flags') if isinstance(controls,dict) else None
+    if isinstance(flags,dict) and 'therm_auto_setup' not in flags:
+        flags['therm_auto_setup']=False
     validate_controls(frame,state['controls'],**OPTIONS)
     data=state['data'];inputs=state['component_inputs']
     if not isinstance(data,dict) or set(data)!=set(DATA) or not isinstance(inputs,dict):

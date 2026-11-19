@@ -44,8 +44,8 @@ For a downloaded ZIP, use **Install from File** without unpacking it.
 Fusion, Variant Manager, Silkscreen Label Placer, Trace Refiner, Component Arranger
 and Layer Counter use the native plugin loader and do not require the IPC API.
 
-[Download 4.8.7](https://github.com/wayri/WayriCAD/releases/tag/v4.8.7) ·
-[Release notes and validation limits](docs/RELEASE_NOTES_4.8.7.md)
+[Download 4.8.8](https://github.com/wayri/WayriCAD/releases/tag/v4.8.8) ·
+[Release notes and validation limits](docs/RELEASE_NOTES_4.8.8.md)
 
 [Install](#install-and-open) · [Choose a tool](#all-27-plugins) ·
 [Showcase](#showcase) · [Guides](#detailed-analysis-guides) ·
@@ -59,7 +59,7 @@ and Layer Counter use the native plugin loader and do not require the IPC API.
 | Run your first analysis | [Getting started](#getting-started) |
 | Reopen real board results across tools | [Olimex / Marble studies and interactive gallery](docs/examples/public-boards/README.md) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
-| Download or update | [Release 4.8.7](https://github.com/wayri/WayriCAD/releases/tag/v4.8.7) · [Release notes](docs/RELEASE_NOTES_4.8.7.md) |
+| Download or update | [Release 4.8.8](https://github.com/wayri/WayriCAD/releases/tag/v4.8.8) · [Release notes](docs/RELEASE_NOTES_4.8.8.md) |
 | Check manufacturing and assembly requirements | [DFM / DFA Studio](manufacturing_readiness_plugin/DFM_DFA.md) · [Manufacturing Readiness](manufacturing_readiness_plugin/ReadMe.md) |
 | Place silkscreen labels | [Silkscreen Label Placer](silkscreen_label_plugin/README.md) · [Quick start](#start-silkscreen) |
 | Choose a tool | [All 27 plugins](#all-27-plugins) |
@@ -468,7 +468,7 @@ older captures retain generic-path redactions. [Current captures and inputs](doc
 ### Quick EMerge (beta)
 
 [Getting started](#start-quick-emerge) · [Full guide](quick_emerge_plugin/README.md) ·
-[Download 4.8.7](https://github.com/wayri/WayriCAD/releases/tag/v4.8.7)
+[Download 4.8.8](https://github.com/wayri/WayriCAD/releases/tag/v4.8.8)
 
 **Simple 2D/3D workspace — 4.0.1**
 
@@ -1180,6 +1180,11 @@ Each plugin also has its own tests. Skipped checks do not establish native GUI
 compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.42.md).
 
 ## Release history
+
+**Release 4.8.8:** QuickTherm automatic Run selects a supported saved
+board model and mesh, fills blank starting values without replacing edits, and
+preserves older advanced studies. Native execution evidence and remaining gates
+are recorded in [4.8.8 scope and validation](docs/RELEASE_NOTES_4.8.8.md).
 
 **Release 4.8.7:** Review and Portable Web Export share the audited WebView
 source-preview pin, occurrence-aware hierarchy and improved 3D inspection.
