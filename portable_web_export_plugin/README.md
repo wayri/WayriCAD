@@ -77,7 +77,8 @@ and the BoM. Selecting a BoM row focuses the corresponding component in the
 active viewer; viewer selections highlight their BoM rows. BoM rows can be
 grouped by value/footprint or shown as individual references.
 
-The pinned viewer is the official **KiCad WebView 0.6.0** release. The sidebar's
+The pinned viewer is the **KiCad WebView 0.8.0 source-preview** build at
+`470e9d1638b8f2af0af7e26928a04b1ad459b8eb`, not the published npm/CDN artifact. The sidebar's
 **Exact saved identity** control locates a part by exact case-sensitive reference,
 UUID or saved ID, or a net by exact name/ID in the currently loaded drawing.
 Substring filtering remains separate in **Filter BoM**. Duplicate names/UUIDs
@@ -229,8 +230,9 @@ The plugin package contains a reviewed KiCad WebView distribution in
 `LICENSE`, `LICENSING.md`, `THIRD-PARTY-NOTICES.md`, dependency notices, and
 source provenance alongside `kicad-webview.min.js`.
 
-The integration-authored `PINNED-DISTRIBUTION.json` records the official 0.6.0
-archive URL/SHA-256 and hashes of all retained files; upstream does not provide a
+The integration-authored `PINNED-DISTRIBUTION.json` records the immutable source
+commit, source-build archive SHA-256 and hashes of all retained files, not a published
+upstream release. Upstream does not provide a
 `RELEASE.json`. The classic script, legal/provenance files and public API
 references are retained; optional bundles, fixtures and private designs are not.
 See [the vendor pin and refresh procedure](vendor/kicad-webview/README.md).
@@ -278,6 +280,6 @@ They do not replace real-browser rendering checks or establish full KiCad parity
 
 Browser QA selectors: `#inspect-kind` (`part`/`net`), `#inspect-query`,
 `#inspect-find`, `#lookup-status`, `#selection`, `#tabs`, and
-`body[data-viewer-ready="true"]`. The page-scoped `viewer` is the public 0.6.0
+`body[data-viewer-ready="true"]`. The page-scoped `viewer` uses the pinned public
 Viewer instance; use `getParts()`, `getNets()`, `getSelection()`, `getLayerState()`
 and `getRenderStats()` as test diagnostics. Do not depend on renderer internals.

@@ -1,20 +1,49 @@
 {
   "schema": "wayricad.review-viewer-pin/v1",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "license": "MPL-2.0",
-  "source_archive_url": "https://github.com/wayri/kicad-webview/releases/download/v0.6.0/wayrisignals-kicad-webview-0.6.0.tgz",
-  "source_archive_sha256": "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4",
-  "source_url": "https://github.com/wayri/kicad-webview/tree/v0.6.0",
-  "note": "Integration-owned receipt, not an upstream RELEASE.json. Files are unmodified package/dist bytes. Historical upstream notice links are preserved; source_url identifies this actual release.",
+  "source_archive_url": null,
+  "source_archive_sha256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
+  "source_url": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
+  "source_commit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
+  "distribution_kind": "source-preview",
+  "note": "Tested source build; not published npm/CDN 0.8.0. Unmodified covered source linked above.",
   "files": {
-    "kivi-viewer.js": {"bytes": 1695158, "sha256": "97623fe3f3ba20addf8bab7076a922898e3ddd792ee7f50e2e5f2f9cd1f900a0"},
-    "LICENSE": {"bytes": 16726, "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"},
-    "LICENSING.md": {"bytes": 3336, "sha256": "98dc1c39eaa49058e04b5891a6d4d0e3d0d89cc6a8e74e2128a749359cfc5b89"},
-    "THIRD-PARTY-NOTICES.md": {"bytes": 2001, "sha256": "637797c6f1c4f515ab5275807f60aa421763362cc3edbac588d3ce7595efadee"},
-    "THREE-LICENSE": {"bytes": 1102, "sha256": "f57eb9202058667d12aebd854fe8a86d6feaeab51078180df5615bfdbd5cff05"},
-    "FZSTD-LICENSE": {"bytes": 1089, "sha256": "1d72133b15f05101411c4f53e34af38adce3ecf7a78959d3d28b1e4d41a4fc92"},
-    "SPIKE-ENGINE-NOTICE.md": {"bytes": 956, "sha256": "946009e7d19ae2954c0271d632257dc9e86d5ef5fe426eaa399aced449736374"},
-    "SOURCE-PROVENANCE.json": {"bytes": 22668, "sha256": "40aeb9fd11ada5bec672306253463b1b2e06dac40b145c900856361a2adf8205"},
-    "PUBLIC-API.md": {"bytes": 10617, "sha256": "755386656976939382643a0f1744e30c79c1d76e82be9883bc337dc285bbffbe"}
+    "kivi-viewer.js": {
+      "bytes": 1788653,
+      "sha256": "140bd3e62de20056453777c3205cfa8492c746d30e2dcf177384e66e9d387cb2"
+    },
+    "LICENSE": {
+      "bytes": 17099,
+      "sha256": "9221c2f936159b8446d329249fb4c0f25be510f447383a0f13336ac7985668a3"
+    },
+    "LICENSING.md": {
+      "bytes": 3427,
+      "sha256": "6efff6ced7e7f5b43834fb276c095199f90199aa67370244c6a59ef53033cc1e"
+    },
+    "THIRD-PARTY-NOTICES.md": {
+      "bytes": 2016,
+      "sha256": "310effa5a0757c99aac5682224b590f50352cf9807cb2963b93214619835a075"
+    },
+    "THREE-LICENSE": {
+      "bytes": 1102,
+      "sha256": "f57eb9202058667d12aebd854fe8a86d6feaeab51078180df5615bfdbd5cff05"
+    },
+    "FZSTD-LICENSE": {
+      "bytes": 1089,
+      "sha256": "1d72133b15f05101411c4f53e34af38adce3ecf7a78959d3d28b1e4d41a4fc92"
+    },
+    "SPIKE-ENGINE-NOTICE.md": {
+      "bytes": 956,
+      "sha256": "7cc2a9a75eba0f47eb6847a87dfe800b2c6e2adaebe0f68e4f37793721549aa6"
+    },
+    "SOURCE-PROVENANCE.json": {
+      "bytes": 28419,
+      "sha256": "a70b3e4212c556f7147f3008a0d2f9a94208dd4aee142d2e5c9223e03b749285"
+    },
+    "PUBLIC-API.md": {
+      "bytes": 11801,
+      "sha256": "7659f2f1155bebfeb9518b8b16c3d970acd7b0af128c2730cf266c95b8fd5dbd"
+    }
   }
 }

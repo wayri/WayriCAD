@@ -21,6 +21,10 @@ export interface LocalSource { path: string; source?: string; bytes?: Uint8Array
 export interface LoadOptions {
   view?: DrawingView; file?: string; ref?: string; signal?: AbortSignal;
   baseURL?: string; credentials?: 'omit' | 'same-origin';
+  /** Explicit project variables; no environment or implicit project-file access. */
+  textVariables?: Record<string,string>;
+  /** Exact saved hierarchy instance path when a loaded sheet is reused. */
+  instancePath?: string;
 }
 export interface ViewerOptions { theme?: Theme; appearance?: BoardAppearance; highlightStyle?: HighlightMode; highlightColor?: HighlightColor; inspectOnSelect?: boolean; assetPaths?: string[]; loadAsset?: (path: string) => unknown | Promise<unknown>; }
 export interface Part { id: string; uuid: string; reference: string; value: string; footprint: string; layer: string; schematicUuid?: string; }
@@ -39,7 +43,16 @@ export interface AnalysisData {
   provenance: { kind: 'computed' | 'measured' | 'illustrative'; tool: string; runId: string; generatedAt?: string; assumptions: string[] };
   fields: AnalysisField[];
 }
+export interface PanelState {open:boolean; preferredWidth:number; width:number;}
+export interface ViewerInsetOptions {parent:KiCadViewer; sourceViewer?:KiCadViewer; view?:'pcb'|'schematic'|'3d'; selection?:ViewSelection|null;}
+export declare class ViewerInset extends EventTarget {
+  constructor(target:string|HTMLElement, options:ViewerInsetOptions);
+  readonly ready:Promise<boolean>; readonly viewer:KiCadViewer|undefined; readonly disposed:boolean;
+  focus():boolean; dispose():void;
+}
 export interface ViewerEvents {
+  panelchange: CustomEvent<PanelState>;
+  themechange: CustomEvent<{theme:Theme}>;
   analysisprobe: CustomEvent<{probe:{x:number;y:number;z?:number;value:number;unit:string};path:string;view:'3d'}>;
   highlightstylechange: CustomEvent<HighlightStyle>;
   layerschange: CustomEvent<LayerState>;
@@ -63,12 +76,17 @@ export declare class KiCadViewer extends EventTarget {
   getFiles(): ProjectFileInfo[]; openFile(path: string, options?: LoadOptions): Promise<boolean>;
   getParts(): Part[]; selectPart(id: string, options?: { locate?: boolean }): boolean;
   setInspectOnSelect(enabled: boolean): void;
+  setInspectorWidth(width:number):PanelState; getPanelState():PanelState;
+  openInset(options?:Omit<ViewerInsetOptions,'parent'> & {target?:string|HTMLElement}):Promise<ViewerInset|null>;
   getSelection(): ViewSelection | null; getSelectionPosition(): {x:number;y:number;layer:string|null}|null; selectObject(id: string, options?: {locate?: boolean; pinNumber?: string | number}): boolean;
   getNets(): SavedNet[]; selectNet(idOrUniqueName: string, options?: { locate?: boolean }): boolean;
   getSheets(): SheetLink[]; clearSelection(): void; setInspectorOpen(open: boolean): void;
   setView(view: DrawingView, options?: {signal?: AbortSignal}): Promise<boolean>; fit(): void;
-  /** Optional GPU-intensive studio presentation mode; returns the active quality after fallback. */
-  setRenderQuality(quality: 'low'|'balanced'|'high'|'presentation'): 'low'|'balanced'|'high'|'presentation';
+  /** Optional studio presets: photoreal-fast omits screen-space effects; presentation adds GPU-intensive effects. Returns actual quality after fallback. */
+  setRenderQuality(quality: 'low'|'balanced'|'high'|'presentation'|'photoreal-fast'): 'low'|'balanced'|'high'|'presentation'|'photoreal-fast';
+  /** Animate 0–100% expansion: lift components, separate colored copper, fade substrate, stretch vias. */
+  setExpand(value:number):number; getExpand():number;
+  /** @deprecated Use setExpand/getExpand. */
   setExplode(value:number):number;
   getExplode():number;
   setAppearance(appearance: BoardAppearance): BoardAppearance; getAppearance(): BoardAppearance | null; getRenderStats(): RenderStats | null;

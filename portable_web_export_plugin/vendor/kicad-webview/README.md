@@ -1,40 +1,22 @@
-# Pinned KiCad WebView distribution
+# Tested source-preview pin
 
-This directory contains a minimal unmodified runtime/legal/API subset of the official
-`v0.6.0` release archive from <https://github.com/wayri/kicad-webview>.
+Built from public commit `470e9d1638b8f2af0af7e26928a04b1ad459b8eb`.
+Package version 0.8.0 does not imply the published npm/CDN 0.8.0 contains this
+newer source. No upstream release bytes were replaced.
 
-`PINNED-DISTRIBUTION.json` is a WayriCAD integration-authored inventory, **not** an
-upstream release manifest. The upstream npm archive supplies no `RELEASE.json`.
-It records the official asset URL and SHA-256, exact matching source tag, and
-the byte count/hash and archive source path of every retained upstream file.
-The classic runtime alone is used; full/lite ESM copies, demos, designs, models,
-test fixtures, integrations and caches are not vendored.
+`PINNED-DISTRIBUTION.json` is an integration-authored receipt with the source
+commit, archive hash and retained file hashes. Matching MPL-2.0 covered source:
+<https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb>.
+All upstream and dependency notices are retained verbatim. Historical notice
+links do not identify this source build. No demos or unrelated SPIKE code are bundled.
 
-Refresh reproducibly from the verified archive with:
+Rebuild using upstream pinned dependencies: `npm run build:3d`, `npm run build`,
+`npm test`, `npm pack --ignore-scripts`. Review any hash difference before pinning.
+Refresh both independent plugin copies with:
 
 ```text
-python portable_web_export_plugin/tools/pin_webview.py path/to/wayrisignals-kicad-webview-0.6.0.tgz
+python portable_web_export_plugin/tools/pin_webview.py source-build.tgz --review-destination review_comments_plugin/vendor/kicad-webview
 ```
 
-The helper refuses any archive other than SHA-256
-`668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4`.
-The runtime loader verifies every pinned file before generating an export.
-
-Required release files:
-
-- `kicad-webview.min.js`
-- `LICENSE`
-- `LICENSING.md`
-- `THIRD-PARTY-NOTICES.md`
-- `THREE-LICENSE`
-- `FZSTD-LICENSE`
-- `SPIKE-ENGINE-NOTICE.md`
-- `SOURCE-PROVENANCE.json`
-
-Do not edit generated viewer files here. Reusable viewer changes belong in the separate KiCad WebView repository. Update this pin only from a reviewed release and keep its source and third-party notices synchronized.
-
-Upstream legal text is preserved verbatim, including older source-link references.
-For this archive the matching source is <https://github.com/wayri/kicad-webview/tree/v0.6.0>.
-The retained Pocket source-available text is historical provenance; upstream
-`LICENSING.md` explicitly says it imposes no additional commercial restriction
-on the software released here under MPL-2.0.
+The tool accepts only the reviewed archive hash. Installed plugins never import
+the other plugin's runtime. Keep the complete legal/provenance subset in exports.

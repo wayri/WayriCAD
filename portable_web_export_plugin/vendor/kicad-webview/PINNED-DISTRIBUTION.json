@@ -1,13 +1,21 @@
 {
   "schema": 1,
   "kind": "wayricad-integration-pin",
-  "version": "0.6.0",
-  "upstreamAssetURL": "https://github.com/wayri/kicad-webview/releases/download/v0.6.0/wayrisignals-kicad-webview-0.6.0.tgz",
-  "upstreamArchiveSHA256": "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4",
-  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/v0.6.0",
-  "note": "Integration-authored file inventory; upstream 0.6.0 ships no RELEASE.json.",
-  "legalContext": "Upstream legal text is retained verbatim, including historical source links. Exact matching source is v0.6.0 above. Archived source-available text is historical, not an extra restriction on MPL-2.0.",
+  "version": "0.8.0",
+  "upstreamAssetURL": null,
+  "upstreamArchiveSHA256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
+  "matchingSourceURL": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
+  "sourceCommit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
+  "distributionKind": "source-preview",
+  "note": "Integration-authored inventory of a tested source build, not the published npm/CDN 0.8.0 artifact.",
+  "legalContext": "Upstream legal text is retained verbatim. The exact covered source is linked by immutable commit above; no unrelated SPIKE source is included.",
   "files": [
+    {
+      "path": "EXPAND-MODE.md",
+      "sourcePath": "dist/EXPAND-MODE.md",
+      "bytes": 4216,
+      "sha256": "bbd0e846eff43ac814973b5dd62fc58f719c521eefa1fd6240355b355a45e810"
+    },
     {
       "path": "FZSTD-LICENSE",
       "sourcePath": "dist/FZSTD-LICENSE",
@@ -17,50 +25,62 @@
     {
       "path": "INSPECTION-CONTROLS.md",
       "sourcePath": "dist/INSPECTION-CONTROLS.md",
-      "bytes": 4034,
-      "sha256": "26e222a7690c9bdb663597cba7c92fdb4db5272f40341677df7f3b2e1e3dc77f"
+      "bytes": 4603,
+      "sha256": "21787a715cb7029500c8021e58beba3e97408d50e66e5d3454fac84dc1e3fce1"
+    },
+    {
+      "path": "LARGE-PROJECTS.md",
+      "sourcePath": "dist/LARGE-PROJECTS.md",
+      "bytes": 2054,
+      "sha256": "2deeb8c098708682d9ebf57b792c762eea6b7b88b404b384adfb8e74540585ce"
     },
     {
       "path": "LICENSE",
       "sourcePath": "dist/LICENSE",
-      "bytes": 16726,
-      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+      "bytes": 17099,
+      "sha256": "9221c2f936159b8446d329249fb4c0f25be510f447383a0f13336ac7985668a3"
     },
     {
       "path": "LICENSING.md",
       "sourcePath": "dist/LICENSING.md",
-      "bytes": 3336,
-      "sha256": "98dc1c39eaa49058e04b5891a6d4d0e3d0d89cc6a8e74e2128a749359cfc5b89"
+      "bytes": 3427,
+      "sha256": "6efff6ced7e7f5b43834fb276c095199f90199aa67370244c6a59ef53033cc1e"
+    },
+    {
+      "path": "PANELS-AND-INSETS.md",
+      "sourcePath": "dist/PANELS-AND-INSETS.md",
+      "bytes": 5229,
+      "sha256": "2c61cf89116491b8a8b7f5de760aec2591cb7b52b638a7072a83f3d35460c934"
     },
     {
       "path": "PUBLIC-API.d.ts",
       "sourcePath": "types/index.d.ts",
-      "bytes": 18445,
-      "sha256": "461ee3331e5f13ec2ba167b94ff983f4d78b88905bd4f60fc1205cf4ea634ac1"
+      "bytes": 19750,
+      "sha256": "70ce14b6a5cccf7ca2b0118ca07aae3e7eeca9d492b3249c2f52fb24d4754bfc"
     },
     {
       "path": "PUBLIC-API.md",
       "sourcePath": "dist/PUBLIC-API.md",
-      "bytes": 10617,
-      "sha256": "755386656976939382643a0f1744e30c79c1d76e82be9883bc337dc285bbffbe"
+      "bytes": 11801,
+      "sha256": "7659f2f1155bebfeb9518b8b16c3d970acd7b0af128c2730cf266c95b8fd5dbd"
     },
     {
       "path": "SOURCE-PROVENANCE.json",
       "sourcePath": "dist/SOURCE-PROVENANCE.json",
-      "bytes": 22668,
-      "sha256": "40aeb9fd11ada5bec672306253463b1b2e06dac40b145c900856361a2adf8205"
+      "bytes": 28419,
+      "sha256": "a70b3e4212c556f7147f3008a0d2f9a94208dd4aee142d2e5c9223e03b749285"
     },
     {
       "path": "SPIKE-ENGINE-NOTICE.md",
       "sourcePath": "dist/SPIKE-ENGINE-NOTICE.md",
       "bytes": 956,
-      "sha256": "946009e7d19ae2954c0271d632257dc9e86d5ef5fe426eaa399aced449736374"
+      "sha256": "7cc2a9a75eba0f47eb6847a87dfe800b2c6e2adaebe0f68e4f37793721549aa6"
     },
     {
       "path": "THIRD-PARTY-NOTICES.md",
       "sourcePath": "dist/THIRD-PARTY-NOTICES.md",
-      "bytes": 2001,
-      "sha256": "637797c6f1c4f515ab5275807f60aa421763362cc3edbac588d3ce7595efadee"
+      "bytes": 2016,
+      "sha256": "310effa5a0757c99aac5682224b590f50352cf9807cb2963b93214619835a075"
     },
     {
       "path": "THREE-LICENSE",
@@ -71,20 +91,32 @@
     {
       "path": "UPSTREAM-PACKAGE.json",
       "sourcePath": "package.json",
-      "bytes": 4278,
-      "sha256": "01a9ed8bff9dba7ea8639cbd781d47a08873d2e659145012ab005e9cd7b3bc1a"
+      "bytes": 4332,
+      "sha256": "5062613d2df05f5457fe1a6b0efb237c9cb962ac13340c02aea6d5ce0d873641"
+    },
+    {
+      "path": "UPSTREAM-SYNC.md",
+      "sourcePath": "dist/UPSTREAM-SYNC.md",
+      "bytes": 3152,
+      "sha256": "a00dbc68e94430c61754f3844a7cf5db168019abc65afbe7b306a621bc992e24"
     },
     {
       "path": "VIEW-NAVIGATION.md",
       "sourcePath": "dist/VIEW-NAVIGATION.md",
-      "bytes": 3254,
-      "sha256": "a4ecea14023f5b54a128985a7a331a13577c04bfc2ed38965bdbf3bee986b1ed"
+      "bytes": 3286,
+      "sha256": "a7c5755dafcb6267bbedd01678ab87f81605000ed56e6c7fe88c51934906a574"
+    },
+    {
+      "path": "WAYRICAD-RESULTS.md",
+      "sourcePath": "dist/WAYRICAD-RESULTS.md",
+      "bytes": 11184,
+      "sha256": "f5f3b0b68a1db3d76ac41f97c3516e1aa3100c7816efed753950ad2dd1e58d1b"
     },
     {
       "path": "kicad-webview.min.js",
       "sourcePath": "dist/kicad-webview.min.js",
-      "bytes": 1695295,
-      "sha256": "d708010f9d8ccd56266f3594600f9537de9df2c20675c5e983ecc0c05ff8be66"
+      "bytes": 1788801,
+      "sha256": "9f3a415716b57fec6c7bd902024f2fe77211fdece462a66bc3b69d5640539b6b"
     },
     {
       "path": "licenses/Pocket-KiView-Source-Available-1.0.txt",

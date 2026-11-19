@@ -17,9 +17,10 @@ from typing import Iterable
 MAX_INPUT_BYTES = 64 * 1024 * 1024
 SUPPORTED_MODEL_SUFFIXES = {".wrl", ".glb", ".gltf"}
 UNSUPPORTED_MODEL_SUFFIXES = {".step", ".stp", ".iges", ".igs"}
-VIEWER_VERSION = "0.6.0"
-VIEWER_ARCHIVE_SHA256 = "668f973db5e931ff32a68a7ee2dfd178d54d0be25ff47b24a5b460681a6d28a4"
-EXPORTER_VERSION = "4.8.6"
+VIEWER_VERSION = "0.8.0"
+VIEWER_SOURCE_COMMIT = "470e9d1638b8f2af0af7e26928a04b1ad459b8eb"
+VIEWER_ARCHIVE_SHA256 = "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45"
+EXPORTER_VERSION = "4.8.7"
 
 
 @dataclass(frozen=True)
@@ -302,8 +303,10 @@ def load_viewer_assets(package_root: Path) -> tuple[str, str]:
             f"KiCad WebView version mismatch: expected {VIEWER_VERSION}, found {release.get('version')!r}."
         )
     if (release.get("kind") != "wayricad-integration-pin" or
-            release.get("upstreamArchiveSHA256") != VIEWER_ARCHIVE_SHA256):
-        raise ValueError("Viewer pin does not identify the official 0.6.0 release archive.")
+            release.get("upstreamArchiveSHA256") != VIEWER_ARCHIVE_SHA256 or
+            release.get('sourceCommit') != VIEWER_SOURCE_COMMIT or
+            release.get('distributionKind') != 'source-preview'):
+        raise ValueError("Viewer pin does not identify the tested source-preview artifact.")
     expected = {item["path"]: item for item in release.get("files", []) if isinstance(item, dict)}
     if len(expected) != len(release.get("files", [])):
         raise ValueError("Viewer pin contains duplicate or invalid file records.")
@@ -420,6 +423,9 @@ def build_export(scan: ProjectScan, selection: ExportSelection, package_root: Pa
         "schema": 1,
         "exporter": f"WayriCAD Portable Web Export {EXPORTER_VERSION}",
         "viewer": f"KiCad WebView {VIEWER_VERSION}",
+        "viewerDistribution": "source-preview",
+        "viewerSourceCommit": VIEWER_SOURCE_COMMIT,
+        "viewerArtifactSHA256": VIEWER_ARCHIVE_SHA256,
         "title": scan.board.stem,
         "projectId": scan.project_id,
         "revisionId": revision_id,
@@ -540,12 +546,13 @@ if(MANIFEST.tabs.schematic)tab('schematic','Schematic');if(MANIFEST.tabs.pcb)tab
 function showTab(name){activeTab=name;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));bomEl.hidden=name!=='bom';viewerEl.hidden=name==='bom';}
 async function openTab(name,path){if(name==='notices'){document.querySelector('#about-dialog').showModal();return true;}const request=++navigation;showTab(name);if(name==='bom'){renderBom();return true;}try{const target=path||(name==='schematic'?(MANIFEST.sheets.includes(viewer.path)?viewer.path:MANIFEST.sheets[0]):MANIFEST.boardPath);if(!target)throw Error('No selected drawing for this view.');const ok=viewer.path===target?await viewer.setView(name):await viewer.openFile(target,{view:name});return !disposed&&request===navigation&&ok!==false;}catch(error){if(request===navigation)status.textContent=error.message;return false;}}
 function openSheet(path){return openTab('schematic',path);}
-const sheets=document.querySelector('#sheets');MANIFEST.sheets.forEach(path=>{const button=document.createElement('button'),detail=document.createElement('small');button.className='sheet';button.append(document.createTextNode(path.split('/').pop()));detail.textContent=path;button.append(detail);button.onclick=()=>openSheet(path);sheets.append(button);});if(!MANIFEST.sheets.length)document.querySelector('#hierarchy').hidden=true;
+const sheets=document.querySelector('#sheets');let projectTree=null;if(MANIFEST.sheets.length){sheets.style.height='360px';projectTree=new KiCadWebView.ProjectTree(sheets,{theme:'dark',onSelect:node=>openSheet(node.path)});projectTree.setFiles(files.filter(file=>MANIFEST.sheets.includes(file.path)).map(file=>({path:file.path,source:new TextDecoder('utf-8',{fatal:true}).decode(file.bytes)})),{entry:MANIFEST.boardPath});}else document.querySelector('#hierarchy').hidden=true;
 function findViewerPart(component){return review.findPart(component,viewer.getParts());}
 async function focusComponent(component){if(activeTab==='bom'&&!await openTab(MANIFEST.tabs.pcb?'pcb':MANIFEST.tabs.schematic?'schematic':'3d'))return;const part=findViewerPart(component);if(part&&viewer.selectPart(part.id,{locate:true})){selectedId=component.id;review.showSelection(document.querySelector('#selection'),[component.reference,component.value||'No value',component.footprint||'No footprint']);viewer.setInspectorOpen(true);}else{viewer.clearSelection();status.textContent=`${component.reference}: no unique saved identity in this drawing. Choose its sheet or inspect the source.`;}}
-viewer.addEventListener('select',event=>{if(event.detail?.path!==undefined&&event.detail.path!==viewer.path)return;const item=event.detail?.item,component=review.componentForItem(item,MANIFEST.components);selectedId=component?.id||'';review.showSelection(document.querySelector('#selection'),item?[item.reference||item.netName||item.name||item.type||'Saved object',item.value||'',item.footprint||'']:['Nothing selected']);document.querySelectorAll('#bom-body tr').forEach(row=>row.classList.toggle('selected',Boolean(selectedId)&&row.dataset.ids?.split(',').includes(selectedId)));});
+function acceptSelection(item){if(!item)document.querySelector('#lookup-status').textContent='';const component=review.componentForItem(item,MANIFEST.components);selectedId=component?.id||'';review.showSelection(document.querySelector('#selection'),item?[item.reference||item.netName||item.name||item.type||'Saved object',item.value||'',item.footprint||'']:['Nothing selected']);document.querySelectorAll('#bom-body tr').forEach(row=>row.classList.toggle('selected',Boolean(selectedId)&&row.dataset.ids?.split(',').includes(selectedId)));}
+viewer.addEventListener('select',event=>{if(event.detail?.path!==undefined&&event.detail.path!==viewer.path)return;acceptSelection(event.detail?.item);});
 viewer.addEventListener('error',event=>status.textContent=event.detail?.message||'Viewer error');
-viewer.addEventListener('ready',()=>{document.body.dataset.viewerReady='true';document.querySelector('#inspect-find').disabled=false;document.querySelector('#lookup-status').textContent='';});
+viewer.addEventListener('ready',()=>{document.body.dataset.viewerReady='true';document.querySelector('#inspect-find').disabled=false;document.querySelector('#lookup-status').textContent='';if(!viewer.getSelection())acceptSelection(null);if(viewer.view==='3d')viewer.setRenderQuality('photoreal-fast');});
 viewer.addEventListener('viewchange',event=>{const view=event.detail?.view;if(activeTab!=='bom'&&(['pcb','schematic'].includes(view)?MANIFEST.tabs[view]:view==='3d'&&MANIFEST.tabs.threeD))showTab(view);});
 const loadView=MANIFEST.tabs.pcb?'pcb':MANIFEST.tabs.schematic?'schematic':MANIFEST.tabs.threeD?'3d':'pcb',initial=MANIFEST.tabs.pcb?'pcb':MANIFEST.tabs.schematic?'schematic':MANIFEST.tabs.threeD?'3d':'bom';viewer.loadFiles(files,{view:loadView,file:loadView==='schematic'?MANIFEST.sheets[0]:MANIFEST.boardPath}).then(ok=>{if(ok===false||disposed)return;status.textContent='Offline · read-only design · no network access';openTab(initial);}).catch(error=>status.textContent=error.message);
 document.querySelector('#bom-filter').hidden=!MANIFEST.tabs.bom;
@@ -557,5 +564,5 @@ function renderBom(){const grouped=document.querySelector('#bom-mode').value==='
 document.querySelector('#search').oninput=()=>{if(activeTab==='bom')renderBom();};document.querySelector('#bom-mode').onchange=renderBom;
 document.querySelector('#backup').onclick=()=>{const blob=new Blob([JSON.stringify(progress,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${MANIFEST.title}-${MANIFEST.revisionId}-progress.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);};
 document.querySelector('#restore').onchange=async event=>{try{const file=event.target.files[0];if(!file||file.size>8*1024*1024)throw Error('Choose a progress JSON file up to 8 MiB.');const imported=JSON.parse(await file.text());if(imported.schema!==1)throw Error('Unsupported progress schema.');if(imported.projectId!==MANIFEST.projectId)throw Error('This backup belongs to a different project.');const migrating=imported.revisionId!==MANIFEST.revisionId;if(migrating&&!document.querySelector('#migrate').checked)throw Error('Revision differs. Enable explicit revision migration to import matching stable component identities.');const next=emptyState();next.components=review.trackingRows(imported.components,MANIFEST.components);progress=next;save();renderBom();status.textContent=migrating?'Imported matching identities from another revision; review all migrated rows.':'Progress backup restored.';}catch(error){status.textContent='Import rejected: '+error.message;}finally{event.target.value='';}};
-document.querySelector('#about').onclick=()=>document.querySelector('#about-dialog').showModal();renderSummary();window.addEventListener('pagehide',()=>{disposed=true;navigation++;viewer.dispose();},{once:true});
+document.querySelector('#about').onclick=()=>document.querySelector('#about-dialog').showModal();renderSummary();window.addEventListener('pagehide',()=>{disposed=true;navigation++;projectTree?.dispose();viewer.dispose();},{once:true});
 '''

@@ -617,5 +617,138 @@
         "sha256": "daea0d9149d818120127f272cfbf57f42d5596a5c56dde5fecb747a2f6ab6aaf"
       }
     ]
-  }
+  },
+  "extensionRefresh070": {
+    "sourceProject": "KiCad Online",
+    "baseRevision": "ea754b0c16c62134af6e79804a17257163d50586",
+    "workingTreeSnapshot": true,
+    "capturedDate": "2026-11-15",
+    "note": "Selective read-only text/variable/expression/table and orientation ports. Exact file hashes identify unpublished working-tree inputs; WebView-specific transforms and selection fixes are retained. This is not a wholesale source equivalence claim.",
+    "inputs": [
+      {
+        "source": "extension/file-compatibility.js",
+        "target": "engine/file-compatibility.js",
+        "upstreamSha256": "3b87484a9092d2cd96503c44fb6ed675be4fba37822fb6ff94e2d39b5a3f4c48",
+        "librarySha256": "535b447d23e5f87438f491e37ee61cd873731770c76f8346d3d9342388ab2e0f",
+        "transformed": true
+      },
+      {
+        "source": "extension/schematic-renderer.js",
+        "target": "engine/schematic-renderer.js",
+        "upstreamSha256": "233a6e99bc56f9ae302d8e5b553bb039b12744a6067005f84333ea35476b3702",
+        "librarySha256": "a08c7cad929ae66dc734aeed4f87dfe9fede854dd1e9587b454ffb148a5c9c67",
+        "transformed": true
+      },
+      {
+        "source": "extension/pcb-renderer.js",
+        "target": "engine/pcb-renderer.js",
+        "upstreamSha256": "d879b9fcc5eaa4c8095f3328c1339c894fc97006de07f0159cd9128526cf3adc",
+        "librarySha256": "000dc3dba988197169ee6e28b91edb5de37a5c2ef22b56000ff550e69577cb6b",
+        "transformed": true
+      }
+    ]
+  },
+  "updates": [
+    {
+      "date": "2026-11-18",
+      "sourceProject": "KiCad Online",
+      "workingTreeSnapshot": true,
+      "targetBaseRevision": "704fde6e30245e7e2227f48e26d4f8742edd6033",
+      "note": "Shared source fixes adapted to standalone host APIs. Exact source and target bytes are identified below; generated SDK publication is separate.",
+      "inputs": [
+        {
+          "source": "extension/design-diff.js",
+          "sourceSha256": "42a146d0d03c5464aff87aa066b43ce1ad8145fae76e7dc3c6dc2720b0169a83",
+          "target": "engine/design-diff.js",
+          "targetSha256": "f62b492d0a0f3dfda01c63e5db2bc64af7d9237dd936452b40d16685beff7e67",
+          "transformed": true
+        },
+        {
+          "source": "extension/file-compatibility.js",
+          "sourceSha256": "20261ecf4173e2f56a0af963e124a421a7a54f6dd7821a8c0d3d5fa36458759d",
+          "target": "engine/file-compatibility.js",
+          "targetSha256": "0db64e6dd440a0e10ed1698d9f79f32d4ba68208e80efcd1b7d41ce2ab32ab21",
+          "transformed": true
+        },
+        {
+          "source": "extension/legacy-kicad.js",
+          "sourceSha256": "9ba7ce75d82dd0450f98dfe4e5ac553882d9df9f660e92e11e9488243b3213cc",
+          "target": "engine/legacy-kicad.js",
+          "targetSha256": "9ba7ce75d82dd0450f98dfe4e5ac553882d9df9f660e92e11e9488243b3213cc",
+          "transformed": true
+        },
+        {
+          "source": "extension/schematic-renderer.js",
+          "sourceSha256": "1721c6a55bcbd2f3b29efadb7580df7111180205e4a622ed5fe471b2eb53df78",
+          "target": "engine/schematic-renderer.js",
+          "targetSha256": "60627fdf98013a6a8e3e018a6d5a61636985caeb502765312b5c24ae5afeba5e",
+          "transformed": true
+        },
+        {
+          "source": "extension/net-model.js",
+          "sourceSha256": "88c17bd16ee3f72478825645680f36482dc53b2029e0e6b0f45298af0f5a0321",
+          "target": "engine/net-model.js",
+          "targetSha256": "26c19624bb6ca01cc99e38068b2b545afaf0924f3fe3cbdf6321f81c892c39e4",
+          "transformed": true
+        },
+        {
+          "source": "extension/owned-canvas.js",
+          "sourceSha256": "a3b4f26821bd3d9b9d03a1fbfa087c2f070d22d02d97481021b4b4ed94abc971",
+          "target": "engine/owned-canvas.js",
+          "targetSha256": "e139e71cf8d0614bcb7eee527bfd770749ead20a54dd3beb95a7f276223d0531",
+          "transformed": true
+        },
+        {
+          "source": "extension/pcb-renderer.js",
+          "sourceSha256": "3bbb53afa98cb1272fb90ec2cb5811428c96cda2ce634e967fe76eb2eda79e97",
+          "target": "engine/pcb-renderer.js",
+          "targetSha256": "952576a22a9aa98e7b6c647932c7161f86b43f6dea87e73b21acf9b6fd8ac289",
+          "transformed": true
+        },
+        {
+          "source": "extension/repo-models.js",
+          "sourceSha256": "94ed4cdfe24cb17a75b404685cda3261590d69af762a93b01722b35f948d2c48",
+          "target": "engine/repo-models.js",
+          "targetSha256": "e7e4c68d93953233da26a9e713b04c814216345e4ace9215db3fb846f3399612",
+          "transformed": true
+        },
+        {
+          "source": "extension/spike/board3d.js",
+          "sourceSha256": "8acac0912c741b40363c3ef8deb35744cc1cdc9feb75aea1cfa69f8b64473c24",
+          "target": "engine/spike/board3d.js",
+          "targetSha256": "c578e08acb127d8f0050d27bd4fc59220faf85cdae480031a30f822028d8b883",
+          "transformed": true
+        },
+        {
+          "source": "extension/spike/selectionAppearance.mjs",
+          "sourceSha256": "6b132f7fb8a08237cb6ca0b5780105c9b4940a5f63be4f976cacce4191ef008e",
+          "target": "engine/spike/selectionAppearance.mjs",
+          "targetSha256": "45a43aee30c901bd83698db415233a35889723a45b5feacf40400e51c9191490",
+          "transformed": true
+        },
+        {
+          "source": "extension/spike/sourceGeometry.mjs",
+          "sourceSha256": "13742f9fef24bcf869f00093e9528eb7d9de58650c6187ff0e16d1ab6e9e2980",
+          "target": "engine/spike/sourceGeometry.mjs",
+          "targetSha256": "da74149f8dff099b52b51eea2a1d11159cbaa1b494b2c5efe5a3d31eadc1601f",
+          "transformed": true
+        },
+        {
+          "source": "extension/spike/copperGeometry.mjs",
+          "sourceSha256": "9f93d2a82901cda448a5fdc7cce4b309ebeeada954a51c20d09a8f2ca0e85158",
+          "target": "engine/spike/copperGeometry.mjs",
+          "targetSha256": "34ea3d8dd623ac2eb37910139e3a82df14d6739fe23127fdee73cb31e3d433b7",
+          "transformed": true
+        },
+        {
+          "source": "extension/spike/copperStack.mjs",
+          "sourceSha256": "c02962c85105ae55c0fe38c9c90b180adde67a4ad71dd0d1340a53e16c4a34ea",
+          "target": "engine/spike/copperStack.mjs",
+          "targetSha256": "c7dc490925aada38ab91c4595d24f8e97076a80fdc0f5e1845b83d9af01f3d52",
+          "transformed": true
+        }
+      ],
+      "hashEncoding": "UTF-8 source bytes with CRLF normalized to LF"
+    }
+  ]
 }

@@ -1,6 +1,6 @@
 """WayriCAD Portable Web Export package."""
 
-__version__ = "4.8.6"
+__version__ = "4.8.7"
 
 PortableWebExportPlugin = None
 try:
