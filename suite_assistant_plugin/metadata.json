@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Assistant",
   "description": "Use local language commands to run suite checks and open generated reports.",
-  "description_full": "Local fuzzy intent matching coordinates registered read-only WayriCAD CLI actions. Shows plans, asks for missing inputs and offers saved-board visual net selection. No cloud, downloaded language model or automatic layout edits. Existing tool runtimes and numerical limits still apply. Independent KiCad 10 IPC plugin.",
+  "description_full": "Local commands or optional loopback Ollama coordinate registered read-only WayriCAD CLI actions. Shows reviewable plans, asks for missing inputs, offers saved-board net selection and explains hash-verified numerical results. No cloud, automatic model downloads or layout edits. LLM proposals require explicit Run; model explanations do not validate engineering results. Existing tool runtimes and numerical limits still apply. Independent KiCad 10 IPC plugin.",
   "identifier": "com.github.wayri.wayricad.assistant",
   "type": "plugin",
   "author": {

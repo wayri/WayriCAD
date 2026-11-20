@@ -119,10 +119,13 @@ class AssistantWindowTests(unittest.TestCase):
         board = self.root / 'example.kicad_pcb'; board.touch()
         project = board.with_suffix('.kicad_pro'); project.touch()
         self.frame.context = {'selected_nets': ['old'], 'board': 'old'}
+        self.frame.last_result = {'status':'completed'}
         self.frame.preview.net_targets = [{'net': 'old'}]
         self.frame.set_board(board)
         self.assertEqual(self.frame.context, {'board': str(board.resolve()), 'project': str(project.resolve())})
         self.assertEqual(self.frame.preview.net_targets, [])
+        self.assertIsNone(self.frame.last_result)
+        self.assertFalse(self.frame.interpret.IsEnabled())
 
     def test_multiple_clicked_nets_are_explicit_and_can_be_cleared(self):
         self.frame.add_nets.SetValue(True)
@@ -287,6 +290,69 @@ class AssistantWindowTests(unittest.TestCase):
         self.frame.SetSize((760, 600)); self.frame.Layout(); wx.Yield()
         self.assertGreater(self.frame.tabs.GetSize().height, 100)
         self.assertEqual(self.frame.tabs.GetPageCount(), 3)
+
+
+    def test_ollama_proposal_never_auto_runs(self):
+        self.frame.provider.SetSelection(1)
+        self.frame._provider_changed()
+        self.frame.ollama_model.ChangeValue('demo')
+        self.frame.query.ChangeValue('List available tools')
+        from wayricad_runtime import assistant
+        plan = assistant.propose('List available tools')
+        plan['interpretation'] = {'model': 'demo', 'tasks': []}
+        with patch('wayricad_runtime.assistant_ollama.propose', return_value=plan):
+            self.frame._ask(); self.settle()
+        self.assertTrue(self.frame.run.IsEnabled())
+        self.assertEqual(self.engine.runs, 0)
+        self.assertIn('review all inputs', self.frame.plan_text.GetValue())
+
+    def test_provider_change_invalidates_plan_and_model_discovery_is_async(self):
+        self.frame.plan = {'status':'ready'}
+        self.frame.provider.SetSelection(1)
+        self.frame._provider_changed()
+        self.assertIsNone(self.frame.plan)
+        self.assertFalse(self.frame.run.IsEnabled())
+        with patch('wayricad_runtime.assistant_ollama.models', return_value=['demo:latest']):
+            self.frame._find_models(); self.settle()
+        self.assertEqual(self.frame.ollama_model.GetValue(), 'demo:latest')
+        self.assertIsNone(self.frame.plan)
+
+    def test_failed_new_run_cannot_interpret_previous_result(self):
+        self.frame.last_result = {'status':'completed', 'artifacts':[]}
+        self.frame.plan = {'status':'ready'}
+        with patch.object(self.engine, 'run_plan', side_effect=ValueError('Failed new run')):
+            self.frame._run(); self.settle()
+        self.assertIsNone(self.frame.last_result)
+        self.assertFalse(self.frame.interpret.IsEnabled())
+
+    def test_model_values_are_editable_and_unwanted_tasks_can_be_removed(self):
+        from wayricad_runtime import assistant_ollama as ollama
+        query = 'Calculate microstrip impedance'
+        tasks = [dict(action='trace-impedance.cross-section',params=dict(
+            topology='microstrip',width_mm=.2,height_mm=.1,er=4.2,copper_mm=.2)),
+            dict(action='trace-impedance.help',params={})]
+        self.frame.provider.SetSelection(1)
+        self.frame.ollama_model.ChangeValue('demo')
+        self.frame.query.ChangeValue(query)
+        with patch.object(ollama,'_chat',return_value=({'tasks':tasks},dict(
+                model='demo',endpoint=ollama.DEFAULT_URL))):
+            self.frame._ask(); self.settle()
+        control = self.frame.question_controls['0.copper_mm']
+        control.SetValue(''); self.frame._input_edited()
+        self.assertFalse(self.frame.run.IsEnabled())
+        self.frame.plan_tasks.Select(1)
+        self.frame._remove_task()
+        self.assertEqual(len(self.frame.plan['steps']),2)
+        self.assertEqual(control.GetValue(),'')
+        self.frame._run()
+        self.assertEqual(self.engine.runs,0)
+        with patch.object(ollama,'_chat',side_effect=AssertionError('No second inference')):
+            self.frame._answer(None); self.settle()
+            self.assertNotIn('copper_mm',self.frame.plan['steps'][0]['params'])
+            self.frame.plan_tasks.Select(1)
+            self.frame._remove_task(); self.settle()
+        self.assertEqual(len(self.frame.plan['steps']),1)
+        self.assertTrue(self.frame.run.IsEnabled())
 
 
 if __name__ == '__main__':
