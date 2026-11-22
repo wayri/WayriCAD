@@ -57,6 +57,8 @@ and Layer Counter use the native plugin loader and do not require the IPC API.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
+| Ask for a board check or explain a report | [WayriCAD Assistant and local Ollama](suite_assistant_plugin/README.md#ollama-ask-review-run-interpret) |
+| Review a saved design with your team | [WayriCAD Review](review_comments_plugin/README.md) |
 | Reopen real board results across tools | [Olimex / Marble studies and interactive gallery](docs/examples/public-boards/README.md) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
 | Download or update | [Release 4.8.9](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) · [Release notes](docs/RELEASE_NOTES_4.8.9.md) |
@@ -74,8 +76,11 @@ for screenshots, installation, CLI workflows and model limits. WayriCAD was
 formerly named KiWay; the maintained source and PCM feed use WayriCAD.
 
 [Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
-[Review](review_comments_plugin/README.md) adds GitHub/GitLab conversations and
-GitHub Discussions. Testing packages are labelled in Plugin and Content Manager.
+[Review](review_comments_plugin/README.md) bundles KiCad WebView for PCB,
+schematic and 3D review with revision-bound GitHub/GitLab comments.
+[Assistant](suite_assistant_plugin/README.md) supports local commands and optional
+Ollama for reviewed checks and explanations of generated reports. Both are
+labelled testing packages in Plugin and Content Manager.
 
 <a id="choose-a-kicad-workflow"></a>
 
@@ -418,8 +423,8 @@ Candidate download links and badges become available only after publication.
 
 | Plugin | Use it for | Downloads |
 |---|---|---|
-| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Plain-English tool selection, visual context and reviewed command execution (testing). | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-suite-assistant-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
-| <img src="review_comments_plugin/icon.png" width="24" height="24" alt="WayriCAD Review icon"> [WayriCAD Review](review_comments_plugin/README.md) | Message cards, inline replies, GitHub/GitLab comments and a separate GitHub Discussions tab; testing package. | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-review-comments-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
+| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Reviewed chat-driven checks, BOM and copper queries, and report interpretation with optional local Ollama (testing). | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-suite-assistant-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
+| <img src="review_comments_plugin/icon.png" width="24" height="24" alt="WayriCAD Review icon"> [WayriCAD Review](review_comments_plugin/README.md) | Revision-bound comments on rotatable PCB and schematic views, 3D inspection, GitHub/GitLab conversations and GitHub Discussions (testing). | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-review-comments-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
 | <img src="quick_emerge_plugin/icon.png" width="24" height="24" alt="Quick EMerge beta icon"> [Quick EMerge (beta)](quick_emerge_plugin/README.md) | Read-only antenna and bounded saved-PCB region studies, field probes and reports; exploratory testing beta. | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-quick-emerge-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-quick-pi-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
 | <img src="quick_therm_plugin/icon.png" width="24" height="24" alt="QuickTherm icon"> [QuickTherm](quick_therm_plugin/README.md) | Board and component temperatures, heating playback and thermal reports. | [![4.8.9 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.8.9/WayriCAD-quick-therm-4.8.9-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.8.9) |
@@ -1180,6 +1185,12 @@ Each plugin also has its own tests. Skipped checks do not establish native GUI
 compatibility. Validation records are in [the release audit](docs/audits/RELEASE_3.6.42.md).
 
 ## Release history
+
+**Release 4.8.9:** Review bundles WebView 1.1.1, preserves comment placement on
+rotated drawings, and fixes initial native 3D viewport sizing. Assistant adds
+local Ollama planning and explanations, BOM value counts, saved copper area,
+steady thermal screening and reviewed simulation workflows. See the
+[release notes](docs/RELEASE_NOTES_4.8.9.md) for coverage and limits.
 
 **Release 4.8.8:** QuickTherm automatic Run selects a supported saved
 board model and mesh, fills blank starting values without replacing edits, and

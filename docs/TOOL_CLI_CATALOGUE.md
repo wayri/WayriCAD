@@ -19,16 +19,18 @@ wayricad tools run --python 'C:/Program Files/KiCad/10.0/bin/python.exe' silkscr
 ```
 
 Assistant also has the direct `wayricad-assistant` entrypoint and the tool alias
-`coordinator`. It uses a bounded local inference engine and fixed command registry;
-requests do not become shell scripts. Review missing inputs and requested actions
+`coordinator`. It uses deterministic local commands or optional loopback Ollama
+with a fixed action registry; requests do not become shell scripts. Review inputs and requested actions
 before execution. See its [guide](../suite_assistant_plugin/README.md). The standalone
 Assistant PCM package carries the other tools' backends privately, so it does not
 require sibling PCM installations. Selected backends still need their normal native
-runtimes and dependencies. Assistant is included in release 3.6.28 as a testing package.
+runtimes and dependencies. Assistant is a testing package.
 
 ```text
 wayricad-assistant capabilities
-wayricad-assistant plan "show board analytics" --board C:/Projects/Example/board.kicad_pcb
+wayricad-assistant plan "give me layer wise total copper area" --board C:/Projects/Example/board.kicad_pcb
+wayricad-assistant plan "give me the number of 10u capacitors" --project C:/Projects/Example/board.kicad_pro
+wayricad-assistant models
 wayricad tools run coordinator -- plan "calculate microstrip impedance"
 ```
 

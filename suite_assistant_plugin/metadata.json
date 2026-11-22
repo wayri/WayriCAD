@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Assistant",
-  "description": "Use local language commands to run suite checks and open generated reports.",
-  "description_full": "Local commands or optional loopback Ollama coordinate registered read-only WayriCAD CLI actions. Shows reviewable plans, asks for missing inputs, offers saved-board net selection and explains hash-verified numerical results. No cloud, automatic model downloads or layout edits. LLM proposals require explicit Run; model explanations do not validate engineering results. Existing tool runtimes and numerical limits still apply. Independent KiCad 10 IPC plugin.",
+  "description": "Run reviewed KiCad checks and interpret reports with optional local Ollama.",
+  "description_full": "Use local commands or optional loopback Ollama for registered WayriCAD actions: fitted BOM counts, saved copper areas, thermal screening, and supported PI, SI and EMerge workflows. Review editable plans and supply missing inputs or study files before explicitly running Ollama proposals. Explanations cite hash-verified results, not engineering sign-off. No cloud model, automatic model download or layout edit. Solver dependencies still apply. KiCad 10 testing package.",
   "identifier": "com.github.wayri.wayricad.assistant",
   "type": "plugin",
   "author": {
