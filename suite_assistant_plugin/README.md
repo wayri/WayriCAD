@@ -90,8 +90,26 @@ These are actual native-window screenshots on Windows with KiCad 10.0.6. The pub
 
 The command catalogue exposes specific existing CLI actions, including electrical checks, mechanical review, board analytics and transmission-line calculations. Use the CLI `capabilities` command for the exact supported actions and required inputs in your installed version. Every plugin is not automatically controllable: actions must be explicitly registered with a parameter schema and an execution adapter.
 
-The current source catalogue contains 62 actions across all 27 registered tools,
-including the Assistant catalogue itself. For guard stitching, selected signal
+### Simulation and analytics requests
+
+| Ask for | Supply or review |
+|---|---|
+| "Give me the number of 10u capacitors" | A saved project or root schematic. Defaults to the base variant. Counts fitted BOM references with the requested R/C/L prefix and normalized nominal value; unparseable values are listed, not counted as matches. Saved native inputs only; unsaved or Analytics Studio workspace overlays are not included. |
+| "Give me layer wise total copper area" | A saved PCB. Shows union area in mm² and coverage by layer. Missing zone fill or unsupported geometry can make totals unknown; save filled zones in KiCad before measuring. |
+| "Solve board heat map at 25 C with C1=0.5 W and C2=0.1 W" | Explicit dissipated watts. Steady thin-sheet screen with automatic mesh and declared still-air/material defaults; no junction estimate. Separate transient component RC and 3D solid actions use reviewed native study JSON. |
+| PI two-port AC impedance, DC bundle or series-path solve | Supply the corresponding reviewed study JSON. Series also needs source voltage and load current. Draft power-tree and series-path discovery can run directly on the saved board; edit and save paths in Quick PI. |
+| SI multi-net and crosstalk study | Supply the saved PCB and reviewed Quick SI study JSON. Single-route screening still accepts conversational inputs. |
+| "List EMerge examples", then "Run EMerge research example" | Choose an exact built-in example ID and a saved PCB context; the example geometry is independent of that PCB. The qualified solver must already be prepared. Custom PCB-region and array setup remain in Quick EMerge. |
+
+Ollama cannot choose file paths. Supply study files in the Assistant's input form.
+The Assistant window uses its current Python environment. For EMerge or another
+backend with a separate prepared environment, review the saved plan and use
+`python -m suite_assistant_plugin run PLAN --output-root RESULTS --python SOLVER_PYTHON`.
+The required dependencies must already be present in that interpreter (including
+Shapely for saved copper measurements); this workflow does not install them.
+Large spatial, sweep or field artifacts may exceed the interpretation budget;
+open the original reports or the originating tool for full data and plots.
+Use `capabilities` for the current catalogue. For guard stitching, selected signal
 nets may supply the route scope, but the guard net is a separate required input.
 For example: **“Guard signal net CLK with guard net GND, spacing 2 mm and offset
 1 mm.”** The result is a preview plan; apply reviewed copper in Via Stitching.

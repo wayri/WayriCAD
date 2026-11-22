@@ -151,6 +151,10 @@ def _rank(query):
             r"\b(microstrip|stripline|coplanar|cpw)\b", query, re.I
         ):
             score += 0.25
+        if (identifier == 'bom-studio.count-value'
+                and re.search(r'\b(count|how many|number of)\b', query, re.I)
+                and re.search(r'\b(capacitors?|resistors?|inductors?)\b', query, re.I)):
+            score = max(score, .95)
         if identifier=='via-stitching.preview' and re.search(r'\b(?:guard|guarding|fence)\b',query,re.I):
             score-=.35
         if identifier == "trace-impedance.path" and re.search(
@@ -175,6 +179,13 @@ def _numeric(query, pattern, scale=1.0):
 
 def _slots(query):
     values = {}
+    component = re.search(r'\b(\d+(?:\.\d+)?\s*(?:[pnu\u00b5\u03bcmkM]\s*)?(?:F|H|ohms?)?)\s+(capacitors?|inductors?|resistors?)\b', query, re.I)
+    if component:
+        values['value'] = component[1].strip()
+        values['kind'] = {'c':'C','r':'R','i':'L'}[component[2][0].lower()]
+    powers = re.findall(r'\b([A-Za-z]+\d+)\s*=\s*(\d+(?:\.\d+)?|\.\d+)\s*W\b', query, re.I)
+    if powers:
+        values['powers'] = [f'{ref}={watts}' for ref, watts in powers]
     # Exact names are kept verbatim, including hierarchical net separators.
     match = re.search(r'\bnet\s+(?:["\']([^"\']+)["\']|([^\s,;]+))', query, re.I)
     if match:

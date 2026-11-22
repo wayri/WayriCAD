@@ -117,7 +117,7 @@ export function validateComments(value, document) {
   });
 }
 
-/** 0.6.0 has no public arbitrary-point 3D projector. Never guess exploded Z. */
+/** The 3D projection is registered only in the assembled pose. */
 export function overlaysRegistered(viewer) {
   if (viewer.view !== '3d') return true;
   try {
@@ -129,7 +129,11 @@ function camera2D(viewer) {
   const camera = viewer.getCamera?.();
   return camera && [camera.center?.x, camera.center?.y, camera.zoom].every(Number.isFinite) && camera.zoom > 0 && typeof camera.flipped === 'boolean' ? camera : null;
 }
-/** Public copied 2D camera in CSS pixels/mm; legacy/CAM stays version-pinned. */
+// The public camera omits quarterTurns. Use the exact pinned renderer mapping
+// when rotated, and never fall back to unrotated coordinates in that case.
+const ownedCamera = viewer => viewer.renderer?.viewport?.camera;
+const rotated = viewer => Boolean(ownedCamera(viewer)?.quarterTurns);
+/** Public copied 2D camera in CSS pixels/mm; rotated/CAM stays version-pinned. */
 export function projectWorld(viewer, position, rect) {
   let projected;
   if (viewer.view === '3d') {
@@ -137,23 +141,23 @@ export function projectWorld(viewer, position, rect) {
     projected = viewer.renderer?.projectAnchor?.({ position });
     if (!projected || projected.visible !== true) return null;
     projected = { x: projected.x-rect.left, y: projected.y-rect.top };
-  } else if (typeof viewer.getCamera === 'function' && viewer.view !== 'manufacturing') {
+  } else if (typeof viewer.getCamera === 'function' && viewer.view !== 'manufacturing' && !rotated(viewer)) {
     const camera = camera2D(viewer);
     if (!camera) return null;
     projected = {x:(position.x-camera.center.x)*camera.zoom*(camera.flipped?-1:1)+rect.width/2,
       y:(position.y-camera.center.y)*camera.zoom+rect.height/2};
-  } else projected = viewer.renderer?.viewport?.camera?.world_to_screen?.(position);
+  } else projected = ownedCamera(viewer)?.world_to_screen?.(position);
   return projected && [projected.x, projected.y].every(Number.isFinite) ? projected : null;
 }
 export function screenToWorld(viewer, x, y, rect = viewer.stage?.getBoundingClientRect()) {
   if (viewer.view === '3d') throw new Error('Point and region drafting require the PCB or schematic view; 3D has no verified screen-to-mm inverse.');
-  if (typeof viewer.getCamera === 'function' && viewer.view !== 'manufacturing') {
+  if (typeof viewer.getCamera === 'function' && viewer.view !== 'manufacturing' && !rotated(viewer)) {
     const camera = camera2D(viewer);
     if (!camera || !rect) throw new Error('The public camera is unavailable.');
     return point({x:camera.center.x+(x-rect.width/2)/camera.zoom*(camera.flipped?-1:1),
       y:camera.center.y+(y-rect.height/2)/camera.zoom});
   }
-  const camera = viewer.renderer?.viewport?.camera;
+  const camera = ownedCamera(viewer);
   if (typeof camera?.screen_to_world !== 'function') throw new Error('The renderer has no verified coordinate mapping.');
   return point(camera.screen_to_world({ x, y }));
 }
@@ -222,6 +226,8 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       const button = elements[`view-${view}`];
       if (button) { button.disabled = !documentLoaded || (view === '3d' ? document.kind !== 'pcb' : !document.documents.some(d=>d.kind===view)); button.setAttribute('aria-pressed', String(documentLoaded && viewer.view === view)); }
     }
+    if (elements.rotate) elements.rotate.disabled = !documentLoaded ||
+      !['pcb', 'schematic'].includes(viewer.view) || !Number.isInteger(ownedCamera(viewer)?.quarterTurns);
     updateModeControls();
   }
   function updateLayers() {
@@ -318,7 +324,17 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
       const replacement = function (...args) { const result = original.apply(this, args); drawOverlay(); return result; };
       renderer[key] = replacement; originals.push(() => { if (renderer[key] === replacement) renderer[key] = original; });
     }
-    stopHooks = () => originals.forEach(restore => restore());
+    // WebView's public camerachange intentionally omits rotation-only frames.
+    let turns = ownedCamera(viewer)?.quarterTurns;
+    const rotationFrame = () => {
+      const next = ownedCamera(viewer)?.quarterTurns;
+      if (next !== turns) { turns = next; drawOverlay(); }
+    };
+    renderer?.addEventListener?.('kicad:viewframe', rotationFrame);
+    stopHooks = () => {
+      renderer?.removeEventListener?.('kicad:viewframe', rotationFrame);
+      originals.forEach(restore => restore());
+    };
     drawOverlay(); updateLayers(); updateTabs();
   }
   listen(viewer, 'ready', () => { if (!disposed && documentLoaded) installProjectionHooks(); });
@@ -339,6 +355,14 @@ export function createReviewBridge({ ViewerClass, elements, document: dom = glob
   listen(viewer, 'error', event => error(event.detail));
   for (const view of ['pcb', 'schematic', '3d', 'manufacturing']) listen(elements[`view-${view}`], 'click', safe(() => api.setView(view)));
   listen(elements.fit, 'click', safe(() => { viewer.fit(); drawOverlay(); }));
+  if (elements.rotate) listen(elements.rotate, 'click', safe(() => {
+    const camera = ownedCamera(viewer);
+    if (!documentLoaded || !['pcb','schematic'].includes(viewer.view) ||
+        !Number.isInteger(camera?.quarterTurns)) return;
+    camera.quarterTurns = (camera.quarterTurns + 1) % 4;
+    viewer.renderer.draw();
+    drawOverlay();
+  }));
   listen(elements['layers-toggle'], 'click', () => { layersOpen = !layersOpen; updateLayers(); });
   for (const [id, value] of [['mode-pan','navigate'], ['mode-pin','pin'], ['mode-region','region']]) listen(elements[id], 'click', safe(() => setMode(value)));
   listen(elements.documents, 'change', () => {
@@ -473,7 +497,7 @@ export async function mountReviewBridge({ViewerClass,document:dom=globalThis.doc
   let bridge;
   try {
     const KiCadViewer=ViewerClass||(await import('./vendor/review-viewer.mjs')).KiCadViewer;
-    const ids=['viewer','status','layers','layers-toggle','documents','view-pcb','view-schematic','view-3d','fit','comment-menu','comment-label','mode-pan','mode-pin','mode-region'];
+    const ids=['viewer','status','layers','layers-toggle','documents','view-pcb','view-schematic','view-3d','fit','rotate','comment-menu','comment-label','mode-pan','mode-pin','mode-region'];
     const elements=Object.fromEntries(ids.map(id=>[id,dom.getElementById(id)]));
     elements.overlay=dom.getElementById('review-overlay');
     bridge=createReviewBridge({ViewerClass:KiCadViewer,elements,document:dom,postMessage:value=>nativePost(value,target)});

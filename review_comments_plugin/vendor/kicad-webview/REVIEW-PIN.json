@@ -1,49 +1,49 @@
 {
   "schema": "wayricad.review-viewer-pin/v1",
-  "version": "0.8.0",
+  "version": "1.1.1",
   "license": "MPL-2.0",
-  "source_archive_url": null,
-  "source_archive_sha256": "9a811d850854a5db8bf834213bcd2394af0f6d3c6ab8481b44257bca5b106e45",
-  "source_url": "https://github.com/wayri/kicad-webview/tree/470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
-  "source_commit": "470e9d1638b8f2af0af7e26928a04b1ad459b8eb",
-  "distribution_kind": "source-preview",
-  "note": "Tested source build; not published npm/CDN 0.8.0. Unmodified covered source linked above.",
+  "source_archive_url": "https://github.com/wayri/kicad-webview/releases/download/v1.1.1/kicad-webview-1.1.1.zip",
+  "source_archive_sha256": "c8bd0355cb39a2b22adbe963ed1da2138916438c0993d7aaf4b605f562d23661",
+  "source_url": "https://github.com/wayri/kicad-webview/tree/498790f9280d284ea44d6f3e75f87a696f20193f",
+  "source_commit": "498790f9280d284ea44d6f3e75f87a696f20193f",
+  "distribution_kind": "release",
+  "note": "Unmodified full ESM and notices from the verified official release archive.",
   "files": {
     "kivi-viewer.js": {
-      "bytes": 1788653,
-      "sha256": "140bd3e62de20056453777c3205cfa8492c746d30e2dcf177384e66e9d387cb2"
+      "bytes": 1817838,
+      "sha256": "7c15027d6082619cd57a7a887c839ccf13ee24cf4b0f22ee072f256eccfd9c34"
     },
     "LICENSE": {
-      "bytes": 17099,
-      "sha256": "9221c2f936159b8446d329249fb4c0f25be510f447383a0f13336ac7985668a3"
+      "bytes": 16726,
+      "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
     },
     "LICENSING.md": {
-      "bytes": 3427,
-      "sha256": "6efff6ced7e7f5b43834fb276c095199f90199aa67370244c6a59ef53033cc1e"
+      "bytes": 3404,
+      "sha256": "11b307a38dcbc120585950cf15dbb86b764c86ea38ab4487ff5121b582629403"
     },
     "THIRD-PARTY-NOTICES.md": {
-      "bytes": 2016,
-      "sha256": "310effa5a0757c99aac5682224b590f50352cf9807cb2963b93214619835a075"
+      "bytes": 2111,
+      "sha256": "81a2a534e7b4ed3b32aa0a32c674d321aaa516f22c56e1e18283b2c17c35f5ca"
     },
     "THREE-LICENSE": {
-      "bytes": 1102,
-      "sha256": "f57eb9202058667d12aebd854fe8a86d6feaeab51078180df5615bfdbd5cff05"
+      "bytes": 1081,
+      "sha256": "4c40a1ef62450b857c3b2aaf294936304cd552d965fbcd9d32d4c5bcf4ba4454"
     },
     "FZSTD-LICENSE": {
-      "bytes": 1089,
-      "sha256": "1d72133b15f05101411c4f53e34af38adce3ecf7a78959d3d28b1e4d41a4fc92"
+      "bytes": 1069,
+      "sha256": "62249119bb7df6e54300f37a37145c26a6d4420410aac8881a119c5b427cf751"
     },
     "SPIKE-ENGINE-NOTICE.md": {
       "bytes": 956,
-      "sha256": "7cc2a9a75eba0f47eb6847a87dfe800b2c6e2adaebe0f68e4f37793721549aa6"
+      "sha256": "bbbb818ca43478fb1100b703c49ef353bab3f19f835156042bcc125bb1e8cedc"
     },
     "SOURCE-PROVENANCE.json": {
       "bytes": 28419,
       "sha256": "a70b3e4212c556f7147f3008a0d2f9a94208dd4aee142d2e5c9223e03b749285"
     },
-    "PUBLIC-API.md": {
-      "bytes": 11801,
-      "sha256": "7659f2f1155bebfeb9518b8b16c3d970acd7b0af128c2730cf266c95b8fd5dbd"
+    "API-STABILITY.md": {
+      "bytes": 4219,
+      "sha256": "96771fdb92d0c3dd4d56a93bb200397335b07daf1e31d99b812c093b7b13d4d9"
     }
   }
 }

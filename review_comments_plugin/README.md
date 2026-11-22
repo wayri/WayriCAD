@@ -37,9 +37,9 @@ show a visible keyboard-focus outline. Sign-in fields have persistent labels;
 composer updates preserve the chosen theme, including warnings and character
 counts. Switching themes retains drafts and field values.
 
-**Introduced in 4.8.3:** source bundles the unmodified
-**KiCad WebView 0.8.0 source-preview** full ESM distribution at
-`470e9d1638b8f2af0af7e26928a04b1ad459b8eb` (not the published npm/CDN artifact)
+The current source bundles the unmodified
+**[KiCad WebView 1.1.1](https://github.com/wayri/kicad-webview/releases/tag/v1.1.1)**
+full ESM release at `498790f9280d284ea44d6f3e75f87a696f20193f`
 under MPL-2.0, with its licenses and notices; no separate viewer setup is needed.
 Its integration-owned [pin receipt](vendor/kicad-webview/REVIEW-PIN.json) records
 the official archive identity and exact file hashes. The pane serves an in-memory snapshot of those assets through
@@ -49,9 +49,15 @@ file to the provider conversation. Pins and regions are local drafts until
 **Send message** publishes them. Provider reads, saved-file SHA-256 and scope
 matching remain the authority for displayed markers and publication.
 
+The renderer includes the back-side 3D pad correction also shipped in
+[KiCad Online 0.12.105](https://github.com/wayri/KiCad-Online/blob/d6e571df3501e29164105a6e0a58e1343f2e4713/docs/releases/v0.12.105.md).
+Use **Rotate drawing** to turn a PCB or schematic by 90 degrees; comment pins
+and regions remain in saved drawing coordinates. Neither rotation nor the 3D
+renderer changes the saved design or authorizes posting.
+
 Optional overrides: set `WAYRICAD_REVIEW_VIEWER_ROOT` before launch or choose
-**Viewer assets…**. Select the exact verified source-preview package root or its complete `dist`
-folder, not a lone script or the lite/classic bundle. All nine pinned ESM/notice
+**Viewer assets…**. Select the official release ZIP extracted to a folder, not
+a lone script or the lite/classic bundle. All nine pinned ESM/notice
 files must match. Earlier reviewed `web-library/extension` and `src/engine`
 source layouts remain supported with their original notices and closure checks.
 Review does not download renderer updates or import another plugin's copy.

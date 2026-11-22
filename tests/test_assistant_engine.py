@@ -16,11 +16,25 @@ QUERY = "Calculate microstrip impedance width 0.2 mm height 0.1 mm er 4.2"
 
 
 class AssistantEngineTests(unittest.TestCase):
+    def test_analytics_and_board_heat_intents(self):
+        for query, action, params in (
+            ('Give me the number of 10u capacitors','bom-studio.count-value',{'kind':'C','value':'10u'}),
+            ('Give me layer wise total copper area','bom-studio.copper',{}),
+            ('Solve board heat map at 25 C with C1=0.5 W','quick-therm.board-heat',
+             {'ambient':25.,'powers':['C1=0.5']}),
+        ):
+            with self.subTest(query=query):
+                plan = engine.propose(query)
+                self.assertEqual(plan['status'],'needs_input')
+                self.assertEqual(plan['steps'][0]['action'],action)
+                self.assertEqual(plan['steps'][0]['params'],params)
+
     def test_common_intents_and_clarifications(self):
         examples = {
             "simulate power integrity": "quick-pi.solve",
             "check signal integrity": "signal-integrity.screen",
-            "analyze board temperature": "quick-therm.analyze",
+            "analyze board temperature": "quick-therm.board-heat",
+            "screen component temperatures": "quick-therm.analyze",
             "check mechanical clearances": "mechanical-check.analyze",
             "place reference labels": "silkscreen-label-placer.preview",
             "preview connector fanout": "fanout-generator.preview",
