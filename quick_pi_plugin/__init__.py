@@ -1,2 +1,2 @@
 """WayriCAD Quick PI: saved-board DC and explicit AC copper analysis."""
-__version__ = '4.8.8'
+__version__ = '4.8.9'

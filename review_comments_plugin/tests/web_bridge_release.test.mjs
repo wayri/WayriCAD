@@ -37,7 +37,7 @@ class PublicViewer extends EventTarget {
   dispose(){this.disposed=true;}
 }
 function fixture(ViewerClass=PublicViewer){
-  const ids=['viewer','overlay','status','documents','layers','layers-toggle','view-pcb','view-schematic','view-3d','view-manufacturing','mode-pan','mode-pin','mode-region','fit'];
+  const ids=['viewer','overlay','status','documents','layers','layers-toggle','view-pcb','view-schematic','view-3d','view-manufacturing','mode-pan','mode-pin','mode-region','fit','rotate'];
   const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
   const messages=[];
   const api=createReviewBridge({ViewerClass,elements,document:dom,postMessage:value=>messages.push(value),raf:()=>1,cancelRaf:()=>{}});
@@ -59,6 +59,31 @@ test('exploded or unknown 3D registration never projects guessed anchors',()=>{
   const viewer={view:'3d',getExplode:()=>explode,renderer:{projectAnchor:()=>({x:30,y:40,visible:true})}};
   assert.deepEqual(projectWorld(viewer,{x:1,y:1},rect),{x:20,y:20});
   for(const value of [1,40,NaN,undefined]){explode=value;assert.equal(overlaysRegistered(viewer),false);assert.equal(projectWorld(viewer,{x:1,y:1},rect),null);}
+});
+
+test('rotation repaints saved pins, uses the inverse, and fails closed without it',async()=>{
+  class RotatingViewer extends PublicViewer {
+    constructor() {
+      super();
+      this.renderer=new EventTarget();
+      this.renderer.draw=()=>emit(this.renderer,'kicad:viewframe');
+      this.renderer.viewport={camera:{quarterTurns:0,
+        world_to_screen:({x,y})=>({x:400-(y-30)*4,y:250+(x-40)*4}),
+        screen_to_world:({x,y})=>({x:40+(y-250)/4,y:30-(x-400)/4})}};
+    }
+  }
+  const {api,elements}=fixture(RotatingViewer);
+  await api.setDocument(payload());api.setComments(comments());
+  assert.equal(elements.rotate.disabled,false);
+  emit(elements.rotate,'click');
+  assert.equal(api.viewer.renderer.viewport.camera.quarterTurns,1);
+  assert.equal(elements.overlay.children[0].children[0].attributes.cx,'460');
+  assert.deepEqual(screenToWorld(api.viewer,460,170,rect),{x:20,y:15});
+  delete api.viewer.renderer.viewport.camera.world_to_screen;
+  delete api.viewer.renderer.viewport.camera.screen_to_world;
+  assert.equal(projectWorld(api.viewer,{x:20,y:15},rect),null);
+  assert.throws(()=>screenToWorld(api.viewer,460,170,rect),/no verified coordinate mapping/);
+  api.dispose();
 });
 
 test('public camera events repaint and comment focus preserves zoom/flip',async()=>{

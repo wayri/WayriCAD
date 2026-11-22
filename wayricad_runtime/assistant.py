@@ -151,6 +151,10 @@ def _rank(query):
             r"\b(microstrip|stripline|coplanar|cpw)\b", query, re.I
         ):
             score += 0.25
+        if (identifier == 'bom-studio.count-value'
+                and re.search(r'\b(count|how many|number of)\b', query, re.I)
+                and re.search(r'\b(capacitors?|resistors?|inductors?)\b', query, re.I)):
+            score = max(score, .95)
         if identifier=='via-stitching.preview' and re.search(r'\b(?:guard|guarding|fence)\b',query,re.I):
             score-=.35
         if identifier == "trace-impedance.path" and re.search(
@@ -175,6 +179,13 @@ def _numeric(query, pattern, scale=1.0):
 
 def _slots(query):
     values = {}
+    component = re.search(r'\b(\d+(?:\.\d+)?\s*(?:[pnu\u00b5\u03bcmkM]\s*)?(?:F|H|ohms?)?)\s+(capacitors?|inductors?|resistors?)\b', query, re.I)
+    if component:
+        values['value'] = component[1].strip()
+        values['kind'] = {'c':'C','r':'R','i':'L'}[component[2][0].lower()]
+    powers = re.findall(r'\b([A-Za-z]+\d+)\s*=\s*(\d+(?:\.\d+)?|\.\d+)\s*W\b', query, re.I)
+    if powers:
+        values['powers'] = [f'{ref}={watts}' for ref, watts in powers]
     # Exact names are kept verbatim, including hierarchical net separators.
     match = re.search(r'\bnet\s+(?:["\']([^"\']+)["\']|([^\s,;]+))', query, re.I)
     if match:
@@ -440,7 +451,7 @@ def _compile(step, context, output_dir):
     return compile_action(step["action"], step["params"], context, output_dir)
 
 
-def propose(query, context=None, answers=None):
+def propose(query, context=None, answers=None, *, tasks=None):
     """Convert bounded English requests to a sealed, typed plan or questions.
 
     Answers use question keys such as ``0.net``; a single-step plan also accepts
@@ -469,19 +480,26 @@ def propose(query, context=None, answers=None):
         assumptions=[],
         sources={},
     )
+    if tasks is not None:
+        from .assistant_ollama import validate_tasks
+        tasks = validate_tasks(tasks)
     clauses = [
         part.strip(" ,.")
         for part in re.split(r"\b(?:and then|then|also)\b|[;\n]", query, flags=re.I)
         if part.strip(" ,. ")
     ]
+    if tasks is not None:
+        clauses = [query] * len(tasks)
     if not 1 <= len(clauses) <= 8:
         raise ValueError("Choose 1–8 tasks per request.")
-    all_slots = _slots(query)
+    all_slots = _slots(query) if tasks is None else {}
     for index, clause in enumerate(clauses):
         ranked = _rank(clause)
         choice = answers.get(
             f"{index}.action", answers.get("action") if len(clauses) == 1 else None
         )
+        if tasks is not None:
+            choice = tasks[index]['action']
         if choice is not None:
             if choice not in _SPECS:
                 raise ValueError("Choose a listed Assistant action.")
@@ -497,7 +515,7 @@ def propose(query, context=None, answers=None):
         else:
             identifier = ranked[0]["action"]
         spec = _SPECS[identifier]
-        slots = dict(all_slots, **_slots(clause))
+        slots = dict(all_slots, **_slots(clause)) if tasks is None else dict(tasks[index]['params'])
         if identifier=='via-stitching.guard' and context.get('selected_nets') and 'signal_nets' not in slots:
             slots['signal_nets']=context['selected_nets']
         params = {}
@@ -509,7 +527,7 @@ def propose(query, context=None, answers=None):
             slots["net"] = context["selected_nets"][0]
         if context.get("selected_refs") and "refs" not in slots:
             slots["refs"] = context["selected_refs"]
-        if "pattern" in spec["fields"] and spec["fields"]["pattern"].get("choices"):
+        if tasks is None and "pattern" in spec["fields"] and spec["fields"]["pattern"].get("choices"):
             matches = [
                 value
                 for value in spec["fields"]["pattern"]["choices"]
@@ -518,6 +536,10 @@ def propose(query, context=None, answers=None):
             if matches:
                 slots["pattern"] = max(matches, key=len)
         for key, field in spec["fields"].items():
+            if tasks is not None and (f'{index}.{key}' in answers or (len(tasks) == 1 and key in answers)):
+                explicit = answers.get(f'{index}.{key}', answers.get(key))
+                if explicit is None:
+                    continue
             value = answers.get(
                 f"{index}.{key}", answers.get(key) if len(clauses) == 1 else None
             )
@@ -617,6 +639,7 @@ def validate_plan(plan):
         "sources",
         "plan_hash",
         "error",
+        "interpretation",
     }
     if (
         not isinstance(plan, dict)
@@ -664,9 +687,12 @@ def capabilities():
         model_download_required=False,
         shell_execution=False,
         board_mutation=False,
+        providers=[dict(id='local', requires_model=False),
+                   dict(id='ollama', requires_model=True, loopback_only=True,
+                        requires_explicit_run=True, result_interpretation=True)],
         actions=[dict(id=key, **value) for key, value in _SPECS.items()],
         limits=[
-            "Bounded local intent/slot matching; not a general-purpose language model.",
+            "Local fuzzy matching by default; optional loopback Ollama proposes reviewed typed plans.",
             "Missing physics inputs and ambiguous actions require clarification.",
             "Design changes are previews; Apply remains in the originating tool.",
             "Only saved files are analyzed; save editor changes before running.",
@@ -970,6 +996,16 @@ def main(argv=None):
     plan.add_argument("--project", type=Path)
     plan.add_argument("--answers", type=Path)
     plan.add_argument("--output", type=Path)
+    plan.add_argument("--provider", choices=['local', 'ollama'], default='local')
+    plan.add_argument("--model", help='Installed Ollama model; no model is downloaded.')
+    plan.add_argument("--ollama-url", default='http://127.0.0.1:11434')
+    explain = sub.add_parser('explain', help='Interpret hash-verified run JSON with local Ollama; never runs tools.')
+    explain.add_argument('result', type=Path)
+    explain.add_argument('--model', required=True)
+    explain.add_argument('--ollama-url', default='http://127.0.0.1:11434')
+    explain.add_argument('--output', type=Path)
+    inventory = sub.add_parser('models', help='List already installed local Ollama models.')
+    inventory.add_argument('--ollama-url', default='http://127.0.0.1:11434')
     run = sub.add_parser(
         "run", help="Execute a previously interpreted, unchanged read-only plan."
     )
@@ -982,7 +1018,12 @@ def main(argv=None):
         if args.operation == "capabilities":
             result = capabilities()
         elif args.operation == "plan":
-            result = propose(
+            planner = propose
+            options = {}
+            if args.provider == 'ollama':
+                from .assistant_ollama import propose as planner
+                options = dict(model=args.model, url=args.ollama_url)
+            result = planner(
                 args.query,
                 {
                     key: str(value)
@@ -990,7 +1031,15 @@ def main(argv=None):
                     if (value := getattr(args, key))
                 },
                 load_json(args.answers) if args.answers else {},
+                **options,
             )
+        elif args.operation == 'models':
+            from .assistant_ollama import models
+            result = dict(models=models(args.ollama_url))
+        elif args.operation == 'explain':
+            from .assistant_ollama import explain
+            record = load_json(args.result)
+            result = explain(record, args.result.parent, model=args.model, url=args.ollama_url)
         else:
             result = run_plan(
                 load_json(args.plan),

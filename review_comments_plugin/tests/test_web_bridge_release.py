@@ -11,5 +11,5 @@ def test_published_viewer_bridge_contracts():
     if not node:
         pytest.skip('Node is required for the published viewer bridge contracts.')
     subprocess.run([node,'--test',str(Path(__file__).with_name('web_bridge_release.test.mjs'))],
-                   check=True,capture_output=True,text=True,timeout=30,
+                   check=True,capture_output=True,text=True,timeout=30,stdin=subprocess.DEVNULL,
                    creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))

@@ -30,6 +30,8 @@ def main(argv=None, *, on_ready=None):
     parser.add_argument('--qualify-runtime', type=Path, metavar='CERTIFICATE')
     parser.add_argument('--list-research-antennas', nargs='?', const='*', metavar='PATTERN')
     parser.add_argument('--show-research-antenna', metavar='ID')
+    parser.add_argument('--run-research-example', metavar='ID')
+    parser.add_argument('--result-file', type=Path)
     parser.add_argument('--write-research-setup', nargs=2, metavar=('ID', 'JSON'))
     parser.add_argument('--array-scan', nargs=2, metavar=('ID', 'THETA_DEG'))
     parser.add_argument('--array-phi', type=float, default=0.0, metavar='DEG')
@@ -39,6 +41,30 @@ def main(argv=None, *, on_ready=None):
     parser.add_argument('--array-theta', type=float, default=0.0, metavar='DEG')
     parser.add_argument('--array-taper', choices=('uniform', 'binomial'), default='uniform')
     args = parser.parse_args(argv)
+    if args.run_research_example:
+        if not args.board or not args.result_file:
+            parser.error('--run-research-example requires --board and --result-file')
+        from .backend import run_request
+        from .model import config_digest, source_identity, validate_config
+        from .research_antennas import example_config
+        target = args.result_file.resolve()
+        if target.name != 'result.json' or target.exists():
+            parser.error('Use result.json in a fresh run directory')
+        config = validate_config(example_config(args.run_research_example))
+        if config['mode'] == 'pcb_region':
+            parser.error('Selected example requires a reviewed PCB region in Quick EMerge')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        request = target.parent / 'request.json'
+        with request.open('x', encoding='utf-8') as stream:
+            json.dump(dict(config=config, config_sha256=config_digest(config),
+                           source=source_identity(args.board)), stream, allow_nan=False)
+        previous = Path.cwd()
+        try:
+            os.chdir(target.parent)
+            run_request(request)
+        finally:
+            os.chdir(previous)
+        return 0
     if args.write_fem_aesa_setup:
         from .backend import atomic_json
         from .fem_array import fem_aesa_config

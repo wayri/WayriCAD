@@ -306,3 +306,31 @@ Run native tests with a Python runtime supplying wx. Tests skip native GUI cases
 when wx is unavailable; a skip is not a native pass. Live provider testing is a
 separate explicit action against a labelled disposable conversation, with
 credentials retained by the provider CLI and no user design modifications.
+# KiCad WebView 1.1.1 refresh
+
+The Review source pin uses the official WebView 1.1.1 full ESM asset, verified
+against the published archive SHA-256 and the nine member hashes in
+`vendor/kicad-webview/REVIEW-PIN.json`. KiCad Online 0.12.105 independently
+reports saved back-side pad and net selection checks on ESP32-PoE; this
+refresh adopts the corresponding public WebView release, not Online's browser
+extension code or its GitHub session.
+
+Focused checks: nine Node bridge tests; 21 Python asset, host, bridge and
+interchange tests passed, three skipped. The native KiCad 10 WebView smoke
+check loaded the saved thermal demo, round-tripped four quarter turns, entered
+3D with its registered anchor projector, retained the original PCB SHA-256
+and did not grant publication authority. Reproduce with
+`python tools/verify_review_webview_pin.py quick_therm_plugin/examples/thermal-demo.kicad_pcb --check-3d`.
+The 4.8.9 acceptance additionally exercised the real native 3D ray picker on
+`tests/fixtures/back-pad-pick.kicad_pcb`: at saved back-side pad centres
+(15, 18), (24, 13), and (15, 18) mm it returned BACK_FIRST, BACK_SECOND,
+and BACK_FIRST. The smoke check found a zero-height initial native canvas;
+laying out the selected book page after creating the browser fixed it. The
+fixture hash was unchanged. Use the same verification tool with the fixture
+and `--check-back-pads`.
+
+Against the dedicated public GitHub test issue #32, Review refreshed, posted
+a temporary revision-bound point comment, read back its exact anchor,
+and observed its removal on a fresh sync. Its saved thermal-demo PCB was
+unchanged. This is GitHub issue backend evidence, not live GitLab,
+Discussions, OS-pointer or all-platform acceptance.

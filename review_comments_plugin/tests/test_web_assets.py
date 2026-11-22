@@ -77,10 +77,10 @@ class WebAssetsTests(unittest.TestCase):
     def test_bundled_release_is_exact_official_distribution_with_notices(self):
         root=Path(__file__).parents[1]/'vendor/kicad-webview'
         pin=json.loads((root/'REVIEW-PIN.json').read_text(encoding='utf-8'))
-        self.assertEqual(pin['version'],'0.8.0')
+        self.assertEqual(pin['version'],'1.1.1')
         self.assertEqual(pin['license'],'MPL-2.0')
-        self.assertEqual(pin['source_commit'],'470e9d1638b8f2af0af7e26928a04b1ad459b8eb')
-        self.assertEqual(pin['distribution_kind'],'source-preview')
+        self.assertEqual(pin['source_commit'],'498790f9280d284ea44d6f3e75f87a696f20193f')
+        self.assertEqual(pin['distribution_kind'],'release')
         for name,record in pin['files'].items():
             data=(root/name).read_bytes()
             self.assertEqual(len(data),record['bytes'])
@@ -106,7 +106,7 @@ class WebAssetsTests(unittest.TestCase):
             shutil.copyfile(bundled/name,external/name)
         self.assertEqual(len(asset_manifest(external.parent)),9)
         (external/'kivi-viewer.js').write_bytes(b'modified')
-        with self.assertRaisesRegex(ValueError,'pinned source-preview'):
+        with self.assertRaisesRegex(ValueError,'pinned release'):
             asset_manifest(external.parent)
 
     def test_moved_source_layout_preserves_import_urls_and_notices(self):
@@ -161,7 +161,7 @@ class WebAssetsTests(unittest.TestCase):
         served = discover_assets(root)
         if served['web-library/kicad-viewer.mjs'].name == 'kivi-viewer.js':
             self.assertEqual(len(manifest),9)
-            self.assertIn('PUBLIC-API.md',served)
+            self.assertIn('API-STABILITY.md',served)
         else:
             for name in ('source-loader.mjs','three-runtime.mjs','archive/zip.mjs',
                          'manufacturing/apertures.mjs','inspector.mjs'):

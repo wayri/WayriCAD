@@ -2,6 +2,7 @@
 import argparse
 import importlib
 import json
+import tempfile
 from pathlib import Path
 import uuid
 import unittest
@@ -29,6 +30,8 @@ class AssistantActionsTests(unittest.TestCase):
             field = spec['fields'][key]
             kind = field['kind']
             if key in self.context: values[key] = self.context[key]
+            elif key == 'powers': values[key] = ['U1=0.5']
+            elif kind == 'path': values[key] = str(self.root / 'spec.json')
             elif kind == 'choice': values[key] = field['choices'][0]
             elif kind == 'number': values[key] = max(1, field.get('minimum', 1))
             elif kind == 'integer': values[key] = 2
@@ -66,6 +69,40 @@ class AssistantActionsTests(unittest.TestCase):
                     self.assertNotIn('..', Path(output).parts)
                 json.dumps(result, allow_nan=False)
                 self.assertFalse(self.output.exists())
+
+    def test_board_heat_builds_only_explicit_source_watts(self):
+        values = dict(board=self.context['board'],ambient=25,powers=['C1=0.5','C2=0'])
+        result = self.compile('quick-therm.board-heat',values)
+        config = result['documents']['settings.json']
+        self.assertEqual(config['manual_values'],{'C1':{'power_w':.5},'C2':{'power_w':0.}})
+        self.assertTrue(config['board_power_only'])
+        self.assertIn('--no-solver-install',result['arguments'])
+        for bad in (['C1=-1'],['C1=0'],['C1=1','C1=2'],['C1=NaN']):
+            with self.subTest(bad=bad),self.assertRaises(ValueError):
+                self.compile('quick-therm.board-heat',dict(values,powers=bad))
+
+    def test_count_value_normalizes_capacitance_and_returns_refs(self):
+        from bom_studio_plugin.bomstudio import cli
+        fixture = Path(cli.__file__).resolve().parents[1] / 'examples' / 'BOM_Demo.kicad_pro'
+        for nominal in ('10u','10uF','10000nF','10 \u00b5F'):
+            with self.subTest(nominal=nominal),patch.object(cli,'emit') as emit:
+                self.assertEqual(cli.main(['count-value',str(fixture),'--source-only',
+                                          '--kind=C','--value='+nominal]),0)
+                report = emit.call_args.args[0]
+                self.assertEqual(report['count'],1)
+                self.assertEqual(report['references'],['C3'])
+
+    def test_emerge_example_builds_a_revision_bound_worker_request(self):
+        from quick_emerge_plugin import __main__ as cli, backend
+        board = Path(cli.__file__).resolve().parent/'tests'/'fixtures'/'region_coupon.kicad_pcb'
+        with tempfile.TemporaryDirectory() as temp, patch.object(backend,'run_request') as run:
+            result = Path(temp)/'result.json'
+            self.assertEqual(cli.main(['--board',str(board),'--run-research-example','rezaeipour-2021-dual-feed-patch',
+                                       '--result-file',str(result)]),0)
+            request = run.call_args.args[0]
+            record = json.loads(request.read_text(encoding='utf-8'))
+            self.assertEqual(record['source'],backend.source_identity(board))
+            self.assertEqual(record['config_sha256'],backend.config_digest(record['config']))
 
     def test_no_source_mutation_switch_or_command(self):
         forbidden = {'--apply', '--yes', '--install', '--save-settings', '--init-rules',
@@ -158,8 +195,20 @@ class AssistantActionsTests(unittest.TestCase):
             captured.append(namespace)
             raise Parsed()
         cases = {'quick-pi.solve': 'quick_pi_plugin.cli',
+                 'quick-pi.ac-ports': 'quick_pi_plugin.cli',
+                 'quick-pi.series': 'quick_pi_plugin.cli',
+                 'quick-pi.batch': 'quick_pi_plugin.cli',
+                 'quick-pi.power-tree': 'quick_pi_plugin.cli',
+                 'quick-pi.infer-series': 'quick_pi_plugin.cli',
                  'quick-therm.analyze': 'quick_therm_plugin.cli',
+                 'quick-therm.board-heat': 'quick_therm_plugin.cli',
+                 'quick-therm.transient': 'quick_therm_plugin.cli',
+                 'quick-therm.solid': 'quick_therm_plugin.cli',
+                 'quick-emerge.run-example': 'quick_emerge_plugin.__main__',
                  'signal-integrity.screen': 'signal_integrity_advisor_plugin.cli',
+                 'signal-integrity.study': 'signal_integrity_advisor_plugin.cli',
+                 'bom-studio.count-value': 'bom_studio_plugin.bomstudio.cli',
+                 'bom-studio.copper': 'bom_studio_plugin.bomstudio.cli',
                  'trace-impedance.path': 'trace_impedance_plugin.cli',
                  'trace-impedance.cross-section': 'trace_impedance_plugin.cli',
                  'fanout-generator.preview': 'wayricad_runtime.cli',

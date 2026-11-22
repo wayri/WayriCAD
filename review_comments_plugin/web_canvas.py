@@ -125,6 +125,9 @@ class WebDesignCanvas(wx.Panel):
         browser.Bind(wx.html2.EVT_WEBVIEW_SCRIPT_MESSAGE_RECEIVED, self.message)
         browser.LoadURL(host.url)
         self.view_area.Layout()
+        # A WebView added after the book has been sized does not get another
+        # page-size event until the user resizes the window.
+        self.drawing_area.Layout()
         return True
 
     def choose_assets(self, event=None):

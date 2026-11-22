@@ -56,6 +56,7 @@ class AssistantFrame(wx.Frame):
             Path(wx.StandardPaths.Get().GetDocumentsDir()) / 'WayriCAD' / 'Assistant' / 'results')
         self.context = {}
         self.plan = None
+        self.plan_inputs_dirty = False
         self.answers = {}
         self.question_controls = {}
         self.artifacts = []
@@ -68,6 +69,7 @@ class AssistantFrame(wx.Frame):
         self.loaded_board = None
         self.board_sha256 = None
         self._generation = 0
+        self.last_result = None
         self._all_focus_points = []
         self._selection_targets = []
         panel = wx.Panel(self)
@@ -77,8 +79,26 @@ class AssistantFrame(wx.Frame):
         font = heading.GetFont(); font.SetPointSize(font.GetPointSize() + 5); font.MakeBold()
         heading.SetFont(font)
         body.Add(heading, 0, wx.ALL, 12)
-        body.Add(wx.StaticText(panel, label='Local fuzzy commands · no cloud or language-model download · saved board stays unchanged'),
+        body.Add(wx.StaticText(panel, label='Local commands or Ollama · saved board stays unchanged'),
                  0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
+        provider_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.provider = wx.Choice(panel, choices=['Local commands', 'Ollama (review before Run)'])
+        self.provider.SetSelection(0)
+        self.provider.Bind(wx.EVT_CHOICE, self._provider_changed)
+        provider_row.Add(self.provider, 0, wx.RIGHT, 6)
+        self.ollama_model = wx.ComboBox(panel, value='', style=wx.CB_DROPDOWN)
+        self.ollama_model.SetHint('Installed model')
+        self.ollama_model.SetToolTip('Exact installed Ollama model name. No automatic model downloads.')
+        provider_row.Add(self.ollama_model, 1, wx.RIGHT, 6)
+        self.ollama_url = wx.TextCtrl(panel, value='http://127.0.0.1:11434')
+        self.ollama_url.SetToolTip('Loopback HTTP only; requests bypass proxies and do not follow redirects.')
+        provider_row.Add(self.ollama_url, 1, wx.RIGHT, 6)
+        self.ollama_check = wx.Button(panel, label='Find models')
+        self.ollama_check.Bind(wx.EVT_BUTTON, self._find_models)
+        provider_row.Add(self.ollama_check)
+        self.ollama_model.Bind(wx.EVT_TEXT, self._provider_changed)
+        self.ollama_url.Bind(wx.EVT_TEXT, self._provider_changed)
+        body.Add(provider_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 12)
         context_row = wx.BoxSizer(wx.HORIZONTAL)
         context_row.Add(wx.StaticText(panel, label='Saved PCB'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
         self.board_path = wx.TextCtrl(panel, style=wx.TE_READONLY)
@@ -142,6 +162,10 @@ class AssistantFrame(wx.Frame):
         task_icons.Add(bitmap('warning', self.plan_tasks))
         self.plan_tasks.AssignImageList(task_icons, wx.IMAGE_LIST_SMALL)
         plan_box.Add(self.plan_tasks, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        self.remove_task = action_icon(wx.Button(plan_page, label='Remove selected task'), wx.ART_DELETE)
+        self.remove_task.Bind(wx.EVT_BUTTON, self._remove_task)
+        self.remove_task.Disable()
+        plan_box.Add(self.remove_task, 0, wx.ALL, 8)
         self.plan_text = wx.TextCtrl(plan_page, style=wx.TE_MULTILINE | wx.TE_READONLY)
         self.plan_text.SetMinSize((-1, 100))
         self.plan_text.SetValue('Choose a PCB, then type a request. The Assistant shows its interpretation and asks for any missing inputs.\n\nIt coordinates existing CLI tools; it does not invent simulation settings or edit your layout.')
@@ -179,6 +203,11 @@ class AssistantFrame(wx.Frame):
         self.open_output.Bind(wx.EVT_BUTTON, self._open_output)
         action_icon(self.open_output, wx.ART_FOLDER)
         report_actions.Add(self.open_output)
+        self.interpret = wx.Button(result_page, label='Interpret results')
+        self.interpret.SetToolTip('Send this run\'s hash-verified numerical JSON to local Ollama. AI prose cannot change tool results.')
+        self.interpret.Bind(wx.EVT_BUTTON, self._interpret)
+        self.interpret.Disable()
+        report_actions.Add(self.interpret, 0, wx.LEFT, 8)
         result_box.Add(report_actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.report_list.Bind(wx.EVT_LISTBOX_DCLICK, self._open_report)
         result_page.SetSizer(result_box)
@@ -245,7 +274,66 @@ class AssistantFrame(wx.Frame):
         if board:
             self.set_board(board)
         self.Bind(wx.EVT_CLOSE, self._close)
+        self._provider_changed()
         self.CentreOnScreen()
+
+    def _provider_changed(self, event=None):
+        if self.busy:
+            return
+        self.plan = None
+        self.answers = {}
+        self.run.Disable()
+        use_ollama = self.provider.GetSelection() == 1
+        for control in (self.ollama_model, self.ollama_url, self.ollama_check):
+            control.Enable(use_ollama)
+        self.interpret.Enable(use_ollama and self.last_result is not None)
+        self.status.SetLabel('Ollama: review every proposed input before Run' if use_ollama else 'Ready · local command planner')
+
+    def _find_models(self, event=None):
+        if self.busy:
+            return
+        url = self.ollama_url.GetValue().strip()
+        self.cancel_event.clear()
+        self._set_busy(True, 'Checking local Ollama models…')
+        def work():
+            try:
+                from wayricad_runtime.assistant_ollama import models
+                names = models(url, cancel=self.cancel_event)
+                self._deliver(self._models_ready, names)
+            except Exception as exc:
+                self._deliver(self._error, str(exc))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _models_ready(self, names):
+        selected = self.ollama_model.GetValue()
+        self.ollama_model.SetItems(names)
+        self.ollama_model.ChangeValue(selected if selected in names else (names[0] if names else ''))
+        if self.ollama_model.GetValue() != selected:
+            self.plan = None
+            self.answers = {}
+        self._set_busy(False, f'{len(names)} installed models found' if names else 'No local models found. Install a model in Ollama first.')
+
+    def _interpret(self, event=None):
+        if self.busy or self.last_result is None or self.provider.GetSelection() != 1:
+            return
+        result, root = self.last_result, self.result_root
+        model, url = self.ollama_model.GetValue().strip(), self.ollama_url.GetValue().strip()
+        self.cancel_event.clear()
+        self._set_busy(True, 'Interpreting verified results with local Ollama…')
+        def work():
+            try:
+                from wayricad_runtime.assistant_ollama import explain
+                explanation = explain(result, root, model=model, url=url, cancel=self.cancel_event)
+                self._deliver(self._show_interpretation, explanation)
+            except Exception as exc:
+                self._deliver(self._error, str(exc))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_interpretation(self, explanation):
+        import json
+        self._set_busy(False, 'AI interpretation available; tool statuses are unchanged')
+        self.results.AppendText('\n\n' + explanation['label'] + '\n' + json.dumps(explanation, indent=2, ensure_ascii=False) + '\n')
+        self.tabs.SetSelection(1)
 
     def _engine(self):
         if self.engine is None:
@@ -266,11 +354,17 @@ class AssistantFrame(wx.Frame):
         self.ask.Enable(not busy)
         self.choose.Enable(not busy)
         self.query.Enable(not busy)
-        self.run.Enable(not busy and bool(self.plan) and self.plan.get('status') == 'ready')
+        self.run.Enable(not busy and not self.plan_inputs_dirty and bool(self.plan) and self.plan.get('status') == 'ready')
+        self.questions.Enable(not busy)
         self.cancel.Enable(busy)
         self.cancel.SetToolTip('Request cancellation of the running tool and retain its run record.')
         self.preview_load.Enable(not busy)
         self.choose_output.Enable(not busy)
+        self.provider.Enable(not busy)
+        for control in (self.ollama_model, self.ollama_url, self.ollama_check):
+            control.Enable(not busy and self.provider.GetSelection() == 1)
+        self.interpret.Enable(not busy and self.last_result is not None and self.provider.GetSelection() == 1)
+        self.remove_task.Enable(not busy and bool(self.plan and self.plan.get('interpretation')))
         self.show_in_editor.Enable(not busy and bool(self.context.get('selected_nets')) and bool(self.board_sha256))
         self.status.SetLabel(message)
         self.status.SetToolTip(message)
@@ -308,6 +402,10 @@ class AssistantFrame(wx.Frame):
         self._selection_targets = []
         self._generation += 1
         self.plan = None
+        if self.last_result is not None:
+            self.result_summary.SetLabel('Board changed; displayed reports belong to the previous context.')
+        self.last_result = None
+        self.interpret.Disable()
         self.answers = {}
         self.run.Disable()
         self.focus_selected.Disable()
@@ -342,19 +440,28 @@ class AssistantFrame(wx.Frame):
             self.answers = {}
         else:
             self.answers.update(answers)
+        previous = self.plan.get('interpretation') if answers is not None and self.plan else None
         self.plan = None
         self.cancel_event.clear()
         self._set_busy(True, 'Interpreting locally…')
         context = dict(self.context); current_answers = dict(self.answers)
+        use_ollama = self.provider.GetSelection() == 1
+        model, url = self.ollama_model.GetValue().strip(), self.ollama_url.GetValue().strip()
         def work():
             try:
-                result = self._engine().propose(query, context, current_answers)
+                if use_ollama:
+                    from wayricad_runtime.assistant_ollama import propose
+                    result = propose(query, context, current_answers, model=model, url=url,
+                                     cancel=self.cancel_event, previous=previous)
+                else:
+                    result = self._engine().propose(query, context, current_answers)
                 self._deliver(self._show_plan, result)
             except Exception as exc:
                 self._deliver(self._error, str(exc))
         threading.Thread(target=work, daemon=True).start()
 
     def _show_plan(self, plan):
+        self.plan_inputs_dirty = False
         self.plan = plan
         self._set_busy(False, 'Plan: ' + plan.get('status', 'unknown').replace('_', ' '))
         state = plan.get('status', 'unknown')
@@ -374,6 +481,8 @@ class AssistantFrame(wx.Frame):
         self._state('READY' if state == 'ready' else 'INPUT NEEDED' if state == 'needs_input' else state.upper(),
                     '#087f7c' if state == 'ready' else '#996000')
         lines = [plan.get('query', ''), '', 'Interpretation']
+        if plan.get('interpretation'):
+            lines.append('AI proposal from ' + plan['interpretation'].get('model', 'Ollama') + ': review all inputs, then click Run plan.')
         lines.extend('• ' + str(step.get('title', step.get('action', 'Check'))) for step in plan.get('steps', []))
         for step in plan.get('steps', []):
             if step.get('params'):
@@ -388,7 +497,15 @@ class AssistantFrame(wx.Frame):
         self.plan_text.ChangeValue('\n'.join(lines))
         self.question_sizer.Clear(delete_windows=True)
         self.question_controls = {}
-        for question in plan.get('questions', []):
+        questions = list(plan.get('questions', []))
+        if plan.get('interpretation'):
+            from wayricad_runtime.assistant import _SPECS
+            known = {q['key'] for q in questions}
+            for i, step in enumerate(plan['steps']):
+                for key, value in step.get('params', {}).items():
+                    if f'{i}.{key}' not in known:
+                        questions.append(dict(_SPECS[step['action']]['fields'][key], key=f'{i}.{key}', value=value))
+        for question in questions:
             row = wx.BoxSizer(wx.HORIZONTAL)
             label = question.get('label', question['key'])
             if question.get('unit'):
@@ -402,9 +519,13 @@ class AssistantFrame(wx.Frame):
             else:
                 control = wx.TextCtrl(self.questions)
             control.SetToolTip(label)
-            previous = self.answers.get(question['key'])
+            previous = self.answers.get(question['key'], question.get('value'))
             if previous is not None:
-                control.SetValue(str(previous))
+                if isinstance(previous, list):
+                    previous = ','.join(str(v) for v in previous)
+                control.ChangeValue(str(previous))
+            if plan.get('interpretation'):
+                control.Bind(wx.EVT_TEXT, self._input_edited)
             row.Add(control, 1, wx.EXPAND)
             self.question_controls[question['key']] = control
             self.question_sizer.Add(row, 0, wx.EXPAND | wx.ALL, 4)
@@ -427,7 +548,8 @@ class AssistantFrame(wx.Frame):
         self.tabs.GetPage(0).Layout()
         self.tabs.GetPage(0).SetupScrolling(scroll_x=False)
         self.tabs.SetSelection(0)
-        if plan.get('status') == 'ready' and self.auto.GetValue() and not self.cancel_event.is_set():
+        if (plan.get('status') == 'ready' and self.auto.GetValue()
+                and not plan.get('interpretation') and not self.cancel_event.is_set()):
             self._run()
 
     def _answer(self, event):
@@ -438,14 +560,44 @@ class AssistantFrame(wx.Frame):
             index = control.GetSelection() if choices else -1
             if index >= 0 and isinstance(choices[index], dict):
                 value = choices[index].get('value', value)
-            if value != '':
+            if value != '' or (self.plan and self.plan.get('interpretation')):
                 answers[key] = value
+                if value == '':
+                    answers[key] = None
         self._ask(answers=answers)
 
+    def _remove_task(self, event=None):
+        if self.busy or not self.plan or not self.plan.get('interpretation'):
+            return
+        if self.plan_inputs_dirty:
+            self.status.SetLabel('Use these inputs before removing a task so your corrections are retained.')
+            return
+        index = self.plan_tasks.GetFirstSelected()
+        if index < 0:
+            self.status.SetLabel('Select a task in the plan table first.')
+            return
+        if len(self.plan['steps']) == 1:
+            self.status.SetLabel('At least one task is needed. Edit the request and ask again.')
+            return
+        metadata = dict(self.plan['interpretation'])
+        from wayricad_runtime.assistant import _SPECS
+        remaining = [s for i, s in enumerate(self.plan['steps']) if i != index]
+        metadata['tasks'] = [dict(action=s['action'], params={k:v for k,v in s['params'].items()
+            if _SPECS[s['action']]['fields'][k]['kind'] not in {'path','paths'}}) for s in remaining]
+        metadata['scope_reviewed'] = True
+        self.plan['interpretation'] = metadata
+        self.answers = {}
+        self._ask(answers={f'{i}.{k}':v for i,s in enumerate(remaining) for k,v in s['params'].items()})
+
+    def _input_edited(self, event=None):
+        self.plan_inputs_dirty = True
+        self.run.Disable()
+
     def _run(self, event=None):
-        if self.busy or not self.plan or self.plan.get('status') != 'ready':
+        if self.busy or self.plan_inputs_dirty or not self.plan or self.plan.get('status') != 'ready':
             return
         self.cancel_event.clear()
+        self.last_result = None
         self._set_busy(True, 'Running read-only check…')
         self.results.ChangeValue('Running…\n')
         self.report_list.Clear(); self.artifacts = []
@@ -470,6 +622,7 @@ class AssistantFrame(wx.Frame):
         self.results.AppendText(str(text) + '\n')
 
     def _show_result(self, result):
+        self.last_result = None
         self._set_busy(False, 'Result: ' + str(result.get('status', 'complete')))
         import json
         summary = result.get('summary', '')
@@ -489,6 +642,8 @@ class AssistantFrame(wx.Frame):
         self.artifacts = result.get('artifacts', [])
         self.result_root = result_root
         self.result_parent = self.output_root
+        self.last_result = result
+        self.interpret.Enable(self.provider.GetSelection() == 1)
         steps = result.get('steps', [])
         completed = sum(step.get('status') in {'completed', 'complete'} for step in steps)
         issues = sum(step.get('status') not in {'completed', 'complete'} for step in steps)

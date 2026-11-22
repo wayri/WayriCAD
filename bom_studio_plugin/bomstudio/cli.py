@@ -10,6 +10,7 @@ from pathlib import Path
 import json
 import os
 import platform
+import re
 import shutil
 import sys
 import traceback
@@ -22,7 +23,7 @@ from .writeback import compile_plan,apply_plan
 
 EXIT={'ok':0,'usage':2,'policy':3,'io':4,'review':5,'unavailable':6,'internal':7,'interrupted':130}
 from .engineering_cli import COMMANDS as ENGINEERING_COMMANDS
-COMMANDS=('upgrade-copy','assemblers','vendors','bom-format','library-create','fields','native-bom','doctor','info','list','query','analytics','copper','threshold','check','health','analyze','export','release','compare','bulk','config','native','enforce','evidence','templates','run','jobset','verify','gui','schema')+ENGINEERING_COMMANDS
+COMMANDS=('upgrade-copy','assemblers','vendors','bom-format','library-create','fields','native-bom','doctor','info','list','query','count-value','analytics','copper','threshold','check','health','analyze','export','release','compare','bulk','config','native','enforce','evidence','templates','run','jobset','verify','gui','schema')+ENGINEERING_COMMANDS
 
 
 class StrictParser(argparse.ArgumentParser):
@@ -69,10 +70,13 @@ def parser():
     i=subs.add_parser('info',help='Project, saved-workspace and compatibility summary.');project(i);output(i)
     q=subs.add_parser('list',help='Enumerate variants, templates, fields, filters, profiles or variables.');project(q);q.add_argument('--what',choices=['variants','templates','fields','filters','profiles','variables'],default='variants');output(q)
     q=subs.add_parser('query',help='Search with boolean, field, missing-field and numeric predicates.');project(q);q.add_argument('--query',default='');q.add_argument('--unit',action='append',default=[],help='FIELD=UNIT override; repeat for typed numeric fields.');q.add_argument('--filter',help='Saved-filter name (mutually exclusive with --query).');q.add_argument('--case-sensitive',action='store_true');q.add_argument('--rows',action='store_true');q.add_argument('--group-by',action='append',default=[],help='Repeat to group matched rows by any fields.');q.add_argument('--limit',type=int,default=10000);q.add_argument('--offset',type=int,default=0);output(q)
+    q=subs.add_parser('count-value',help='Count fitted BOM components by normalized nominal R/C/L value.')
+    project(q); output(q); q.add_argument('--kind',choices=('R','C','L'),required=True); q.add_argument('--value',required=True)
     q=subs.add_parser('copper',help='Saved PCB copper areas by layer/net, fill, routing and pad contact; no schematic or BOM mappings required.')
     q.add_argument('board',help='Saved .kicad_pcb file; never modified.');output(q)
     q.add_argument('--format',choices=['json','csv','tsv','html'],default='json')
     q.add_argument('--table',choices=['layers','nets','net_layers','zones','pad_contacts'],default='layers')
+    q.add_argument('--selected-table',action='store_true',help='Limit JSON to the requested table and measurement provenance.')
     q.add_argument('--timeout',type=float,default=300,help='Owned worker budget in seconds (1–600).')
     q=subs.add_parser('analytics',help='Cost, mass, dissipation, budgets, quantity scenarios and numeric statistics. Read-only.');project(q);output(q)
     q.add_argument('--config',help='Analytics configuration JSON, or - for stdin. Otherwise uses saved analytics settings.')
@@ -167,7 +171,12 @@ def run_command(a):
         if a.format!='json' and not a.output:raise ValueError('Non-JSON copper exports require a new --output file.')
         if a.output and Path(a.output).suffix.lower()!='.'+a.format:raise ValueError('Choose a separate .'+a.format+' report file.')
         report=copper_jobs.run(Path(a.board).expanduser().resolve(),timeout=a.timeout)
-        if a.format=='json':emit(report,a);return 0
+        if a.format=='json':
+            if a.selected_table:
+                field=copper_exports.TABLES[a.table]
+                report={key:value for key,value in report.items() if key in (
+                    field,'schema','source','status','summary','warnings','limitations','method','units')}
+            emit(report,a);return 0
         raw,filename,mime=copper_exports.render(report,a.format,a.table)
         path=automation.write_new(a.output,raw)
         print(json.dumps({'schema':'wayricad-cli-1','version':__version__,'command':name,'ok':True,'data':{'output':path,'bytes':len(raw),'sha256':sha(raw)}},ensure_ascii=False));return 0
@@ -297,6 +306,20 @@ def run_command(a):
     elif name=='list':
         items={'variants':[BASE]+list(ws.state['variants']),'templates':ws.state['templates'],'fields':sorted(set().union(*(set(r['fields'])|set(r['raw']) for r in ws.rows(variant)))),'filters':ws.state.get('saved_filters',{}),'profiles':ws.state['field_profiles'],'variables':{'effective':ws.variables(variant),'project':ws.project.variables,'project_edits':ws.state['project_variables'],'workspace':ws.state['variables']}}[a.what]
         emit({'kind':a.what,'variant':variant,'items':items},a)
+    elif name=='count-value':
+        from .intelligence import material_rows, normalized_value
+        target=normalized_value(a.value,a.kind+'1')
+        if target is None:
+            raise ValueError('Use a nominal value such as 10uF, 4k7 or 1mH.')
+        candidates=[r for r in material_rows(ws.rows(variant))
+                    if re.match(r'^'+a.kind+r'\d',r['ref'])]
+        normalized=[(r['ref'],normalized_value(r['fields'].get('Value',''),r['ref'])) for r in candidates]
+        refs=[ref for ref,value in normalized if value==target]
+        unknown=[ref for ref,value in normalized if value is None]
+        emit(dict(schema='wayricad-value-count/v1',variant=variant,kind=a.kind,requested_value=a.value,
+                  normalized_value=target,count=len(refs),references=refs,unparsed_references=unknown,
+                  scope='Fitted in-BOM components with matching R/C/L reference prefix; nominal values only.',
+                  source_only=a.source_only,source_sha256=ws.project.hashes),a)
     elif name=='query':
         if a.limit<1 or a.limit>100000 or a.offset<0:raise ValueError('Query limit must be 1–100,000; offset must be nonnegative.')
         query=a.query;case=a.case_sensitive

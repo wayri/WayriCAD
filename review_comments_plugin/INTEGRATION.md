@@ -106,11 +106,11 @@ change is outside this saved-file scope.
 
 The WebView host serves an allowlisted in-memory asset snapshot over an
 ephemeral `127.0.0.1` port with a random path. It closes with the pane. The
-default is the independent, unmodified KiCad WebView 0.6.0 full ESM under
+default is the independent, unmodified KiCad WebView 1.1.1 full ESM under
 `vendor/kicad-webview`, with MPL-2.0 and dependency notices. `REVIEW-PIN.json`
 is an integration-owned receipt, not an upstream release manifest: its archive
 URL/SHA-256 and `files[name] = {bytes, sha256}` identify the published artifact.
-External package roots or complete `dist` folders must match that pin; earlier
+An external extracted release archive must match that pin; earlier
 reviewed source-layout overrides retain their closure/notice checks.
 `WAYRICAD_REVIEW_VIEWER_ROOT` and **Viewer assets…** remain explicit overrides.
 There is no fixed port, remote asset fetch or provider

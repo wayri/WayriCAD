@@ -7,6 +7,7 @@ files can introduce switches, destinations or executable paths.
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path
 
 from .tool_cli import COMMANDS
@@ -57,6 +58,49 @@ _add('review-comments.inspect-source', 'review-comments', 'Check saved review so
 _add('quick-emerge.runtime', 'quick-emerge', 'Inspect EMerge solver runtime',
      ('emerge runtime', 'check emerge installation'),
      summary='Inspect the prepared interpreter without installation or simulation.')
+
+STUDY = field('Reviewed study JSON file', 'path')
+for _id, _tool, _title, _board in (
+    ('quick-pi.ac-ports', 'quick-pi', 'PI two-port AC impedance matrix', False),
+    ('quick-pi.batch', 'quick-pi', 'PI multi-net DC bundle', True),
+    ('quick-therm.solid', 'quick-therm', 'Thermal 3D solid study', False),
+    ('quick-therm.transient', 'quick-therm', 'Thermal transient component RC study', False),
+    ('signal-integrity.study', 'signal-integrity', 'SI multi-net and crosstalk study', True),
+):
+    _add(_id, _tool, _title, (_title.lower(),), ('board', 'study') if _board else ('study',),
+         dict(board=BOARD, study=STUDY) if _board else dict(study=STUDY), effect='analysis',
+         summary=_title + ' from an explicitly supplied native CLI study file.')
+
+_STUDY_FLAGS = {'quick-pi.ac-ports':'--ac-ports', 'quick-pi.batch':'--batch',
+                'quick-pi.series':'--series-file', 'quick-therm.solid':'--thermoelectric-3d',
+                'quick-therm.transient':'--transient', 'signal-integrity.study':'--config'}
+_add('quick-pi.series', 'quick-pi', 'PI reviewed series path', ('solve PI series path',),
+     ('board','study','voltage','current'), dict(board=BOARD,study=STUDY,
+        voltage=number('Source voltage','V',**POSITIVE),current=number('Sink current','A',**POSITIVE)),
+     effect='analysis')
+
+_add('quick-pi.power-tree', 'quick-pi', 'Infer draft PI power tree', ('infer power tree',),
+     ('board',), dict(board=BOARD), effect='preview')
+_add('quick-pi.infer-series', 'quick-pi', 'Find candidate series paths', ('find series paths',),
+     ('board','source','sink'), dict(board=BOARD,source=PAD,sink=PAD), effect='preview')
+_add('quick-emerge.run-example', 'quick-emerge', 'Run a built-in EMerge research example',
+     ('run emerge research example','simulate antenna example'), ('board','example_id'),
+     dict(board=BOARD,example_id=field('Exact built-in research example ID')), effect='analysis',
+     summary='Run the named built-in example using the prepared solver; no runtime installation.')
+_add('quick-emerge.examples', 'quick-emerge', 'List built-in research antenna examples',
+     ('list emerge examples','list research antennas'))
+_add('quick-therm.board-heat', 'quick-therm', 'Solve steady board heat map',
+     ('board heat map','thermal board simulation','spatial thermal solve'), ('board','ambient','powers'),
+     dict(board=BOARD,ambient=number('Ambient temperature','C'),
+          powers=field('Reference=watts pairs, e.g. U1=0.5, R1=0.1','list')), effect='analysis',
+     summary='Built-in steady air thin-sheet screen with automatic mesh and explicit component watts.')
+_add('bom-studio.count-value', 'bom-studio', 'Count fitted components by normalized value',
+     ('count capacitors','how many capacitors','count components by value'), ('project','kind','value'),
+     dict(project=PROJECT, kind=field('Component kind','choice',choices=['C','R','L']),
+          value=field('Nominal value, e.g. 10uF'), variant=field('Saved variant name')))
+_add('bom-studio.copper', 'bom-studio', 'Measure saved copper area by layer',
+     ('layer wise total copper area','copper area per layer','total copper area'), ('board',),
+     dict(board=BOARD, table=field('Copper table','choice',choices=['layers','nets','net_layers','zones','pad_contacts'])))
 
 _add('quick-pi.solve', 'quick-pi', 'DC rail analysis',
      ('quick pi', 'power integrity', 'voltage drop', 'dc rail'),
@@ -297,6 +341,38 @@ def compile_action(action_id, params, context, output_dir):
     elif action_id in ('signal-integrity.inspect', 'trace-impedance.inspect'):
         args.extend(['inspect', values['board']]); option('net'); output()
     elif action_id == 'quick-emerge.runtime': args.append('--check-runtime')
+    elif action_id == 'quick-emerge.examples': args.append('--list-research-antennas')
+    elif action_id == 'quick-emerge.run-example':
+        args.extend(['--board', values['board'], '--run-research-example='+values['example_id']])
+        output('--result-file', 'result.json')
+        result['assumptions'].append('Built-in example geometry is independent of the saved PCB.')
+    elif action_id in _STUDY_FLAGS:
+        if action_id == 'signal-integrity.study': args.append('study')
+        if 'board' in values: args.append(values['board'])
+        option('study', _STUDY_FLAGS[action_id]); option('voltage'); option('current'); output()
+        result['assumptions'].append('Uses the selected study as authored; review its inputs, referenced sources and solver assumptions.')
+    elif action_id in ('quick-pi.power-tree','quick-pi.infer-series'):
+        args.extend([values['board'], '--infer-power-tree' if action_id.endswith('power-tree') else '--infer-series'])
+        option('source'); option('sink'); output()
+    elif action_id == 'quick-therm.board-heat':
+        power = {}
+        for item in values['powers']:
+            match = re.fullmatch(r'([A-Za-z][A-Za-z0-9_.-]*)\s*=\s*(\d+(?:\.\d*)?|\.\d+)', item)
+            if not match or match[1] in power:
+                raise ValueError('Give unique reference=watts pairs, e.g. U1=0.5.')
+            number_w = float(match[2])
+            if not math.isfinite(number_w):
+                raise ValueError('Power must be finite.')
+            power[match[1]] = dict(power_w=number_w)
+        if not any(row['power_w'] > 0 for row in power.values()):
+            raise ValueError('Provide at least one positive dissipated power.')
+        result['documents']['settings.json'] = dict(environment='air', ambient_c=values['ambient'],
+            input_mode='manual', manual_values=power, references=list(power), board_power_only=True,
+            thermal_model_kind='thin_sheet', thermal_network_settings=dict(mesh_mode='auto',
+                board_k_w_mk=.3,board_emissivity=.9,board_airflow_m_s=0.,sink_airflow_m_s=0.))
+        args.extend([values['board'], '--config', str(root/'settings.json'), '--no-solver-install'])
+        output(); output('--html','report.html')
+        result['assumptions'].append('Steady thin-sheet screen: effective conductivity 0.3 W/(m K), emissivity 0.9, still air. No layer or junction temperatures.')
     elif action_id == 'quick-pi.verify': args.append('--verify'); output()
     elif action_id == 'quick-pi.solve':
         args.append(values['board'])
@@ -372,6 +448,13 @@ def compile_action(action_id, params, context, output_dir):
             if values.get(key): args.append('--' + key.replace('_', '-'))
     elif action_id == 'project-fusion.detect': args.extend(['detect', values['project']]); output()
     elif action_id == 'variant-manager.list': args.extend(['list', values['project']])
+    elif action_id == 'bom-studio.copper':
+        args.extend(['copper', values['board'], '--selected-table']); option('table'); output()
+        result['assumptions'].append('Uses last saved copper and zone fill; does not refill zones or add balancing copper.')
+    elif action_id == 'bom-studio.count-value':
+        args.extend(['count-value', values['project'], '--source-only'])
+        for key in ('kind','value','variant'): option(key)
+        output()
     elif action_id.startswith('bom-studio.'):
         args.extend([action_id.split('.')[1], values['project'], '--source-only']); output()
     elif action_id == 'protocol-constraints.compose': request(dict(nets=values['nets']))
