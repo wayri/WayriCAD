@@ -25,7 +25,7 @@
     <ol class="cards" aria-label="Setup sequence">
       <li class="card"><strong>1 · Install</strong><p>Install the 4.5.0 Review testing package through KiCad Plugin and Content Manager, then restart KiCad.</p></li>
       <li class="card"><strong>2 · Check host</strong><p>Open Review from the intended KiCad editor. Confirm that its IPC/API settings and managed Python runtime work as described in <a href="README.md">README</a> and <a href="INTEGRATION.md">integration contract</a>. A source import alone does not verify editor attachment.</p></li>
-      <li class="card"><strong>3 · Supply viewer</strong><p>Choose <b>Design options → Viewer assets…</b> or set <code>WAYRICAD_REVIEW_VIEWER_ROOT</code> before launch. The separately supplied KiView source assets are externally supplied under their own license and are not bundled with this release.</p></li>
+      <li class="card"><strong>3 · Open the viewer</strong><p>Review includes KiCad WebView 1.1.1 and its MPL-2.0 notices. No separate download is required. <b>Design options → Viewer assets…</b> is only for a verified override. Use Rotate drawing to turn a PCB or schematic without changing its saved comment coordinates.</p></li>
       <li class="card"><strong>4 · Save &amp; commit</strong><p>Save the PCB or schematic and commit it. Review checks the chosen file against an immutable commit. It cannot represent unsaved KiCad edits.</p></li>
     </ol>
     <p class="caption-note">The setup sequence above is a guide diagram, not an application screenshot. The current viewer uses a temporary local loopback host for allowlisted asset bytes and closes it with Review.</p>
