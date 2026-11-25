@@ -63,7 +63,7 @@ class _CellIndex:
         return None
 
 
-def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
+def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None, *, hover_text=None, pin_on_click=True):
     """Attach [x,y,value,label,z] samples; polygon cells require containment.
 
     Returns a controller holding probe artists and a disconnect method. In 3D,
@@ -157,8 +157,9 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
             return
         row = pick(event)
         state['hover_row'] = row
-        visible = row is not None
-        label = text(row) if visible else ''
+        state['hover_event'] = event
+        label = hover_text(event, row) if hover_text else text(row) if row is not None else ''
+        visible = bool(label)
         if tip.get_visible() == visible and (not visible or tip.get_text() == label):
             return
         tip.set_visible(visible)
@@ -192,7 +193,7 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
             click(event)
 
     def click(event):
-        if event.button != 1 or getattr(getattr(canvas, 'toolbar', None), 'mode', ''):
+        if not pin_on_click or event.button != 1 or getattr(getattr(canvas, 'toolbar', None), 'mode', ''):
             return
         row = pick(event)
         if row is None:
@@ -240,7 +241,12 @@ def attach_probes(canvas, axes, rows, unit='', polygons=None, on_select=None):
         nonlocal background
         if keep_background and not state['probes']:
             row=state.get('hover_row')
-            if row is not None and tip.get_visible():tip.set_text(text(row));paint_tip()
+            if tip.get_visible():
+                event = state.get('hover_event')
+                label = hover_text(event, row) if hover_text and event else text(row) if row is not None else ''
+                tip.set_visible(bool(label))
+                if label:tip.set_text(label)
+                paint_tip()
             return
         tip.set_visible(False);background=None
         for index,artist in enumerate(state['probes'],1):

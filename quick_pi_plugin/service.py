@@ -604,12 +604,15 @@ def series_execute(board,path,request):
             {'net':net,**local['mesh_sizing']})
         offset=len(mesh['points_mm']);mesh['points_mm'].extend(local['points_mm'])
         if has_drop:mesh.setdefault('series_domains',[]).append({'net':net,'start':offset,'end':len(mesh['points_mm'])})
+        start_cell=len(mesh['triangles'])
         mesh['triangles'].extend([[i+offset for i in t] for t in local['triangles']])
+        mesh.setdefault('display_net_domains',[]).append(
+            {'net':net,'first_cell':start_cell,'end_cell':len(mesh['triangles'])})
         if len(mesh['points_mm'])>250000 or len(mesh['triangles'])>500000:
             raise ValueError('The complete series circuit exceeds the mesh budget. Increase mesh edge length.')
         for key in ('triangle_thickness_mm','triangle_layer'):mesh[key].extend(local[key])
         for via in local['vias']:
-            mesh['vias'].append({**via,'top_nodes':[i+offset for i in via['top_nodes']],
+            mesh['vias'].append({**via,'net':net,'top_nodes':[i+offset for i in via['top_nodes']],
                                 'bottom_nodes':[i+offset for i in via['bottom_nodes']]})
         mesh['terminal_nodes'].update({key:[i+offset for i in value] for key,value in local['terminal_nodes'].items()})
         mesh['mesh_report'].extend([{'net':net,**row} for row in local['mesh_report']])

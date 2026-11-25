@@ -69,14 +69,14 @@ def copper_lengths(node, evidence):
             length <= 0 or length + 1e-7 < math.dist(start, end)):
             continue
         a, b = (layer, start), (layer, end)
-        graph[a].append((b, length)); graph[b].append((a, length))
+        graph[a].append((b, length, row.get('id'))); graph[b].append((a, length, row.get('id')))
 
     def measured(left, right):
         a, b = _point(left.get('position_mm')), _point(right.get('position_mm'))
         if a is None or b is None:
             return None
         targets = {(layer, b) for layer in right.get('layers', [])}
-        queue, distance = [], {}
+        queue, distance, predecessors = [], {}, {}
         for layer in left.get('layers', []):
             key = (layer, a)
             distance[key] = 0.
@@ -86,11 +86,17 @@ def copper_lengths(node, evidence):
             if value != distance[key]:
                 continue
             if key in targets and value > 0:
-                return value
-            for other, length in graph.get(key, []):
+                route = []
+                while key in predecessors:
+                    key, track = predecessors[key]
+                    if track:
+                        route.append(track)
+                return value, list(reversed(route))
+            for other, length, track in graph.get(key, []):
                 total = value + length
                 if total < distance.get(other, math.inf):
                     distance[other] = total
+                    predecessors[other] = (key, track)
                     heappush(queue, (total, other))
         return None
 
@@ -101,7 +107,8 @@ def copper_lengths(node, evidence):
             if len(result) >= 2048:
                 return result + [dict(status='unavailable', label='Additional pair lengths unavailable: display limit reached.', length_mm=None)]
             left, right = pads.get(start['id'], {}), pads.get(end['id'], {})
-            length = measured(left, right) if left.get('net') == right.get('net') == node.get('net') else None
+            measurement = measured(left, right) if left.get('net') == right.get('net') == node.get('net') else None
+            length, route = measurement if measurement is not None else (None, [])
             label = start['label'] + ' → ' + end['label']
             if length is not None:
                 status = 'saved_track_chain'
@@ -114,8 +121,26 @@ def copper_lengths(node, evidence):
                 else:
                     status, detail = 'unavailable', 'wire length unavailable'
             result.append(dict(from_pad=start['id'], to_pad=end['id'], length_mm=length,
-                               status=status, label=label + ': ' + detail))
+                               status=status, label=label + ': ' + detail, track_ids=route))
     return result
+
+
+def load_track_chains(request, evidence):
+    '''Exact saved-track candidates for each load unit of a single-net solve.'''
+    from .service import sink_requests
+
+    try:
+        loads = sink_requests(request)
+    except ValueError:
+        return []
+    sources = request.get('source_terminals') or [request.get('source_terminal', request.get('source'))]
+
+    def pins(ids):
+        return [dict(id=identity, label=identity) for identity in ids if identity is not None]
+
+    return [copper_lengths(dict(net=request.get('net'), incoming_pins=pins(sources),
+                                outgoing_pins=pins(load.get('terminals') or [load.get('terminal')])), evidence)
+            for load in loads]
 
 
 def diagram_layout(tree):

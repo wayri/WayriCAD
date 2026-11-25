@@ -230,7 +230,8 @@ def inspection_record(bundle, kind, identifier, metric='density'):
         vector=result['cell_J_A_mm2'][index]
         power=result['cell_power_W'][index]
         from .fusing import local_screen
-        return {'kind':kind,'id':index,'display_id':display_label(bundle,kind,index),'layer':mesh['triangle_layer'][index],
+        from .view_scope import mesh_net_labels
+        return {'kind':kind,'id':index,'net':str(mesh_net_labels(bundle)[index]),'display_id':display_label(bundle,kind,index),'layer':mesh['triangle_layer'][index],
                 'layer_name':names.get(str(mesh['triangle_layer'][index]),str(mesh['triangle_layer'][index])),
                 'location_mm':result['cell_centroid_mm'][index], 'metric':metric,
                 'value':value if math.isfinite(value) else None,'unit':METRICS[metric][1],
@@ -252,7 +253,9 @@ def inspection_record(bundle, kind, identifier, metric='density'):
                         solved['volume_mm3']/barrel['length_mm'] if barrel.get('length_mm',0)>0 else None)
     if quantity=='melt':value=screen['pulse_melt_ratio']
     span=[barrel.get('top_layer'),barrel.get('bottom_layer')]
-    return {'kind':'via','id':identifier,'display_id':display_label(bundle,'via',identifier),'layer':span,
+    from .view_scope import analyzed_nets
+    nets=analyzed_nets(bundle)
+    return {'kind':'via','id':identifier,'net':barrel.get('net') or (nets[0] if len(nets)==1 else None),'display_id':display_label(bundle,'via',identifier),'layer':span,
             'layer_name':' → '.join(names.get(str(value),str(value)) for value in span),
             'location_mm':[barrel['x_mm'],barrel['y_mm']], 'metric':quantity,'value':value,
             'unit':METRICS[quantity][1], 'source_ids':sources,'fusing':screen,
@@ -367,7 +370,7 @@ def _fit_board_view(ax):
     ax._wayricad_scale_bar=(line,label)
 
 
-def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None,include_silk=True):
+def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None,include_silk=True,silk_sides=None,include_board=True):
     """Draw saved silkscreen at physical size; no invented centroid labels."""
     from matplotlib.collections import PathCollection
     from matplotlib.patches import PathPatch
@@ -376,12 +379,13 @@ def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None,include_s
     names={str(key):name for key,name in scene.get('canonical_layers',scene.get('layers',{})).items()}
     name=names.get(str(layer),layer_name)
     sides=('F.','B.') if layer=='all' else ('B.',) if name=='B.Cu' else ('F.',) if name=='F.Cu' or layer is None else ()
+    if silk_sides is not None:sides=silk_sides
     graphics={side+suffix for side in sides for suffix in ('SilkS','Silkscreen')}
     groups={}
     for row in scene.get('primitives',[]):
         role=row.get('role');on_layer=layer=='all' or str(row.get('layer'))==str(layer)
         if role=='drill' and visible_nets is not None and row.get('net') and row.get('net') not in visible_nets:continue
-        visible=(role=='outline' or role=='drill' and on_layer or
+        visible=(include_board and (role=='outline' or role=='drill' and on_layer) or
                  include_silk and role in ('drawing','footprint','reference') and names.get(str(row.get('layer'))) in graphics)
         # Old reports may contain synthetic fixed-font centroid labels. They
         # are not saved silkscreen and must not return as oversized annotations.
@@ -408,7 +412,7 @@ def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None,include_s
 
 def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
               show_context=True,show_copper=True,show_overlay=True,field_style=None,board_view=False,
-              visible_nets=None,show_silkscreen=True):
+              visible_nets=None,show_silkscreen=True,net_scope=None,dim_context=False,silk_sides=None,pins=(),route_ids=()):
     """Draw actual geometry; board_view uses a native viewport without chart chrome.
 
     Native color meaning is available in ``ax._wayricad_color_scale`` for an
@@ -450,49 +454,72 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             live=[(index,patch._wayricad_live_marker) for index,patch in enumerate(patches) if hasattr(patch,'_wayricad_live_marker')]
             if live:ax._wayricad_live_colors.append((collection,live))
         pending.clear()
+    from .view_scope import analyzed_nets, mesh_net_labels
     scene=bundle.get('board_scene',{})
+    explicit_scope=net_scope is not None
+    foreground=set(visible_nets or [])
+    owned=set(analyzed_nets(bundle))
+    complete_field=net_scope!='Selected nets' or owned.issubset(foreground)
     if visible_nets is None:
         visible_nets=bundle.get('view_settings',{}).get('visible_nets')
     if visible_nets is None:
         visible_nets=geometry.get('nets') or [geometry.get('net') or bundle.get('request',{}).get('net')]
         visible_nets=[net for net in visible_nets if net] or None
-    if bundle.get('view_settings',{}).get('isolate_nets') is False:visible_nets=None
+    if net_scope=='Full board' or not explicit_scope and bundle.get('view_settings',{}).get('isolate_nets') is False:visible_nets=None
+    if net_scope=='Selected nets':visible_nets=foreground
+    if net_scope=='Analyzed nets':visible_nets=owned or foreground
     if scene and (show_context or board_view and show_copper):
         from wayricad_runtime.board_render import draw_matplotlib
         if board_view:
             # Saved silk/holes/edges are drawn once above the field below.
             # The selected copper already has exact union geometry in this view.
-            owned=set(geometry.get('nets') or ([geometry['net']] if geometry.get('net') else []))
-            scene_underlay=dict(scene,primitives=[row for row in scene.get('primitives',[])
-                if show_copper and row.get('role') in ('track','pad','via','zone') and row.get('net') not in owned])
+            copper=[row for row in scene.get('primitives',[])
+                    if show_copper and row.get('role') in ('track','pad','via','zone')]
+            scene_underlay=dict(scene,primitives=[row for row in copper
+                if explicit_scope or row.get('net') not in owned])
+            if explicit_scope and dim_context and visible_nets is not None:
+                backdrop=dict(scene,primitives=[row for row in copper if row.get('net') not in visible_nets])
+                draw_matplotlib(ax,backdrop,visible_layers=None if combined or layer is None else [layer],
+                                alpha=.15,path_source=scene)
         else:scene_underlay=scene
         if not show_copper:
             scene_underlay=dict(scene_underlay,primitives=[row for row in scene_underlay.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
         draw_matplotlib(ax,scene_underlay,visible_layers=None if combined or layer is None else [layer],
                         visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),
-                        alpha=1.0 if board_view and not rows else .35,
+                        alpha=1.0 if explicit_scope else 1.0 if board_view and not rows else .35,
                         path_source=scene if board_view else None)
     if not selected:
         if not board_view:ax.set_aspect('auto')
         if not board_view or not scene.get('primitives'):
             ax.text(.5,.5,'Choose a net and preview its copper.',ha='center',va='center',transform=ax.transAxes)
         if board_view:
-            if show_context and scene:_draw_board_context(ax,scene,layer,visible_nets=visible_nets,include_silk=show_silkscreen)
+            if scene and (show_context or silk_sides):
+                _draw_board_context(ax,scene,layer,visible_nets=visible_nets,include_silk=show_silkscreen,
+                                    silk_sides=silk_sides,include_board=show_context)
             ax.autoscale_view();ax.invert_yaxis();_fit_board_view(ax)
         else:figure.tight_layout()
         return ax
-    if show_copper:
+    if show_copper and complete_field and not (explicit_scope and scene):
         for polygon in selected.get('polygons',[]):add_geometry_patch(_polygon_patch(polygon))
     flush_geometry_patches()  # Copper backgrounds must remain behind the field.
     if view=='Results' and not show_overlay:view='Net'
     mesh=bundle.get('mesh');result=bundle.get('result');image=None
     markers=via_markers(mesh or {},result or {},geometry,layer,metric) if view=='Results' else []
+    if not complete_field:
+        via_nets={str(row['id']):row.get('net') for row in (mesh or {}).get('vias',[])}
+        markers=[row for row in markers if all(via_nets.get(str(item)) in foreground for item in row['segments'])]
     via_values=[row['value'] for row in markers]
     title=f"{geometry.get('net',bundle.get('request',{}).get('net',''))} · {selected['name']}"
     if view in ('Mesh','Results') and mesh:
         points=np.asarray(mesh['points_mm'],dtype=float)
         triangles=np.asarray(mesh['triangles'],dtype=int)
         mask=np.asarray([combined or str(value)==str(layer) for value in mesh['triangle_layer']])
+        if not complete_field:
+            labels=mesh_net_labels(bundle)
+            mask &= np.isin(labels,list(foreground))
+            if not np.any(labels) and result:
+                ax.text(.02,.98,'This saved result has no per-net field identities. Rerun to filter its field.',
+                        va='top',transform=ax.transAxes,zorder=9)
         selected_triangles=triangles[mask]
         if len(selected_triangles):
             polygons=points[selected_triangles,:2]
@@ -502,6 +529,9 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             elif result:
                 values=cell_values(mesh,result,metric)[mask]
                 finite=np.isfinite(values)
+                if explicit_scope and not finite.all():
+                    missing=PolyCollection(polygons[~finite],facecolors='#8c969f',edgecolors='none',rasterized=True)
+                    missing.set_gid('pi-unsolved-field');ax.add_collection(missing)
                 if finite.any():
                     _,unit,cmap=METRICS[metric]
                     if field_style=='smooth':
@@ -535,7 +565,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     elif view=='Results' and result and image is None:
         ax.text(.02,.98,'No available solved '+METRICS[metric][0].lower()+' on this layer.',va='top',transform=ax.transAxes,
                 bbox={'facecolor':'white','edgecolor':'none','alpha':.9})
-    for via in geometry.get('vias',[]) if show_copper else []:
+    for via in geometry.get('vias',[]) if show_copper and complete_field and not (explicit_scope and scene) else []:
         if not combined and not any(str(v)==str(layer) for v in via.get('layers',[])):continue
         if 'x_mm' not in via:continue
         center=(via['x_mm'],via['y_mm'])
@@ -573,7 +603,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             ax._wayricad_live_colors.extend([(patch,[(0,patch._wayricad_live_marker)]),(hole,[(0,hole._wayricad_live_marker)])])
     flush_geometry_patches()
     request=bundle.get('request',{})
-    if mesh and request.get('series'):
+    if mesh and request.get('series') and (not explicit_scope or show_overlay) and complete_field:
         points=np.asarray(mesh['points_mm'],dtype=float)
         for branch in mesh.get('lumped_branches',[]):
             endpoints=[]
@@ -584,13 +614,14 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
             if len(endpoints)==2:
                 start,end=endpoints
                 ax.plot([start[0],end[0]],[start[1],end[1]],'--',color='#70439e',linewidth=1)
-                ax.annotate(str(branch.get('id','Component')), (start+end)/2,fontsize=8,color='#70439e',
+                ax.annotate(('Modeled ' if explicit_scope else '')+str(branch.get('id','Component')), (start+end)/2,fontsize=8,color='#70439e',
                             bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
     sources=set(request.get('source_terminals',[]))
     source=request.get('source_terminal',request.get('source'))
     if source is not None:sources.add(source)
     chosen=terminal_ids(request)
     for terminal in geometry.get('terminals',[]):
+        if not complete_field and terminal.get('net') not in foreground:continue
         if terminal.get('id') not in chosen and terminal.get('label') not in chosen:continue
         polygons=([polygon for values in terminal.get('polygons',{}).values() for polygon in values] if combined else terminal.get('polygons',{}).get(str(layer),terminal.get('polygons',{}).get(layer,[])))
         if not polygons:continue
@@ -603,7 +634,25 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         if not board_view:
             ax.annotate(label,center,xytext=(offset,7),ha='left' if offset>0 else 'right',textcoords='offset points',fontsize=8,
                         bbox={'facecolor':'white','edgecolor':'none','alpha':.85,'pad':2})
-    if board_view and show_context and scene:_draw_board_context(ax,scene,layer,selected['name'],visible_nets,include_silk=show_silkscreen)
+    if board_view and scene and (show_context or silk_sides):
+        _draw_board_context(ax,scene,layer,selected['name'],visible_nets,include_silk=show_silkscreen,
+                            silk_sides=silk_sides,include_board=show_context)
+    if route_ids and scene:
+        from wayricad_runtime.board_render import draw_matplotlib
+        wanted=set(route_ids)
+        route_scene=dict(scene,primitives=[row for row in scene.get('primitives',[])
+            if row.get('uuid') in wanted and row.get('role')=='track'
+            and (visible_nets is None or row.get('net') in visible_nets)])
+        for artist in draw_matplotlib(ax,route_scene,visible_layers=None if combined else [layer],path_source=scene):
+            artist.set_facecolor('none');artist.set_edgecolor('#b14f13')
+            artist.set_linewidth(1.1);artist.set_linestyle('--');artist.set_zorder(7)
+            artist.set_gid('pi-representative-route')
+    for number,pin in enumerate(pins,1):
+        if pin.get('net') and visible_nets is not None and pin['net'] not in visible_nets:continue
+        if not combined and str(pin['layer'])!=str(layer):continue
+        x,y=pin['point']
+        ax.plot(x,y,marker='+',markersize=11,markeredgewidth=1.5,color='#145f87',zorder=11)
+        ax.annotate('P'+str(number),(x,y),xytext=(6,5),textcoords='offset points',fontsize=8,zorder=12)
     for key,point in bundle.get('differential_probes',{}).items():
         if key not in ('a','b') or not (combined or str(point.get('layer'))==str(layer)):continue
         x,y=point['x_mm'],point['y_mm'];color='#b44d11' if key=='a' else '#1765b2'
@@ -616,14 +665,14 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         for artist in draw_matplotlib(ax,selected_scene,visible_layers=None if combined else [layer],highlight_ids=wanted,alpha=1.):
             artist.set_zorder(9)
             if hasattr(artist,'set_facecolor'):artist.set_facecolor('none');artist.set_linewidth(1.8)
-    if view=='Results' and metric in ('density','melt'):
+    if view=='Results' and result and metric in ('density','melt') and complete_field:
         for row in result.get('fusing',{}).get('bottlenecks',[])[:6]:
             span=row['layer'] if isinstance(row['layer'],list) else [row['layer']]
             if row.get('location_mm') and row.get('time_to_melt_s') is not None and (combined or any(str(l)==str(layer) for l in span)):
                 x,y=row['location_mm'][:2]
                 ax.scatter([x],[y],s=75,facecolors='none',edgecolors='#159ee8',linewidths=1.3,zorder=8)
                 ax.annotate('B'+str(row['rank']),(x,y),xytext=(5,5),textcoords='offset points',fontsize=7,color='#0871af',zorder=9)
-    if inspection and inspection.get('location_mm'):
+    if inspection and inspection.get('location_mm') and (complete_field or inspection.get('net') in foreground):
         span=inspection.get('layer');span=span if isinstance(span,list) else [span]
         if combined or any(str(value)==str(layer) for value in span):
             x,y=inspection['location_mm'][:2]
@@ -635,7 +684,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         title+='\nINFEASIBLE · requested-load diagnostic; source current limit exceeded'
     elif view=='Results' and result and result.get('feasibility',{}).get('feasible') is False:
         title+='\nINFEASIBLE · requested load/voltage limits violated'
-    if bundle.get('view_settings',{}).get('isolate_nets',True):
+    if (net_scope=='Analyzed nets' and not dim_context or not explicit_scope and bundle.get('view_settings',{}).get('isolate_nets',True)):
         # Context is clipped to the studied copper rather than forcing a tiny
         # result into the full-board extent. This changes only the camera.
         support=[point for polygon in selected.get('polygons',[]) for point in polygon.get('outer',[])]
@@ -650,9 +699,12 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     ax.autoscale_view();ax.invert_yaxis()
     if image is not None:
         ax._wayricad_color_mappable=image
+        note=field_note(metric,field_style)
+        if explicit_scope:
+            note+=' Gray mesh cells have no available field. Barrel markers show solved via segments.'
         ax._wayricad_color_scale={'metric':metric,'label':metric_name(bundle,metric),
                                  'unit':METRICS[metric][1],'cmap':image.cmap.name,
-                                 'limits':image.get_clim(),'note':field_note(metric,field_style)}
+                                 'limits':image.get_clim(),'note':note}
         if board_view and view=='Results' and result.get('sink_current_A',0)>0:
             array=image.get_array()
             ax._wayricad_live_base={'current':result['sink_current_A'],'voltage':result['source_voltage_V'],

@@ -269,7 +269,9 @@ class LiveCurrentControls:
             row=self._inspection
             if row['kind']!='object':
                 refreshed=inspection_record(bundle,row['kind'],row['id'],row['metric'])
-                if refreshed is not None:refreshed['source_ids']=list(row.get('source_ids',[]))
+                if refreshed is not None:
+                    for key in ('source_ids','location_mm','pads'):
+                        if key in row:refreshed[key]=row[key]
                 self._inspection=refreshed
         for figure,_,_ in self.views:figure._wayricad_render_key=None
         independent=bundle['result'].get('live_current',{}).get('basis','').startswith('independent')
@@ -337,6 +339,7 @@ class LiveCurrentControls:
             label=bundle['result']['sinks'][number]['label']
             for identifier in unit.get('terminals',[unit.get('terminal')]):
                 terminal=terminals.get(identifier,{})
+                if not self._probe_allowed(terminal):continue
                 for side,polygons in terminal.get('polygons',{}).items():
                     if layer not in (None,'all') and str(layer)!=str(side):continue
                     for polygon in polygons:
@@ -355,6 +358,7 @@ class LiveCurrentControls:
         if source is not None:sources.add(source)
         for identifier in sources:
             terminal=terminals.get(identifier,{})
+            if not self._probe_allowed(terminal):continue
             for side,polygons in terminal.get('polygons',{}).items():
                 if layer not in (None,'all') and str(layer)!=str(side):continue
                 for polygon in polygons:
@@ -369,5 +373,8 @@ class LiveCurrentControls:
             mesh=self.bundle['mesh'];points=np.asarray(mesh['points_mm']);triangles=np.asarray(mesh['triangles'],dtype=int)
             valid=np.asarray([value is not None for value in self.bundle.get('result',{}).get('cell_J_A_mm2',[])])
             if len(valid)==len(triangles):
+                if self.display_scope.GetSelection()==2:
+                    from .view_scope import mesh_net_labels
+                    valid &= np.isin(mesh_net_labels(bundle),self._display_nets())
                 polygons=points[triangles[valid],:2];self._live_hit_index=_CellIndex(polygons);self._live_hit_count=len(polygons)
                 self._live_hit_cells=np.flatnonzero(valid)

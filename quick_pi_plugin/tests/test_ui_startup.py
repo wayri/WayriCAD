@@ -95,7 +95,7 @@ class InventoryStartupTests(unittest.TestCase):
             self.assertEqual(self.frame.layer.GetStringSelection(),'All copper layers (projected)')
             axes=self.frame.views[0][0].axes[0]
             self.assertTrue(any(p.get_path().vertices[:,0].max()==40 for p in axes.patches))
-            self.frame.isolate_nets.SetValue(False);self.frame._scope_changed()
+            self.frame.display_scope.SetSelection(0);self.frame._scope_changed()
             job.assert_not_called()
         self.assertNotIn('result',self.frame.bundle)
 
