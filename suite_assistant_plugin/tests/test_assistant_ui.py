@@ -125,7 +125,6 @@ class AssistantWindowTests(unittest.TestCase):
         self.assertEqual(self.frame.context, {'board': str(board.resolve()), 'project': str(project.resolve())})
         self.assertEqual(self.frame.preview.net_targets, [])
         self.assertIsNone(self.frame.last_result)
-        self.assertFalse(self.frame.interpret.IsEnabled())
 
     def test_multiple_clicked_nets_are_explicit_and_can_be_cleared(self):
         self.frame.add_nets.SetValue(True)
@@ -280,7 +279,7 @@ class AssistantWindowTests(unittest.TestCase):
         self.frame.tabs.SetSelection(2); wx.Yield()
         before = self.frame.preview.GetClientSize().height
         self.frame.expand_view.SetValue(True); self.frame._expand_board(); wx.Yield()
-        self.assertFalse(self.frame.query.IsShown())
+        self.assertTrue(self.frame.query.IsShown())
         self.assertGreater(self.frame.preview.GetClientSize().height, before)
         self.frame.tabs.SetSelection(0); wx.Yield()
         self.assertTrue(self.frame.query.IsShown())
@@ -292,67 +291,62 @@ class AssistantWindowTests(unittest.TestCase):
         self.assertEqual(self.frame.tabs.GetPageCount(), 3)
 
 
-    def test_ollama_proposal_never_auto_runs(self):
-        self.frame.provider.SetSelection(1)
-        self.frame._provider_changed()
-        self.frame.ollama_model.ChangeValue('demo')
-        self.frame.query.ChangeValue('List available tools')
-        from wayricad_runtime import assistant
-        plan = assistant.propose('List available tools')
-        plan['interpretation'] = {'model': 'demo', 'tasks': []}
-        with patch('wayricad_runtime.assistant_ollama.propose', return_value=plan):
-            self.frame._ask(); self.settle()
-        self.assertTrue(self.frame.run.IsEnabled())
+    def test_chat_reply_keeps_original_request_and_runs_check(self):
+        self.frame.query.ChangeValue('check return path')
+        self.frame._send(); self.settle()
+        self.frame.query.ChangeValue('+3V3')
+        self.frame._send(); self.settle()
+        self.assertEqual(self.engine.answers[-1], {'0.net': '+3V3'})
+        self.assertEqual(self.engine.runs, 1)
+        for text in ('check return path', '+3V3', 'Return path checked'):
+            self.assertIn(text, self.frame.transcript.GetValue())
+
+    def test_analysis_waits_for_explicit_run(self):
+        plan = {'status': 'ready', 'steps': [{'action': 'quick-pi.solve',
+                'title': 'DC rail analysis', 'effect': 'analysis'}]}
+        self.frame._show_plan(plan)
         self.assertEqual(self.engine.runs, 0)
-        self.assertIn('review all inputs', self.frame.plan_text.GetValue())
+        self.assertIn('type run', self.frame.transcript.GetValue())
+        self.frame.query.ChangeValue('run')
+        self.frame._send(); self.settle()
+        self.assertEqual(self.engine.runs, 1)
 
-    def test_provider_change_invalidates_plan_and_model_discovery_is_async(self):
-        self.frame.plan = {'status':'ready'}
-        self.frame.provider.SetSelection(1)
-        self.frame._provider_changed()
-        self.assertIsNone(self.frame.plan)
+    def test_main_chat_and_circuit_name_completion(self):
+        from wayricad_runtime.assistant_context import CircuitInventory
+        self.frame.SetSize((1000, 780)); self.frame.Layout(); wx.Yield()
+        top = self.frame.splitter.GetWindow1()
+        lower = self.frame.splitter.GetWindow2()
+        self.assertIs(top, self.frame.chat_panel)
+        self.assertGreater(top.GetSize().height, lower.GetSize().height)
+        self.frame.inventory = CircuitInventory(['/Power stage/VDD'], {'U1': 'MCU'}, {'U1.1': {'/Power stage/VDD'}})
+        self.frame.query.ChangeValue('net VDD')
+        self.frame.query.SetInsertionPointEnd()
+        self.frame._suggest()
+        self.assertTrue(self.frame.suggestions.IsShown())
+        self.frame._accept_suggestion()
+        self.assertEqual(self.frame.query.GetValue(), 'net "/Power stage/VDD" ')
+        self.assertFalse(self.frame.suggestions.IsShown())
+
+    def test_ready_plan_inputs_can_be_revised_before_run(self):
+        from wayricad_runtime import assistant
+        self.frame.engine = assistant
+        self.frame.query.ChangeValue('Calculate microstrip impedance width 0.2 mm height 0.1 mm er 4.2')
+        self.frame._send(); self.settle()
+        self.assertTrue(self.frame.edit_inputs.IsEnabled())
+        self.frame._edit_inputs()
         self.assertFalse(self.frame.run.IsEnabled())
-        with patch('wayricad_runtime.assistant_ollama.models', return_value=['demo:latest']):
-            self.frame._find_models(); self.settle()
-        self.assertEqual(self.frame.ollama_model.GetValue(), 'demo:latest')
-        self.assertIsNone(self.frame.plan)
+        self.frame.question_controls['0.width_mm'].ChangeValue('0.3')
+        self.frame._answer(None); self.settle()
+        self.assertEqual(self.frame.plan['steps'][0]['params']['width_mm'], .3)
+        self.assertTrue(self.frame.run.IsEnabled())
 
-    def test_failed_new_run_cannot_interpret_previous_result(self):
+    def test_failed_new_run_clears_previous_result(self):
         self.frame.last_result = {'status':'completed', 'artifacts':[]}
         self.frame.plan = {'status':'ready'}
         with patch.object(self.engine, 'run_plan', side_effect=ValueError('Failed new run')):
             self.frame._run(); self.settle()
         self.assertIsNone(self.frame.last_result)
-        self.assertFalse(self.frame.interpret.IsEnabled())
-
-    def test_model_values_are_editable_and_unwanted_tasks_can_be_removed(self):
-        from wayricad_runtime import assistant_ollama as ollama
-        query = 'Calculate microstrip impedance'
-        tasks = [dict(action='trace-impedance.cross-section',params=dict(
-            topology='microstrip',width_mm=.2,height_mm=.1,er=4.2,copper_mm=.2)),
-            dict(action='trace-impedance.help',params={})]
-        self.frame.provider.SetSelection(1)
-        self.frame.ollama_model.ChangeValue('demo')
-        self.frame.query.ChangeValue(query)
-        with patch.object(ollama,'_chat',return_value=({'tasks':tasks},dict(
-                model='demo',endpoint=ollama.DEFAULT_URL))):
-            self.frame._ask(); self.settle()
-        control = self.frame.question_controls['0.copper_mm']
-        control.SetValue(''); self.frame._input_edited()
-        self.assertFalse(self.frame.run.IsEnabled())
-        self.frame.plan_tasks.Select(1)
-        self.frame._remove_task()
-        self.assertEqual(len(self.frame.plan['steps']),2)
-        self.assertEqual(control.GetValue(),'')
-        self.frame._run()
-        self.assertEqual(self.engine.runs,0)
-        with patch.object(ollama,'_chat',side_effect=AssertionError('No second inference')):
-            self.frame._answer(None); self.settle()
-            self.assertNotIn('copper_mm',self.frame.plan['steps'][0]['params'])
-            self.frame.plan_tasks.Select(1)
-            self.frame._remove_task(); self.settle()
-        self.assertEqual(len(self.frame.plan['steps']),1)
-        self.assertTrue(self.frame.run.IsEnabled())
+        self.assertIn('Failed new run', self.frame.transcript.GetValue())
 
 
 if __name__ == '__main__':

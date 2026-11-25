@@ -57,7 +57,7 @@ and Layer Counter use the native plugin loader and do not require the IPC API.
 |---|---|
 | Install the tools | [Quick steps](#install-and-open) · [Installation guide](docs/INSTALLATION.md) |
 | Run your first analysis | [Getting started](#getting-started) |
-| Ask for a board check or explain a report | [WayriCAD Assistant and local Ollama](suite_assistant_plugin/README.md#ollama-ask-review-run-interpret) |
+| Ask for a circuit check or simulation | [WayriCAD Assistant](suite_assistant_plugin/README.md#get-started) |
 | Review a saved design with your team | [WayriCAD Review](review_comments_plugin/README.md) |
 | Reopen real board results across tools | [Olimex / Marble studies and interactive gallery](docs/examples/public-boards/README.md) |
 | Explore electromagnetic studies | [Quick EMerge (beta)](#start-quick-emerge) · [Screenshots](#quick-emerge-beta) |
@@ -78,8 +78,8 @@ formerly named KiWay; the maintained source and PCM feed use WayriCAD.
 [Quick EMerge](quick_emerge_plugin/README.md) is an exploratory **beta**.
 [Review](review_comments_plugin/README.md) bundles KiCad WebView for PCB,
 schematic and 3D review with revision-bound GitHub/GitLab comments.
-[Assistant](suite_assistant_plugin/README.md) supports local commands and optional
-Ollama for reviewed checks and explanations of generated reports. Both are
+[Assistant](suite_assistant_plugin/README.md) uses local fuzzy matching and saved circuit names
+for reviewed checks and simulations. Both are
 labelled testing packages in Plugin and Content Manager.
 
 <a id="choose-a-kicad-workflow"></a>
@@ -423,7 +423,7 @@ Candidate download links and badges become available only after publication.
 
 | Plugin | Use it for | Downloads |
 |---|---|---|
-| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Reviewed chat-driven checks, BOM and copper queries, and report interpretation with optional local Ollama (testing). | [![4.9.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.9.0/WayriCAD-suite-assistant-4.9.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.9.0) |
+| <img src="suite_assistant_plugin/icon.png" width="24" height="24" alt="WayriCAD Assistant icon"> [WayriCAD Assistant](suite_assistant_plugin/README.md) | Local circuit-aware chat, registered checks and reviewed simulation setup (testing). | [![4.9.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.9.0/WayriCAD-suite-assistant-4.9.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.9.0) |
 | <img src="review_comments_plugin/icon.png" width="24" height="24" alt="WayriCAD Review icon"> [WayriCAD Review](review_comments_plugin/README.md) | Revision-bound comments on rotatable PCB and schematic views, 3D inspection, GitHub/GitLab conversations and GitHub Discussions (testing). | [![4.9.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.9.0/WayriCAD-review-comments-4.9.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.9.0) |
 | <img src="quick_emerge_plugin/icon.png" width="24" height="24" alt="Quick EMerge beta icon"> [Quick EMerge (beta)](quick_emerge_plugin/README.md) | Read-only antenna and bounded saved-PCB region studies, field probes and reports; exploratory testing beta. | [![4.9.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.9.0/WayriCAD-quick-emerge-4.9.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.9.0) |
 | <img src="quick_pi_plugin/icon.png" width="24" height="24" alt="Quick PI icon"> [Quick PI](quick_pi_plugin/README.md) | Voltage drop, current flow and copper losses. | [![4.9.0 PCM downloads](https://img.shields.io/github/downloads/wayri/WayriCAD/v4.9.0/WayriCAD-quick-pi-4.9.0-PCM.zip?label=downloads&color=168b78)](https://github.com/wayri/WayriCAD/releases/tag/v4.9.0) |
@@ -525,19 +525,8 @@ capture illustrates the region workflow; its mesh is unqualified.
 
 ### [WayriCAD Assistant](suite_assistant_plugin/README.md)
 
-**Interpret a request and review its inputs**
+Use the chat for requests and clarifications. Drag the divider to expand plan inputs, results or saved copper selection. The Assistant completes exact saved net, part and pad names and prepares typed actions for WayriCAD tools.
 
-<a href="suite_assistant_plugin/help-plan.png"><img src="suite_assistant_plugin/help-plan.png" width="960" alt="Native Assistant interpretation and parameter review"></a>
-
-The testing package uses local fuzzy matching and registered CLI actions.
-This plan view is shown before execution; it does not claim a simulation result.
-
-**Select exact nets on the saved board**
-
-<a href="suite_assistant_plugin/help-board-selection.png"><img src="suite_assistant_plugin/help-board-selection.png" width="960" alt="Assistant highlighting the selected public Marble net while muting other copper"></a>
-
-Public Marble, read-only. Exact selected copper is highlighted; zone borders
-remain outlines. [Workflow and native-capture scope](suite_assistant_plugin/README.md).
 
 ### [Quick PI](quick_pi_plugin/README.md)
 
@@ -1186,11 +1175,9 @@ compatibility. Validation records are in [the release audit](docs/audits/RELEASE
 
 ## Release history
 
-**Release 4.9.0:** Review bundles WebView 1.1.1, preserves comment placement on
-rotated drawings, and fixes initial native 3D viewport sizing. Assistant adds
-local Ollama planning and explanations, BOM value counts, saved copper area,
-steady thermal screening and reviewed simulation workflows. See the
-[release notes](docs/RELEASE_NOTES_4.9.0.md) for coverage and limits.
+**Release 4.9.0:** Quick PI adds a scoped board viewport, independent front and
+back silkscreen and field controls, fixed comparison scales, and pinned probes.
+See the [release notes](docs/RELEASE_NOTES_4.9.0.md).
 
 **Release 4.8.8:** QuickTherm automatic Run selects a supported saved
 board model and mesh, fills blank starting values without replacing edits, and

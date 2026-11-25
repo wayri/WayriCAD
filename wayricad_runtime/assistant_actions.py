@@ -61,6 +61,8 @@ _add('quick-emerge.runtime', 'quick-emerge', 'Inspect EMerge solver runtime',
 
 STUDY = field('Reviewed study JSON file', 'path')
 for _id, _tool, _title, _board in (
+    ('quick-pi.transient', 'quick-pi', 'PI transient RLC load step', False),
+    ('quick-pi.electrothermal', 'quick-pi', 'PI electrothermal coupling', False),
     ('quick-pi.ac-ports', 'quick-pi', 'PI two-port AC impedance matrix', False),
     ('quick-pi.batch', 'quick-pi', 'PI multi-net DC bundle', True),
     ('quick-therm.solid', 'quick-therm', 'Thermal 3D solid study', False),
@@ -71,7 +73,8 @@ for _id, _tool, _title, _board in (
          dict(board=BOARD, study=STUDY) if _board else dict(study=STUDY), effect='analysis',
          summary=_title + ' from an explicitly supplied native CLI study file.')
 
-_STUDY_FLAGS = {'quick-pi.ac-ports':'--ac-ports', 'quick-pi.batch':'--batch',
+_STUDY_FLAGS = {'quick-pi.transient':'--transient', 'quick-pi.electrothermal':'--electrothermal',
+                'quick-pi.ac-ports':'--ac-ports', 'quick-pi.batch':'--batch',
                 'quick-pi.series':'--series-file', 'quick-therm.solid':'--thermoelectric-3d',
                 'quick-therm.transient':'--transient', 'signal-integrity.study':'--config'}
 _add('quick-pi.series', 'quick-pi', 'PI reviewed series path', ('solve PI series path',),
@@ -109,6 +112,7 @@ _add('quick-pi.solve', 'quick-pi', 'DC rail analysis',
           voltage=number('Source voltage', 'V', **POSITIVE),
           current=number('Sink current', 'A', **POSITIVE),
           mesh_edge=number('Mesh edge', 'mm', **POSITIVE),
+          mesh_backend=field('Mesh backend', 'choice', choices=['auto','vtk','gmsh']),
           return_nets=field('Explicit return nets', 'list'),
           temperature=number('Copper temperature', 'C')), effect='analysis',
      summary='2.5D DC analysis with explicit source voltage and sink current; no inferred loads.')
@@ -376,7 +380,7 @@ def compile_action(action_id, params, context, output_dir):
     elif action_id == 'quick-pi.verify': args.append('--verify'); output()
     elif action_id == 'quick-pi.solve':
         args.append(values['board'])
-        for key in ('net', 'source', 'sink', 'voltage', 'current', 'temperature'): option(key)
+        for key in ('net', 'source', 'sink', 'voltage', 'current', 'temperature', 'mesh_backend'): option(key)
         if 'mesh_edge' in values: option('mesh_edge')
         else: args.append('--auto-mesh')
         if values.get('return_nets'):
