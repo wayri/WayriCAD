@@ -41,6 +41,26 @@ def test_length_uses_saved_centerline_chain_and_reports_straight_estimate_separa
     assert unknown['status'] == 'unavailable'
 
 
+def test_single_net_load_routes_keep_only_connected_saved_tracks():
+    from quick_pi_plugin.series_path_diagram import load_track_chains
+
+    evidence={
+        'pads':{
+            'source':dict(position_mm=[0,0],layers=[0],net='rail'),
+            'load':dict(position_mm=[2,0],layers=[0],net='rail'),
+        },
+        'tracks':[
+            dict(id='first',net='rail',layer=0,start_mm=[0,0],end_mm=[1,0],length_mm=1),
+            dict(id='second',net='rail',layer=0,start_mm=[1,0],end_mm=[2,0],length_mm=1),
+            dict(id='wrong-layer',net='rail',layer=2,start_mm=[0,0],end_mm=[2,0],length_mm=2),
+        ],
+    }
+    request=dict(net='rail',source_terminal='source',sink_terminal='load')
+    assert load_track_chains(request,evidence)[0][0]['track_ids']==['first','second']
+    evidence['tracks'].pop(1)
+    assert load_track_chains(request,evidence)[0][0]['track_ids']==[]
+
+
 def test_saved_arc_length_is_not_replaced_by_its_chord_or_another_net_or_layer():
     data = evidence()
     data['tracks'] = [dict(net='VIN', layer=0, start_mm=[0, 0], end_mm=[3, 4], length_mm=8)]

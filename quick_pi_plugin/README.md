@@ -4,6 +4,14 @@ Newer saved PCB files use the [shared read-only conversion adapter](../docs/SAVE
 KiCad 10 retains its direct native load path. The KiCad 10 helper is still
 required; unsupported newer-format features are refused without changing sources.
 
+## Board viewport
+
+- Use **Analyzed nets** for the solved copper, **Full board** for the saved layout, or **Selected nets → Choose nets** to show several saved nets without changing the simulation. **Dim other nets** adds surrounding copper for context.
+- Select a copper layer or the combined projection. **Board**, **Copper**, **Field**, **Front silk**, and **Back silk** are separate controls. **Fit** reframes the active view.
+- The color scale shows the active result and units. Use **Manual** to retain the same limits when comparing views. Gray mesh cells have an unavailable field. A solved zero uses the color scale. Filtering older multi-net results may require rerunning the solve to recover cell ownership.
+- Hover on a physical layer for board coordinates and field values. A via shows its barrel span and solved current. Click to pin a point. Change layers or net scope to inspect elsewhere, and use **Clear pins** in the **Probe** tab to remove them.
+- **Representative routes** shows an exact saved track chain from a selected source to a load, or for a reviewed series segment when one exists. Dashed orange track outlines are independent of the solved via-barrel field. Purple links identify explicitly modeled components.
+
 ## Quick start
 
 **Introduced in 4.8.3:** Files now opens **3D solid electrothermal
@@ -394,10 +402,10 @@ are included in 3.6.40.
 [Validation and remaining startup latency](../docs/audits/QUICK_PI_COPPER_AUTOLOAD_2026-10-26.md).
 
 The saved board's copper loads automatically in the background with the net and
-pad inventory. The selected net opens with **All copper layers (projected)** selected and
-**Silk** off. Changing nets filters the cached board without another extraction. Uncheck
-**Only simulated nets** to show surrounding copper. **Board** controls edges and
-holes; **Silk** independently enables saved silkscreen. **Copper** and **Field**
+pad inventory. The selected net opens with **All copper layers (projected)** selected with
+both silkscreen sides off. Changing nets filters the cached board without another
+extraction. Choose **Full board** to see the surrounding copper. **Board** controls
+edges and holes. **Front silk** and **Back silk** control saved silkscreen. **Copper** and **Field**
 control copper geometry and the solved overlay. An explicit physical-layer choice
 is retained when a new mesh or result arrives.
 
@@ -1310,11 +1318,10 @@ Typing filters the list without changing the chosen net or invalidating a solved
 study. Choose a result explicitly. Multi-net cases retain their separate source,
 load and return models; a search pattern never silently becomes a simulation.
 
-**Only simulated nets** is enabled by default. Net, mesh, result maps and exported
-reports show the selected copper domain with board outlines and component
-context. Turn it off to review surrounding copper. **Select simulated nets in
-PCB** replaces the editor selection with those exact net objects across layers;
-it does not expand to every pad of a component or to similar net names.
+**Analyzed nets** is the default viewport scope. Choose **Full board** for
+surrounding copper or **Selected nets** to pick the saved nets to display.
+**Select simulated nets in PCB** selects exact copper objects in the editor.
+In **Selected nets** scope it uses the nets picked for display.
 
 Choose **All copper layers (projected)** to overlay the solved layers in one
 view, including HTML maps. Layer fields overlap visually; they are not summed or
