@@ -34,13 +34,19 @@ class BoardWorkflow:
                 if self.origin.socket and self.origin.token:
                     live=popup.AppendCheckItem(wx.ID_ANY,'Use unsaved edits')
                     live.Check(self.live_edits.GetValue())
-                    popup.Bind(wx.EVT_MENU,lambda event:self.live_edits.SetValue(event.IsChecked()),id=live.GetId())
-                watch=popup.AppendCheckItem(wx.ID_ANY,'Watch routing')
-                watch.Check(frame.auto_run.GetValue())
-                def toggle_watch(event):
-                    frame.auto_run.SetValue(event.IsChecked())
-                    frame._route_watch.changed()
-                popup.Bind(wx.EVT_MENU,toggle_watch,id=watch.GetId())
+                    def toggle_live(event):
+                        self.live_edits.SetValue(event.IsChecked())
+                        if not event.IsChecked() and frame._background_analysis:
+                            frame._set_routing_watch(False)
+                    popup.Bind(wx.EVT_MENU,toggle_live,id=live.GetId())
+                    background=popup.AppendCheckItem(wx.ID_ANY,'Live analysis in background')
+                    background.Check(frame._background_analysis)
+                    popup.Bind(wx.EVT_MENU,lambda event:frame._set_routing_watch(
+                        event.IsChecked(),background=True),id=background.GetId())
+                watch=popup.AppendCheckItem(wx.ID_ANY,'Watch routing while active')
+                watch.Check(frame.auto_run.GetValue() and not frame._background_analysis)
+                popup.Bind(wx.EVT_MENU,lambda event:frame._set_routing_watch(event.IsChecked()),
+                           id=watch.GetId())
                 control.PopupMenu(popup)
         control.Bind(wx.EVT_BUTTON,menu)
         toolbar.Add(control,0,wx.RIGHT|wx.BOTTOM,4);self.buttons.append(control)

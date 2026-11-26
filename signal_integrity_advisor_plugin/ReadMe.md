@@ -13,8 +13,8 @@ can also be sent back to the originating PCB Editor.
 Saving the PCB, project or custom rules refreshes the board context and clears
 the old analytical result. Unchanged endpoint identities are retained, and
 multi-case study rows are cleared for review. **PCB → Refresh saved PCB** retries
-loading if needed. Analysis uses saved inputs, so save before running. A
-connection failure pauses following. Closing the window stops polling.
+loading if needed. Runs use saved inputs by default. A connection failure
+pauses following. Closing the window stops polling.
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
@@ -56,6 +56,21 @@ standalone runs can select it with `KICAD_CLI`. Unsupported conversion stops the
 run. The original PCB, project and rules stay unchanged; converted results retain
 their source and converter provenance. This does not establish editing or DRC
 equivalence. Reopen and rerun after source, rules or converter changes.
+
+### Live net analysis
+
+Launch Quick SI from the PCB Editor. Choose a signal, source and receiver,
+enable **Live net analysis**, and click **Run SI** once. Quick SI reruns the
+same setup in the background after routing edits settle on the signal or an
+explicitly selected return net. Edits may be unsaved. Results from a route
+that changed during the run are discarded before display. Cancel or change
+the setup to stop monitoring, then run again to start a new watch.
+
+The live result is a single-path preview, including its configured eye model.
+Multi-net studies and the protocol suite use the saved board. Save the board,
+turn off **Live net analysis**, and rerun for report or circuit export.
+Watching uses KiCad’s net-item API. Unselected reference nets, project settings
+and custom rules are observed through the saved-source refresh.
 
 ## Viewport-first workspace
 
@@ -1060,7 +1075,8 @@ runs.
 
 A legacy/live-board window retains synchronous, UI-thread analysis of its current
 board objects. It does not silently analyze a saved copy in place of unsaved edits.
-Use the normal saved-board sidecar for cancellable background screening.
+Use the normal saved-board sidecar for cancellable background screening. For
+an unsaved single-path preview, use the opt-in Live net analysis workflow.
 
 ## Cross-selection with the originating PCB Editor
 

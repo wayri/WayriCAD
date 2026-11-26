@@ -126,7 +126,7 @@ an aggregate-net impedance.
 | Zone/plane | Terminal-corridor resistance and inductance; capacitance from filled-island/reference overlap and stackup separation |
 | Trace + zone + via | Connected path and individual section models; unresolved terms remain identified |
 
-Plane R/L depends on the selected terminals and assumed corridor width. It is not a spreading-resistance solution. Full-island capacitance and corridor R/L are different estimates and must not be interpreted as one series RLC circuit. Mixed routes have section impedances; they do not have a single uniform Z0. Partial totals contain modeled sections only. Disconnected endpoints produce an unresolved result instead of an aggregate-net fallback.
+Plane R/L depends on the selected terminals and assumed corridor width. It is not a spreading-resistance solution. Full-island capacitance and corridor R/L are different estimates and must not be interpreted as one series RLC circuit. Mixed routes have section impedances; they do not have a single uniform Z0. Partial totals contain modeled sections only. The JSON report's circuit handoff lists incomplete R/L/C quantities and blocker codes. Review missing terms and return geometry before using a route in a transient or impedance model. Disconnected endpoints produce an unresolved result instead of an aggregate-net fallback.
 
 The stackup source, copper thickness, dielectric separation and permittivity are recorded. Automatic transmission-line estimates require saved dielectric thickness and Er; missing values remain structured blockers and are not replaced by generic FR-4 dimensions. A manufacturing document can disagree with embedded board data; resolve that discrepancy before using these estimates for design decisions. Models exclude copper roughness, etch shape, solder mask, dielectric loss, pad and thermal-spoke impedance, full return-current distribution, and connector/package effects. Critical high-speed work needs field simulation or measurement beyond this preliminary geometry analysis.
 
@@ -153,6 +153,20 @@ each unambiguous endpoint by pad UUID, including reference or pad-number
 renames. A deleted or ambiguous endpoint stays empty. Review the selected
 zone island, reference layer and differential mate after a refill or layer change,
 then run **Analyze**. Frequency and corridor width stay as entered.
+
+Enable **Live path analysis** after choosing a net, two endpoint pads, frequency,
+and reference layer. In PCB Editor sessions with live geometry support, the
+analyzer takes a read-only copy from the originating editor and runs the same
+path analysis in the background after its net or differential mate settles.
+Unsaved routing edits are included. Selection changes and edits on other nets
+do not trigger a run. Saved project or custom rule changes trigger a refresh.
+Changing the analysis setup stops the watch. Re-enable it to analyze the new
+setup. Check the status while a new result is pending. To export CSV, save the
+PCB, turn off live analysis and run **Analyze** on the saved board.
+
+Use manual **Analyze** for zone/plane islands, bundle scans, protocol discovery,
+and standalone sessions. Rerun manually when editing return copper on other
+nets, and refill copper zones in KiCad before relying on their coverage.
 
 Enable **Follow PCB selection** to highlight selected tracks, vias, pads and zones
 in the current route preview. Double-click a section row to select and zoom to

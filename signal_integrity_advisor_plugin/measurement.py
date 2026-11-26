@@ -166,6 +166,13 @@ class PathMeasurement:
         if not self.impedance_valid:
             result["impedance_ohm"] = None
         result["quantity_coverage"] = self.quantity_coverage()
+        required = ("resistance_ohm", "inductance_nh", "capacitance_pf")
+        missing = [key for key in required if result["quantity_coverage"][key]["complete_total"] is None]
+        result["circuit_handoff"] = dict(
+            status="REVIEW_REQUIRED" if missing else "GEOMETRY_ESTIMATE",
+            incomplete_quantities=missing,
+            blocker_codes=sorted({item["code"] for item in self.blockers}),
+        )
         result["totals_complete"] = self.status == "ok"
         result["totals_scope"] = "Modeled sections only; not a complete equivalent circuit" if self.status == "partial" else self.status
         if self.status == "disconnected":

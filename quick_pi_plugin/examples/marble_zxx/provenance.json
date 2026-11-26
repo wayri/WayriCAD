@@ -1,0 +1,25 @@
+{
+  "net": "Net-(C121-Pad1)",
+  "ports": [
+    "U20.17",
+    "C121.1"
+  ],
+  "port_ids": [
+    "562e62e7-423a-48b5-b983-5c2de30f249d",
+    "c98378db-3119-48eb-bb68-471e22f4e719"
+  ],
+  "source_sha256": "3304ba37c2bd891849fc36b500cd940934aaf1f2013a95639c03564fb925c512",
+  "copper_layer": "B.Cu",
+  "mesh_backend": "vtk",
+  "mesh_edge_mm": 0.14,
+  "board": "Berkeley Lab Marble",
+  "upstream_revision": "a426777d92c0f22a546d4740b419a3937e0c1f90",
+  "upstream_pcb": "https://github.com/BerkeleyLab/Marble/blob/a426777d92c0f22a546d4740b419a3937e0c1f90/design/Marble.kicad_pcb",
+  "reference_layer": "In10.Cu (GND10.Cu), assumed ideal full reference",
+  "native_runtime": "KiCad 10.0.6 (Windows)",
+  "artifacts": {
+    "study.json": "ef486b04fb74928f11bfa8da8ebb9c6f3d75ac5e46ad55759f5e96c3e3055461",
+    "result.json": "973ee7033947906fdac6a0a1999eeb34deab7ef1a418e157c34cf6f7757ff5f4",
+    "impedance.png": "253439eee4c951095584818db0d902515ee3061b9aaeb1b038113c21d70aa722"
+  }
+}

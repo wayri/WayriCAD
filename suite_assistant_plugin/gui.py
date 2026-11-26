@@ -1,15 +1,14 @@
 """Resizable native interface for bounded local language plans and report results."""
 from pathlib import Path
-from io import BytesIO
 import hashlib
 import threading
 import wx
-import wx.html
 import wx.lib.scrolledpanel as scrolled
 
 EXAMPLES = (
     'List available tools',
     'Quick PI voltage drop at 3.3 V from J1.1 to U1.1 with 250 mA',
+    'Run PI on VBUS from J1 to U1 and U2 with each drawing 400 mA and input voltage 5 V',
     'Run Quick PI batch on multiple nets',
     'Set up a Quick PI transient',
     'Thermal board heat map with U1 at 0.5 W and ambient 25 C',
@@ -81,20 +80,29 @@ class AssistantFrame(wx.Frame):
         self._request = ''
         self._completions = []
         self._previous_sash = None
+        self._report_preview_epoch = 0
         self.last_result = None
         self._all_focus_points = []
         self._selection_targets = []
         panel = wx.Panel(self)
         body = wx.BoxSizer(wx.VERTICAL)
         self.body = body
-        self.splitter = wx.SplitterWindow(panel, style=wx.SP_LIVE_UPDATE)
-        self.splitter.SetMinimumPaneSize(100)
+        self.splitter = wx.SplitterWindow(panel, style=wx.SP_LIVE_UPDATE | wx.SP_3DSASH | wx.SP_BORDER)
+        self.splitter.SetToolTip('Drag the divider to resize the chat and work area.')
+        self.splitter.SetMinimumPaneSize(self.FromDIP(100))
         self.splitter.SetSashGravity(1)
         self.chat_panel = wx.Panel(self.splitter)
         chat = wx.BoxSizer(wx.VERTICAL)
         self.transcript = wx.TextCtrl(self.chat_panel, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
         self.transcript.SetMinSize((-1, 36))
+        heading_font = self.transcript.GetFont()
+        heading_font.MakeBold()
+        self._chat_heading = wx.TextAttr()
+        self._chat_heading.SetFont(heading_font)
+        self._chat_body = wx.TextAttr()
+        self._chat_body.SetFont(self.transcript.GetFont())
         chat.Add(self.transcript, 1, wx.EXPAND | wx.ALL, 8)
+        chat.Add(wx.StaticLine(self.chat_panel), 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self._chat('Assistant', 'Ask for a circuit check, simulation, or tool. Choose a saved PCB to complete names as you type.')
         self.query = wx.TextCtrl(self.chat_panel, style=wx.TE_PROCESS_ENTER)
         self.query.SetMaxLength(8192)
@@ -195,46 +203,54 @@ class AssistantFrame(wx.Frame):
         plan_page.SetSizer(plan_box)
         plan_page.SetupScrolling(scroll_x=False)
         self.tabs.AddPage(plan_page, 'Plan && inputs', imageId=0)
+        from .result_view import ReportView
         result_page = wx.Panel(self.tabs)
         result_box = wx.BoxSizer(wx.VERTICAL)
+        result_bar = wx.BoxSizer(wx.HORIZONTAL)
         self.result_summary = wx.StaticText(result_page, label='No results yet')
         font = self.result_summary.GetFont(); font.MakeBold(); self.result_summary.SetFont(font)
-        result_box.Add(self.result_summary, 0, wx.ALL, 8)
+        result_bar.Add(self.result_summary, 1, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+        self.expand_results = wx.ToggleButton(result_page, label='Expand results', style=wx.BU_EXACTFIT)
+        self.expand_results.Bind(wx.EVT_TOGGLEBUTTON, self._expand_results)
+        result_bar.Add(self.expand_results)
+        result_box.Add(result_bar, 0, wx.EXPAND | wx.ALL, 8)
+
+        artifact_bar = wx.BoxSizer(wx.HORIZONTAL)
+        artifact_bar.Add(wx.StaticText(result_page, label='Report'), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        self.report_list = wx.Choice(result_page)
+        self.report_list.SetMinSize((120, -1))
+        self.report_list.SetToolTip('Preview a generated result in the Assistant.')
+        self.report_list.Bind(wx.EVT_CHOICE, self._select_report)
+        artifact_bar.Add(self.report_list, 1, wx.ALIGN_CENTER_VERTICAL)
+        self.log_view = wx.ToggleButton(result_page, label='Run log', style=wx.BU_EXACTFIT)
+        self.log_view.SetToolTip('Switch between the selected report and the tool log.')
+        self.log_view.Bind(wx.EVT_TOGGLEBUTTON, self._preview_selected_report)
+        self.log_view.Disable()
+        artifact_bar.Add(self.log_view, 0, wx.LEFT, 6)
+        self.open_report = action_icon(wx.Button(result_page, label='Open full report'), wx.ART_GO_FORWARD)
+        self.open_report.Bind(wx.EVT_BUTTON, self._open_report)
+        self.open_report.Disable()
+        artifact_bar.Add(self.open_report, 0, wx.LEFT, 6)
+        result_box.Add(artifact_bar, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+
         self.results = wx.TextCtrl(result_page, style=wx.TE_MULTILINE | wx.TE_READONLY)
+        self.results.SetMinSize((-1, 36))
         result_box.Add(self.results, 1, wx.EXPAND | wx.ALL, 8)
-        self.report_preview = wx.html.HtmlWindow(result_page)
-        self.report_preview.SetBorders(8)
-        self.report_preview.Bind(wx.html.EVT_HTML_LINK_CLICKED, lambda event: None)
-        self.report_image = wx.StaticBitmap(result_page)
-        self.report_image.Hide()
-        self.report_preview.Hide()
-        result_box.Add(self.report_image, 0, wx.ALIGN_CENTER | wx.ALL, 4)
-        result_box.Add(self.report_preview, 1, wx.EXPAND | wx.ALL, 8)
-        self.report_list = wx.ListBox(result_page, size=(-1, 50))
-        self.report_list.SetMinSize((-1, 35))
-        self.report_list.SetToolTip('Select a generated report, then open it. Reports are retained in this run’s results folder.')
-        result_box.Add(self.report_list, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        self.report_view = ReportView(result_page)
+        self.report_view.Hide()
+        result_box.Add(self.report_view, 1, wx.EXPAND | wx.ALL, 8)
+
         report_actions = wx.BoxSizer(wx.HORIZONTAL)
-        open_report = wx.Button(result_page, label='Open selected report')
-        open_report.Bind(wx.EVT_BUTTON, self._open_report)
-        action_icon(open_report, wx.ART_GO_FORWARD)
-        self.preview_result = wx.ToggleButton(result_page, label='Preview selected report')
-        self.preview_result.Bind(wx.EVT_TOGGLEBUTTON, self._preview_selected_report)
-        self.preview_result.Disable()
-        report_actions.Add(self.preview_result, 0, wx.RIGHT, 8)
-        report_actions.Add(open_report, 0, wx.RIGHT, 8)
         self.choose_output = wx.Button(result_page, label='Results folder…')
         self.choose_output.SetToolTip(str(self.output_root))
         self.choose_output.Bind(wx.EVT_BUTTON, self._choose_output)
         action_icon(self.choose_output, wx.ART_FOLDER_OPEN)
         report_actions.Add(self.choose_output, 0, wx.RIGHT, 8)
-        self.open_output = wx.Button(result_page, label='Open results folder')
+        self.open_output = wx.Button(result_page, label='Open folder')
         self.open_output.Bind(wx.EVT_BUTTON, self._open_output)
         action_icon(self.open_output, wx.ART_FOLDER)
         report_actions.Add(self.open_output)
         result_box.Add(report_actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
-        self.report_list.Bind(wx.EVT_LISTBOX, self._preview_selected_report)
-        self.report_list.Bind(wx.EVT_LISTBOX_DCLICK, self._open_report)
         result_page.SetSizer(result_box)
         self.tabs.AddPage(result_page, 'Results && reports', imageId=1)
         board_page = wx.Panel(self.tabs)
@@ -413,7 +429,10 @@ class AssistantFrame(wx.Frame):
         length = self.transcript.GetLastPosition()
         if length > 160_000:
             self.transcript.Remove(0, length - 120_000)
-        self.transcript.AppendText(f'{speaker}\n{text}\n\n')
+        self.transcript.SetDefaultStyle(self._chat_heading)
+        self.transcript.AppendText(speaker + '\n')
+        self.transcript.SetDefaultStyle(self._chat_body)
+        self.transcript.AppendText(text + '\n\n')
         self.transcript.ShowPosition(self.transcript.GetLastPosition())
 
     def _load_inventory(self):
@@ -459,7 +478,12 @@ class AssistantFrame(wx.Frame):
             self._hide_suggestions()
             return
         _, _, fragment, _ = completion_span(self.query.GetValue(), self.query.GetInsertionPoint())
-        rows = self.inventory.suggestions(fragment)
+        from wayricad_runtime.assistant_guidance import completions, context_net
+        text = self.query.GetValue()
+        net = context_net(text, self.inventory, self.context.get('selected_nets', ()))
+        if not net and self.plan and self.plan.get('status') == 'needs_input':
+            net = self._reviewed_net()
+        rows = completions(self.inventory, fragment, net)
         if not rows:
             self._hide_suggestions()
             return
@@ -504,6 +528,24 @@ class AssistantFrame(wx.Frame):
                 return
         event.Skip()
 
+    def _reviewed_net(self):
+        nets = {step['params']['net'] for step in (self.plan or {}).get('steps', [])
+                if step.get('params', {}).get('net')}
+        return next(iter(nets)) if len(nets) == 1 else None
+
+    def _design_guidance(self, text):
+        from wayricad_runtime.assistant_guidance import guidance
+        inventory = self.inventory
+        if inventory is not None and self.inventory_stamp is not None:
+            try:
+                saved = Path(self.context['board']).stat()
+                if self.inventory_stamp != (saved.st_mtime_ns, saved.st_size):
+                    inventory = None
+            except (KeyError, OSError):
+                inventory = None
+        return guidance(text, inventory, selected_nets=self.context.get('selected_nets', ()),
+                        active_net=self._reviewed_net())
+
     def _send(self, event=None):
         if self.busy:
             return
@@ -518,7 +560,16 @@ class AssistantFrame(wx.Frame):
             else:
                 self._chat('Assistant', 'Complete the pending inputs before running.')
             return
-        if self.plan and self.plan.get('status') == 'needs_input':
+        advice = self._design_guidance(text)
+        if advice is not None:
+            self._chat('You', text)
+            self.query.ChangeValue('')
+            self._chat('Assistant', advice)
+            self._focus_query()
+            return
+        steps = (self.plan or {}).get('steps', [])
+        grouped = len(steps) == 1 and steps[0].get('action') == 'quick-pi.grouped'
+        if self.plan and (self.plan.get('status') == 'needs_input' or grouped):
             from wayricad_runtime.assistant import reply_answers
             answers = reply_answers(self.plan, text)
             if answers:
@@ -606,9 +657,17 @@ class AssistantFrame(wx.Frame):
                     '#087f7c' if state == 'ready' else '#996000')
         lines = [plan.get('query', ''), '', 'Interpretation']
         lines.extend('• ' + str(step.get('title', step.get('action', 'Check'))) for step in plan.get('steps', []))
+        from wayricad_runtime.assistant_actions import ACTIONS
         for step in plan.get('steps', []):
-            if step.get('params'):
-                lines.append('  Inputs: ' + ', '.join(f'{key}={value}' for key, value in step['params'].items()))
+            fields = ACTIONS.get(step.get('action'), {}).get('fields', {})
+            for key, value in step.get('params', {}).items():
+                if key == 'board':
+                    continue
+                field = fields.get(key, {})
+                label = field.get('label', key.replace('_', ' ').capitalize())
+                unit = ' ' + field['unit'] if field.get('unit') else ''
+                display = ', '.join(map(str, value)) if isinstance(value, list) else str(value)
+                lines.append(f'  {label} · {display}{unit}')
         lines.extend('\nAssumption: ' + str(value) for value in plan.get('assumptions', []))
         if plan.get('message'):
             lines.append('\n' + str(plan['message']))
@@ -681,6 +740,12 @@ class AssistantFrame(wx.Frame):
             labels = [f"{q.get('label', q['key'])} ({q['unit']})" if q.get('unit') else q.get('label', q['key'])
                       for q in questions]
             message = titles + ' needs ' + ', '.join(labels) + '. Reply here or use Plan & inputs.'
+            for question in questions:
+                choices = question.get('choices', ())
+                if choices:
+                    items = [item.get('label', item.get('value', '')) if isinstance(item, dict) else item
+                             for item in choices[:2]]
+                    message += '\n' + question.get('label', question['key']) + ' · ' + ' | '.join(map(str, items))
         else:
             alternatives = [row.get('title', row['action']) for row in plan.get('alternatives', [])]
             message = plan.get('error') or plan.get('message') or 'I need a more specific request.'
@@ -723,8 +788,7 @@ class AssistantFrame(wx.Frame):
         self._chat('Assistant', 'Running the reviewed plan…')
         self.results.ChangeValue('Running…\n')
         self.report_list.Clear(); self.artifacts = []
-        self.preview_result.SetValue(False)
-        self.preview_result.Disable()
+        self.log_view.SetValue(False)
         self._preview_selected_report()
         self.result_summary.SetLabel('Running · results and reports will appear here')
         self.tabs.SetSelection(1)
@@ -777,7 +841,7 @@ class AssistantFrame(wx.Frame):
         self._state(str(result.get('status', 'complete')).replace('_', ' ').upper(),
                     '#087f7c' if result.get('status') in {'completed', 'complete'} else '#9b2c2c')
         self._chat('Assistant', (summary if isinstance(summary, str) and summary else self.result_summary.GetLabel()) +
-                   (' Preview or open the files in Results & reports.' if self.artifacts else ''))
+                   (' The report is ready in Results & reports.' if self.artifacts else ''))
         titles = {item['path']: step.get('title', step.get('action', 'Check'))
                   for step in steps for item in step.get('artifacts', [])}
         labels = []
@@ -786,19 +850,30 @@ class AssistantFrame(wx.Frame):
             title = titles.get(item['path'])
             labels.append(f'{title} · {label}' if title else label)
         self.report_list.Set(labels)
-        self.preview_result.Enable(bool(self.artifacts))
+        self.log_view.SetValue(False)
         if self.artifacts:
+            from .result_preview import MAX_INPUT
+
             def preview_rank(item):
-                path = Path(item['path'])
-                if path.name == 'preview.svg':
-                    return 0
+                try:
+                    path = report_path(item, self.result_root)
+                    if path.suffix.lower() not in {'.html', '.htm'} and path.stat().st_size > MAX_INPUT:
+                        return 5
+                except (OSError, ValueError, KeyError):
+                    return 5
                 if path.suffix.lower() in {'.html', '.htm'} and path.name != 'index.html':
+                    return 0
+                if path.name == 'preview.svg':
                     return 1
                 if path.suffix.lower() in {'.png', '.svg', '.csv', '.json'}:
                     return 2
-                return 3
+                if path.suffix.lower() in {'.html', '.htm', '.txt'}:
+                    return 3
+                return 4
+
             self.report_list.SetSelection(min(range(len(self.artifacts)),
                                               key=lambda index: preview_rank(self.artifacts[index])))
+        self._preview_selected_report()
         # Most scientific workers write structured results rather than stdout.
         # Show their actual values in the window instead of only a success count.
         for artifact in self.artifacts:
@@ -820,48 +895,47 @@ class AssistantFrame(wx.Frame):
             except (OSError, ValueError, KeyError):
                 continue
 
+    def _select_report(self, event=None):
+        self.log_view.SetValue(False)
+        self._preview_selected_report()
+
     def _preview_selected_report(self, event=None):
-        from html import escape
         from xml.etree.ElementTree import ParseError
         from .result_preview import preview_content
 
+        self._report_preview_epoch += 1
+        epoch = self._report_preview_epoch
         index = self.report_list.GetSelection()
-        active = self.preview_result.GetValue() and index != wx.NOT_FOUND
-        self.report_image.Hide()
-        self.report_preview.Show(active)
+        selected = 0 <= index < len(self.artifacts)
+        active = selected and not self.log_view.GetValue()
+        self.report_list.Enable(bool(self.artifacts))
+        self.log_view.Enable(selected)
+        self.open_report.Enable(selected)
+        self.report_view.Show(active)
         self.results.Show(not active)
         if active:
-            try:
-                path = report_path(self.artifacts[index], self.result_root)
-                content, png, svg = preview_content(path)
-                bitmap = None
-                width = max(160, min(self.report_preview.GetParent().GetClientSize().width - 24, 760))
-                height = max(80, min(self.report_preview.GetParent().GetClientSize().height // 2, 260))
-                if png:
-                    image = wx.Image(BytesIO(png), wx.BITMAP_TYPE_PNG)
-                    if not image.IsOk():
-                        raise ValueError('The PNG could not be read.')
-                    factor = min(1, width / image.GetWidth(), height / image.GetHeight())
-                    bitmap = wx.Bitmap(image.Scale(max(1, round(image.GetWidth() * factor)),
-                                                   max(1, round(image.GetHeight() * factor)), wx.IMAGE_QUALITY_HIGH))
-                elif svg:
-                    if not hasattr(wx.BitmapBundle, 'FromSVG'):
-                        raise ValueError('Open the SVG to view the full drawing.')
-                    size = wx.Size(width, height)
-                    bundle = wx.BitmapBundle.FromSVG(svg, size)
-                    if not bundle.IsOk():
-                        raise ValueError('Open the SVG to view the full drawing.')
-                    bitmap = bundle.GetBitmap(size)
-                if bitmap is not None and bitmap.IsOk():
-                    self.report_image.SetBitmap(bitmap)
-                    self.report_image.Show()
-                self.report_preview.SetPage('<body>' + (content or '<p>' + escape(path.name) + '</p>') + '</body>')
-            except (OSError, ValueError, KeyError, ParseError) as exc:
-                self.report_preview.SetPage('<body><p>' + escape(str(exc)) + '</p></body>')
+            artifact, root = self.artifacts[index], self.result_root
+            self.report_view.message('Loading report…')
+
+            def work():
+                try:
+                    path = report_path(artifact, root)
+                    self._deliver(self._preview_ready, epoch, path.name, preview_content(path), None)
+                except (OSError, ValueError, KeyError, ParseError) as exc:
+                    self._deliver(self._preview_ready, epoch, '', None, str(exc))
+
+            threading.Thread(target=work, daemon=True).start()
         else:
-            self.report_preview.SetPage('')
-            self.report_image.SetBitmap(wx.NullBitmap)
-        self.report_preview.GetParent().Layout()
+            self.report_view.clear()
+        self.report_view.GetParent().Layout()
+
+    def _preview_ready(self, epoch, name, preview, error):
+        if epoch != self._report_preview_epoch:
+            return
+        if error:
+            self.report_view.message(error)
+        else:
+            self.report_view.render(name, *preview)
 
     def _open_report(self, event):
         index = self.report_list.GetSelection()
@@ -903,6 +977,8 @@ class AssistantFrame(wx.Frame):
         self.results.AppendText('\n' + message + '\n')
         self._chat('Assistant', message)
         self._state('NEEDS ATTENTION', '#9b2c2c')
+        self.log_view.SetValue(True)
+        self._preview_selected_report()
         self.tabs.SetSelection(1)
 
     def _load_preview(self, event=None):
@@ -987,18 +1063,30 @@ class AssistantFrame(wx.Frame):
             self.status.SetLabel('Load a saved PCB before fitting the board.')
 
     def _expand_board(self, event=None):
-        if self.expand_view.GetValue():
+        self._expand_work_area(self.expand_view, 'Expand board')
+
+    def _expand_results(self, event=None):
+        self._expand_work_area(self.expand_results, 'Expand results')
+
+    def _expand_work_area(self, toggle, label):
+        if toggle.GetValue():
             self._previous_sash = self.splitter.GetSashPosition()
             self.splitter.SetSashPosition(self.splitter.GetMinimumPaneSize())
-            self.expand_view.SetLabel('Restore chat')
+            toggle.SetLabel('Restore chat')
         else:
             self.splitter.SetSashPosition(self._previous_sash or -255)
-            self.expand_view.SetLabel('Expand board')
+            toggle.SetLabel(label)
+        toggle.GetParent().Layout()
 
     def _tab_changed(self, event):
-        if event.GetSelection() != 2 and hasattr(self, 'expand_view') and self.expand_view.GetValue():
-            self.expand_view.SetValue(False)
-            self._expand_board()
+        for page, control, restore in (
+            (1, 'expand_results', self._expand_results),
+            (2, 'expand_view', self._expand_board),
+        ):
+            toggle = getattr(self, control, None)
+            if event.GetSelection() != page and toggle is not None and toggle.GetValue():
+                toggle.SetValue(False)
+                restore()
         event.Skip()
 
     def _show_in_editor(self, event=None):

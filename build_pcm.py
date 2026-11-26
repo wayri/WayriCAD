@@ -13,7 +13,7 @@ PCM_DIR = "pcm"
 RELEASES_DIR = "releases"
 
 DEFAULT_BRANCH = os.environ.get("WAYRICAD_BRANCH", "develop")
-DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "5.0.0")
+DEFAULT_RELEASE_TAG = os.environ.get("WAYRICAD_RELEASE_TAG", "5.0.1")
 
 REPO_OWNER = "wayri"
 REPO_NAME = "WayriCAD"
@@ -95,13 +95,16 @@ def plugin_files(plugin_path):
 
 
 def bundle_assistant_backends(archive, base_path):
-    """Carry isolated backend packages without registering sibling menu actions."""
+    """Place inert providers beside this package's private shared runtime."""
     for backend in discover_plugins(base_path):
         if backend.name == "suite_assistant_plugin":
             continue
-        prefix = "plugins/_suite/" + backend.name + "/"
+        prefix = "plugins/" + backend.name + "/"
         for source in plugin_files(backend):
-            archive.writestr(zip_entry(prefix + source.relative_to(backend).as_posix(),
+            relative = source.relative_to(backend).as_posix()
+            if relative == "plugin.json":
+                continue
+            archive.writestr(zip_entry(prefix + relative,
                                        compress_type=zipfile.ZIP_DEFLATED), source.read_bytes())
         version = load_json(backend / "metadata.json")["versions"][0]["version"]
         initializer = ('"""Backend package; editor actions are not registered here."""\n'

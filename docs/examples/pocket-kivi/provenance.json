@@ -11,9 +11,9 @@
     "matplotlib": "3.10.8"
   },
   "producer_versions": {
-    "Quick PI": "5.0.0",
-    "Quick SI": "5.0.0",
-    "QuickTherm": "5.0.0"
+    "Quick PI": "5.0.1",
+    "Quick SI": "5.0.1",
+    "QuickTherm": "5.0.1"
   },
   "source_files": {
     "example.kicad_pcb": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e",
@@ -29,13 +29,13 @@
     "tools/generate_pocket_kivi_examples.py": "0526afa5a198584f0cf1e8f14c827520ea953430a7aaaa56e535fa4de9e04d92",
     "wayricad_runtime/pocket_kivi_export.py": "f79cbf24f7c1f09ea90dc2c96f1c9766ceb3c3ed7db990857fa608a65e37c58d",
     "wayricad_runtime/pocket_report.py": "1c891730933c9140036c8a0c7f20bc877743bd6aa27e85707fe646079594b1d7",
-    "quick_pi_plugin/service.py": "20aad1493df4fd74521884b304cab3549c7d5a24bd6d89ee8972361a5db9727b",
+    "quick_pi_plugin/service.py": "72181b09e2b2498d639e3e7e5255354f083b623ee44f4a1bb6026cfe35ae07a4",
     "quick_pi_plugin/board_geometry.py": "f696610674653a3416aa54157cb6c5590726da156002178379770af850de6e97",
     "quick_pi_plugin/mesh.py": "1bd771ef77857b6ff9e021ac17f702f8f30eed69ed1c5da8c5b6796f7b0c660b",
-    "quick_pi_plugin/solver.py": "14375abcf6206a049fa9a96564148572f22f83cb38dab875ff3c5c4aed740eda",
-    "signal_integrity_advisor_plugin/service.py": "a27a14daa3c2f0f122cfee47b9c3e29ef60b54019c21d2c28f1b39459511c76e",
+    "quick_pi_plugin/solver.py": "08e75010dfb8dc1f6a8e9d06a764fdf30e0d8527b5d7af0292f19e4fd799ad8c",
+    "signal_integrity_advisor_plugin/service.py": "dbecf1e3c340ecde19874d07d8241975357b24b759d9b1883629dce5159b8686",
     "signal_integrity_advisor_plugin/quick_si.py": "ce584a4fcac861245518eb17504b43a8201a46c53dd812878a69ee5a80ac76b7",
-    "signal_integrity_advisor_plugin/measurement.py": "1a62007e9a0f7a3e266da6c97b254654be46a69733a72d6d2e574b705c3f711e",
+    "signal_integrity_advisor_plugin/measurement.py": "39636e2c83709b05912a2e38d1b6c18fe020c725c95a2da44cd8dc3ec8ace32a",
     "signal_integrity_advisor_plugin/eye_model.py": "12b4fac21e58ca98d0a7c2b8764c1f8dd972359ce7401662b56bc550a2ac5da6",
     "signal_integrity_advisor_plugin/board_eye.py": "62221a030a3ea856000296bece0f8fa0eb9f4352a9ff856e6860cfcf7655fc80",
     "signal_integrity_advisor_plugin/rlc_model.py": "56b2e20c1439dfeab5cdd0f1feb1f798829420dbcbdc569e8f9d088af3fec740",
@@ -48,13 +48,14 @@
   },
   "producer_source_normalization": "CRLF to LF only",
   "files": {
-    "quick-pi.pocket-kivi.json": "fadd4883f7b92f9aeecc23f1df655e0e22184cc621f1c27bc21165d3ae838fbe",
-    "quick-si.pocket-kivi.json": "bb9f3bc01370b08fab0234d7f028f3324f6e1a294507a84327137b7e031ac2e9",
-    "quick-therm.pocket-kivi.json": "3fdcc9f77dc6f2d4a5c13fdfbcb2b5d4ecabb44623e14e7b296c82cb8b12dcef",
-    "quick-therm-transient.pocket-kivi.json": "3edcc9918c06c0e253416b5dca534b1191c9d4578474dfffa6f444e56b7924f0",
+    "quick-pi.pocket-kivi.json": "3372da974a8955673c476a219fb9950a785da76c2f422fe9e55cda7b90dd678f",
+    "quick-si.pocket-kivi.json": "b47e1daa168959dbfac934097276405a18515aa7fac2035c167600c10e8373cc",
+    "quick-therm.pocket-kivi.json": "2a84875320e1ca4e8f43f849415c979a8a0d66d01e1c16feda78495fb136d521",
+    "quick-therm-transient.pocket-kivi.json": "bb081a9adab3fcdcb204135bd9abb990160b60e554863c6218c09a1325cbf0c2",
     "si-channel.kicad_pcb": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995",
     "example.kicad_pro": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4",
-    "si-channel.kicad_pro": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe"
+    "si-channel.kicad_pro": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe",
+    "viewer-probes.json": "2a55c165e2ad6c6f504bb6fd1ce0060d8a6bfb0bb5388c292d90b48664579ca5"
   },
   "request_inputs": {
     "pi": {
@@ -156,6 +157,12 @@
   "checks": {
     "native_saved_board_producers": "passed",
     "unchanged_source_bytes": true,
-    "viewer_adapters": "not run; pass --viewer-extension with the local extension folder"
+    "viewer_adapters": {
+      "status": "passed",
+      "module_hashes": {
+        "analysis-data.js": "cab677445b0417e72a4277d1affc12ceb18a72d12572bb902c09f40ad86e8281",
+        "analysis-spatial.js": "ecbf5db8530059a743293f86c7b3b45e729b83a113029d612820a41e61d42077"
+      }
+    }
   }
 }

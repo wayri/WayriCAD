@@ -123,3 +123,41 @@ def test_pdf_diagram_uses_lossless_png_and_treats_net_names_as_literal_text():
     images = re.findall(r'data:image/png;base64,([^\"]+)', html)
     assert len(images) == 1
     assert all(base64.b64decode(image).startswith(b'\x89PNG\r\n\x1a\n') for image in images)
+
+
+def test_grouped_rail_overlay_keeps_total_loss_on_shared_copper():
+    from quick_pi_plugin.series_power_tree import build_power_result_tree
+    from quick_pi_plugin.series_path_diagram import diagram_layout, diagram_svg
+
+    units = {'source_terminals': ['s1', 's2'], 'source_labels': ['J1.1', 'J1.2'],
+             'loads': [{'id': 'a', 'terminals': ['a1', 'a2'], 'labels': ['J2.1', 'J2.2']},
+                       {'id': 'b', 'terminals': ['b1'], 'labels': ['U2.1']}]}
+    result = {'source_voltage_V': 5., 'source_current_A': 3., 'total_power_W': .5,
+              'sinks': [{'id': 'a', 'label': 'Connector load', 'current_A': 1., 'voltage_V': 4.9},
+                        {'id': 'b', 'label': 'Device load', 'current_A': 2., 'voltage_V': 4.8}]}
+    bundle = {'request': {'net': '/Power/P5V0'}, 'terminal_units': units, 'result': result}
+    tree = build_power_result_tree(bundle)
+    assert tree['edges'] == [{'source': 'source', 'target': 'copper'},
+                             {'source': 'copper', 'target': 'load-1'},
+                             {'source': 'copper', 'target': 'load-2'}]
+    source, copper, a, b = tree['nodes']
+    assert [pin['label'] for pin in source['pins']] == ['J1.1', 'J1.2']
+    assert a['input_power_W'] == pytest.approx(4.9)
+    assert b['input_power_W'] == pytest.approx(9.6)
+    assert a['voltage_drop_V'] == pytest.approx(.1)
+    assert copper['loss_W'] == pytest.approx(.5)
+    assert 'loss_W' not in a and 'loss_W' not in b
+    assert a['source_referenced_drop_power_W'] == pytest.approx(.1)
+    assert b['source_referenced_drop_power_W'] == pytest.approx(.4)
+    assert tree['summary']['output_power_W'] == pytest.approx(14.5)
+    branches = [line for line in diagram_layout(tree)['commands']
+                if line['kind'] == 'line' and line['x1'] == 100 and line['x2'] == 140]
+    assert len(branches) == 2
+    svg = diagram_svg(tree)
+    assert all(label in svg for label in ('J2.1', 'J2.2', 'U2.1', 'Pin 4.9 W', 'Pin 9.6 W', 'loss 0.5 W'))
+    assert 'Shared copper loss' in tree_html(tree)
+    bundle['request']['show_exact_voltages'] = False
+    percentage = diagram_svg(build_power_result_tree(bundle))
+    assert 'V 98%' in percentage and 'drop 2%' in percentage and 'V 4.9 V' not in percentage
+    result['joule_feedback'] = {'converged': False}
+    assert 'Cold reference' in diagram_svg(build_power_result_tree(bundle))

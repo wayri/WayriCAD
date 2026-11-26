@@ -80,15 +80,37 @@ class NativePolishTests(unittest.TestCase):
         f.model_dimension.SetSelection(1);f.load_mode.SetSelection(1);f._buttons()
         self.assertFalse(f.run.IsEnabled());self.assertIn('specified sink current',f.run.GetToolTipText())
         f.load_mode.SetSelection(0);f.source_current_limit.ChangeValue('2');f._buttons()
-        self.assertFalse(f.run.IsEnabled());self.assertIn('Clear these fields',f.run.GetToolTipText())
+        self.assertTrue(f.run.IsEnabled())
         f.source_current_limit.ChangeValue('');f._buttons();self.assertTrue(f.run.IsEnabled())
         f.joule_feedback.SetValue(True);f._buttons()
-        self.assertFalse(f.run.IsEnabled());self.assertIn('2.5D specified-current',f.run.GetToolTipText())
+        self.assertTrue(f.run.IsEnabled());self.assertIn('steady Joule heating',f.run.GetToolTipText())
         f.model_dimension.SetSelection(0);f._buttons()
-        self.assertTrue(f.run.IsEnabled());self.assertIn('Materials + cooling',f.run.GetToolTipText())
+        self.assertTrue(f.run.IsEnabled());self.assertIn('steady Joule heating',f.run.GetToolTipText())
         f._busy=True;f._buttons()
         self.assertFalse(f.run.IsEnabled());self.assertIn('Cancel stops',f.run.GetToolTipText())
         f._busy=False
+
+    def test_one_click_3d_joule_uses_the_same_reviewed_pad_groups(self):
+        f=self.frame
+        f.model_dimension.SetSelection(1)
+        f.joule_feedback.SetValue(True)
+        f._terminals.extend([{'id':'A2','label':'U1.2'},{'id':'B2','label':'U2.2'},
+                             {'id':'C','label':'U3.1'}])
+        f._pin_peer_ids['source']=['A2']
+        f.source_pins.SetValue(True)
+        f._primary_sink_pads=('B','B2')
+        f._extra_sinks=[{'terminal':'C','current_A':.2}]
+        f._buttons()
+        self.assertTrue(f.run.IsEnabled(),f.run.GetToolTipText())
+        with patch.object(f,'_task') as submit, patch('quick_pi_plugin.service.run_job') as worker:
+            f.on_run()
+            submit.call_args.args[0]()
+            request=worker.call_args.args[0]
+        self.assertEqual(request['model_dimension'],'3d')
+        self.assertEqual(request['source_terminals'],['A','A2'])
+        self.assertEqual(request['sinks'][0]['terminals'],['B','B2'])
+        self.assertEqual(request['sinks'][1],{'terminal':'C','current_A':.2})
+        self.assertIn('thermal_settings',request['joule_feedback'])
 
     def test_copy_keyboard_shortcuts_use_sorted_rows_without_changing_selection(self):
         selected=[]

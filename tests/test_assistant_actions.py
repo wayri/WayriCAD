@@ -32,6 +32,8 @@ class AssistantActionsTests(unittest.TestCase):
             if key in self.context: values[key] = self.context[key]
             elif key == 'rails': values[key] = ('net 3V3 from J1.1 to U1.1 at 3.3 V with 250 mA, '
                                                    'net 1V8 from J1.2 to U1.2 at 1.8 V with 100 mA')
+            elif key == 'source_unit': values[key] = 'J1.1+J1.2'
+            elif key == 'load_units': values[key] = 'U1.1+U1.2 @ 250 mA | U2.1 @ 100 mA'
             elif key == 'powers': values[key] = ['U1=0.5']
             elif kind == 'path': values[key] = str(self.root / 'spec.json')
             elif kind == 'choice': values[key] = field['choices'][0]

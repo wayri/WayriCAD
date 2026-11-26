@@ -21,6 +21,25 @@ def review_rows(result):
     return rows
 
 
+def numerical_evidence(result):
+    """Present recorded checks without inferring a pass from missing evidence."""
+    checks = result.get('checks', {})
+    refinement = checks.get('time_refinement', {})
+    if 'loads' not in result or not refinement:
+        return []
+
+    def measured(key, scale, unit):
+        value = refinement.get(key)
+        return 'Unavailable' if value is None else f'{value * scale:.6g} {unit}'
+
+    return [
+        ('Energy and charge balance', checks.get('balance_status', 'Unavailable')),
+        ('Half-step energy and charge balance', refinement.get('fine_balance_status', 'Unavailable')),
+        ('Maximum load-voltage change at half step', measured('max_load_voltage_difference_V', 1000, 'mV')),
+        ('Maximum source-current change at half step', measured('max_source_current_difference_A', 1000, 'mA')),
+    ]
+
+
 def capacitor_rows(result):
     """Summarize actual branch traces; capacitor voltage is internal to its C."""
     refinement=result.get('checks',{}).get('time_refinement',{}).get('per_shunt_capacitor',[])
@@ -50,6 +69,12 @@ def review_html(bundle):
         table += ''.join('<td>'+escape(f'{row[key]:.8g}')+'</td>' for key in ('minimum', 'maximum', 'final'))
         table += '<td>'+escape(row['limit_text'])+'</td><td>'+row['status']+'</td></tr>'
     table += '</tbody></table>'
+    evidence = numerical_evidence(result)
+    if evidence:
+        table += '<h2>Numerical evidence</h2><p>Compare the half-step changes with your voltage and current margins. Passing conservation checks alone gives no bound on peak error.</p><table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody>'
+        table += ''.join('<tr><th scope="row">'+escape(label)+'</th><td>'+escape(value)+'</td></tr>'
+                         for label, value in evidence)
+        table += '</tbody></table>'
     data = dict(times=result['times_s'], phases=result.get('sample_phase'), unit=unit_name,
                 secondary='Requested current · A' if is_pi else 'Applied power · W',
                 rows=[dict(label=row['label'], values=unit['voltage_V' if is_pi else 'temperature_c'],

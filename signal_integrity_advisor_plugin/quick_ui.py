@@ -64,6 +64,9 @@ class QuickSIPanel(wx.Panel):
         self._source_dirty=False;self._reloading=False;self._selection_index=None
         self._source_fingerprints=None;self.study_cases=[];self.study_report=None;self.crosstalk_pairs=[]
         self._circuit_generation=0;self._circuit_busy=False
+        self._analysis_board=None
+        self._live_watch=None
+        self._live_scope=None
         if saved_board:
             from .service import source_fingerprints
             self._source_fingerprints=source_fingerprints(board.GetFileName())
@@ -154,7 +157,7 @@ class QuickSIPanel(wx.Panel):
         self.export=wx.Button(left,label='Save results / Pocket KiVi…');self.export.SetToolTip('Save the report, complete numerical JSON and a portable Pocket KiVi copy for verified saved-board results.');self.export.Disable();self.export.Bind(wx.EVT_BUTTON,self.export_report);form.Add(self.export,0,wx.EXPAND|wx.TOP,6)
         from wayricad_runtime.project_results_ui import add_project_results
         self.project_results=add_project_results(self,left,form,'quick-si',board.GetFileName(),
-            lambda:[('SI route / eye',self.report),('Multi-net SI study',self.study_report)],
+            lambda:[('SI route / eye',self.report if self._analysis_board is None else None),('Multi-net SI study',self.study_report)],
             certify=bool(saved_board),status=lambda text:self.status.SetLabel(text),module_file=__file__)
         from wayricad_runtime.project_setup_ui import add_project_setup
         from . import setup_state
@@ -219,6 +222,10 @@ class QuickSIPanel(wx.Panel):
         if selected:self.set_launch_selection({'net':selected[0][0],'pads':[label for net,label in selected if net==selected[0][0]]})
         left.FitInside()
         if saved_board:
+            if self.workspace.can_navigate:
+                from wayricad_runtime.net_watch import NetWatch
+                self._live_watch=NetWatch(self,self._read_live_stamp,self._live_ready,
+                                          self._live_net_changed,self._live_watch_failed)
             from wayricad_runtime.editor_refresh import SavedBoardRefresh
             self._source_refresh=SavedBoardRefresh(self,lambda:self.board.GetFileName(),
                 self._saved_source_changed,self.reload_saved_pcb,
@@ -229,7 +236,8 @@ class QuickSIPanel(wx.Panel):
         self._selection_index=None
         self.workspace.selection_follower.state.reset()
         self.workspace.highlight_pcb_selection(())
-        self.changed(None)
+        self.changed(None,preserve_watch=True)
+        if self._live_watch is not None:self._live_watch.disarm()
         self.run_button.Disable()
         self.status.SetLabel('Saved PCB or rules changed. Refreshing the board context…')
 
@@ -316,8 +324,10 @@ class QuickSIPanel(wx.Panel):
                 self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
             self._source_dirty=False
             self.workspace.reset_selection_source()
-            self.changed(None)
+            resume_live=self._live_scope is not None and all(self.fields[role].GetValue() for role in old_values)
+            self.changed(None,preserve_watch=resume_live)
             self.run_button.Enable()
+            if resume_live:wx.CallAfter(self.run)
             message='Saved PCB refreshed. Review endpoints and run a fresh screen.'
             if removed_cases:message+=' Rebuild reviewed study cases for the new revision.'
             self.status.SetLabel(message)
@@ -576,13 +586,17 @@ class QuickSIPanel(wx.Panel):
         filter_combo(self.fields['net'],self._net_names,self.net_search.GetValue())
         if self.fields['net'].GetValue()!=current:self.net_changed(None)
 
-    def changed(self,event):
+    def changed(self,event,*,preserve_watch=False):
+        if not preserve_watch:
+            self._live_scope=None
+            if self._live_watch is not None:self._live_watch.disarm()
         self._generation+=1;self._cancel.set();self._result_fingerprints=None
         self._circuit_generation+=1
         self.study_report=None
         if hasattr(self,'crosstalk_results'):self.crosstalk_results.Disable()
         if hasattr(self,'study_choice'):self.study_choice.Clear();self.study_choice.Hide()
         self.report=None;self.path=None;self.export.Disable();self.results.DeleteAllItems();self.preview.show_result(SimpleNamespace(primary=None,mate=None))
+        self._analysis_board=None
         self.eye_preview.show_result(None)
         self.views.SetPageText(1,'Eye / step');self.views.SetSelection(0)
         self._update_circuit_buttons()
@@ -764,11 +778,12 @@ class QuickSIPanel(wx.Panel):
             if follower is not None:follower.stop()
             refresh=getattr(self,'_source_refresh',None)
             if refresh is not None:refresh.stop()
+            if self._live_watch is not None:self._live_watch.stop()
             self._closed=True;self._cancel.set();self._circuit_generation+=1
         event.Skip()
 
     def cancel_run(self,event=None):
-        self.changed(None);self.status.SetLabel('Cancelling saved-board analysis…')
+        self.changed(None);self.status.SetLabel('Cancelling analysis…')
 
     def _inputs(self):
         values={key:(float(control.GetValue()) if control.GetValue().strip() else None) for key,control in self.fields.items() if key not in ('net','start','end','reference') and (self.eye_enabled.GetValue() or not key.startswith('eye_'))}
@@ -782,9 +797,34 @@ class QuickSIPanel(wx.Panel):
         if self.eye_enabled.GetValue() and values['eye_bitrate_mbps'] is None:raise ValueError('Enter a positive eye bit rate.')
         return values
 
-    def run(self,event=None):
-        if self._busy or self._closed or self._circuit_busy or self._source_dirty:return
+    def toggle_live_analysis(self,event=None):
         self.changed(None)
+        self.status.SetLabel('Review the signal endpoints and run SI to begin live analysis.'
+                             if self.workspace.live_analysis.GetValue() else 'Live analysis off. Run SI for a saved result.')
+
+    def _read_live_stamp(self):
+        from wayricad_runtime.live_pcb import route_stamp
+        scope=self._live_scope
+        if scope is None:return None
+        path,nets=scope
+        return route_stamp(path,self.workspace.origin,nets)
+
+    def _live_ready(self):
+        return self._live_scope is not None and not (
+            self._closed or self._busy or self._circuit_busy or self._navigation_busy or self._source_dirty)
+
+    def _live_net_changed(self,stamp):
+        if self._live_ready():
+            self.run(live_update=True)
+
+    def _live_watch_failed(self,error):
+        from wayricad_runtime.context import redact_error
+        self.status.SetLabel('Live route refresh paused: '+redact_error(error))
+
+    def run(self,event=None,*,live_update=False):
+        if self._busy or self._closed or self._circuit_busy or self._source_dirty:return
+        live=self._live_watch is not None and self.workspace.live_analysis.GetValue()
+        self.changed(None,preserve_watch=live and live_update)
         try:
             values=self._inputs()
             if not self.saved_board:
@@ -795,30 +835,57 @@ class QuickSIPanel(wx.Panel):
                 self._show_report(report,path,values)
                 return
             from .service import source_fingerprints,run_job
-            fingerprints=source_fingerprints(self.board.GetFileName())
-            from wayricad_runtime.saved_board import assert_current
-            assert_current(self.board)
-            if fingerprints!=self._source_fingerprints:raise ValueError('The saved PCB or project rules changed. Wait for the saved PCB to refresh before running.')
+            fingerprints=self._source_fingerprints
+            if not live:
+                from wayricad_runtime.saved_board import assert_current
+                assert_current(self.board)
+                if source_fingerprints(self.board.GetFileName())!=fingerprints:
+                    raise ValueError('The saved PCB or project rules changed. Wait for the saved PCB to refresh before running.')
             request={'board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'net':self.fields['net'].GetValue(),
                      'start':self.fields['start'].GetValue(),'end':self.fields['end'].GetValue(),'reference':self.fields['reference'].GetValue(),'inputs':values}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
-            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self._update_circuit_buttons();self.status.SetLabel('Screening saved PCB in a cancellable worker… You can change inputs or cancel.')
+            nets=()
+            origin=None
+            reviewed={}
+            if live:
+                from .live_screen import watched_nets
+                nets=watched_nets(request)
+                if not (nets and request['net'] and request['start'] and request['end']):
+                    raise ValueError('Choose a signal net, source and receiver before starting live analysis.')
+                for label in (request['start'],request['end']):
+                    ids=[row['id'] for row in self._setup_terminals if row['net']==request['net'] and row['label']==label]
+                    if len(ids)!=1:raise ValueError('Choose unambiguous source and receiver pads for live analysis.')
+                    reviewed[label]=ids[0]
+                self._live_scope=(request['board_path'],nets)
+                origin=self.workspace.origin
+            self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self._update_circuit_buttons()
+            self.status.SetLabel('Screening live PCB in the background…' if live else
+                                 'Screening saved PCB in a cancellable worker… You can change inputs or cancel.')
             def work():
                 payload=error=None
-                try:payload=run_job(request,cancelled=cancel.is_set)
+                stamps=[]
+                try:
+                    if live:
+                        from .live_screen import run_live_screen
+                        payload=run_live_screen(request,origin,nets,reviewed,cancel.is_set,stamps.append)
+                    else:
+                        payload=run_job(request,cancelled=cancel.is_set)
                 except Exception as caught:error=caught
                 if not self._closed:
-                    try:wx.CallAfter(self._finished,serial,generation,request,values,payload,error)
+                    try:wx.CallAfter(self._finished,serial,generation,request,values,payload,error,live,stamps[0] if stamps else None)
                     except RuntimeError:pass  # The wx application has already shut down.
             self._worker_thread=threading.Thread(target=work,daemon=True,name='Quick SI saved worker');self._worker_thread.start()
         except Exception as error:
             self._busy=False;self.run_button.Enable();self.cancel_button.Disable();self.status.SetLabel(str(error))
 
-    def _finished(self,serial,generation,request,values,payload,error):
+    def _finished(self,serial,generation,request,values,payload,error,live=False,stamp=None):
         if self._closed or serial!=self._job_serial:return
         self._busy=False;self.run_button.Enable();self.cancel_button.Disable()
         if generation!=self._generation:
             self.status.SetLabel('Analysis cancelled or inputs changed; run a fresh screen.');return
+        if live:
+            self._finish_live(values,payload,error,stamp)
+            return
         if error is not None:self.status.SetLabel(str(error));return
         try:
             from .service import require_source,restore_path
@@ -830,9 +897,30 @@ class QuickSIPanel(wx.Panel):
         except Exception as caught:
             self.changed(None);self.status.SetLabel(str(caught))
 
+    def _finish_live(self,values,payload,error,stamp):
+        if stamp is not None:
+            self._live_watch.arm(stamp)
+        if error is not None:
+            from wayricad_runtime.context import redact_error
+            self.status.SetLabel('Live SI: '+redact_error(error))
+            return
+        if payload is None:
+            self.status.SetLabel('The watched copper changed during analysis. Waiting for the current route to settle…')
+            self._live_watch.poll()
+            return
+        report,path,board=payload
+        self._analysis_board=board
+        try:
+            self._show_report(report,path,values)
+        except Exception as caught:
+            from wayricad_runtime.context import redact_error
+            self.changed(None,preserve_watch=True)
+            self.status.SetLabel('Live SI preview failed: '+redact_error(caught))
+
     def _show_report(self,report,path,values):
         self.report=report;self.path=path;self.preview.show_result(SimpleNamespace(primary=path,mate=None))
-        pads={fp.GetReference()+'.'+pad.GetNumber():pad for fp in self.board.GetFootprints() for pad in fp.Pads() if pad.GetNetname()==path.net_name}
+        board=self._analysis_board if self._analysis_board is not None else self.board
+        pads={fp.GetReference()+'.'+pad.GetNumber():pad for fp in board.GetFootprints() for pad in fp.Pads() if pad.GetNetname()==path.net_name}
         self.preview.route_endpoints=[(pads[label].GetPosition().x/1e6,pads[label].GetPosition().y/1e6) for label in (path.start_pad,path.end_pad) if label in pads]
         for section in path.segments:
             if section.get('kind')=='zone' and 'start_mm' in section and 'end_mm' in section:
@@ -872,12 +960,13 @@ class QuickSIPanel(wx.Panel):
         if 'eye' in report:
             status+=' · '+caption
             if eye.get('status')=='UNAVAILABLE':status+=': '+eye['reason']+' Open Setup / Details.'
+        if self._analysis_board is not None:status='Live editor preview · '+status
         self.status.SetLabel(status);self.status.SetToolTip(status)
-        self.export.Enable();self._navigation_buttons();self._update_circuit_buttons()
+        self.export.Enable(self._analysis_board is None);self._navigation_buttons();self._update_circuit_buttons()
         if hasattr(self,'workspace'):self.workspace.refresh_summary()
 
     def export_report(self,event):
-        if self._closed or self._busy or self._circuit_busy:return
+        if self._closed or self._busy or self._circuit_busy or self._analysis_board is not None:return
         if self.report is None and self.study_report is None:return
         source=Path(self.board.GetFileName())
         if self.saved_board:
@@ -906,13 +995,13 @@ class QuickSIPanel(wx.Panel):
 
     def _update_circuit_buttons(self):
         if not hasattr(self,'export_circuit_button'):return
-        ready=not (self._closed or self._busy or self._circuit_busy) and (
+        ready=self._analysis_board is None and not (self._closed or self._busy or self._circuit_busy) and (
             self.report is not None or bool(self.study_report and any('report' in case for case in self.study_report['cases'])))
         self.export_circuit_button.Enable(ready);self.copy_circuit_button.Enable(ready)
         if hasattr(self,'blender'):self.blender.Enable(ready)
 
     def export_blender(self,event=None):
-        if self._closed or self._busy or self._circuit_busy:return
+        if self._closed or self._busy or self._circuit_busy or self._analysis_board is not None:return
         bundle=self.study_report or self.report
         if not bundle:return
         if self.saved_board:

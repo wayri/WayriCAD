@@ -35,7 +35,7 @@
 <tr><td>Shared ground rise between rails</td><td>Batch</td><td>Explicit ground source and load contacts. Fixed-current 2.5D shared-return groups.</td></tr>
 <tr><td>Reference-plane coverage and nearby return vias</td><td>Return path tab</td><td>Explicit return nets. Geometric audit, not electrical loop impedance.</td></tr>
 <tr><td>DC current through copper volume</td><td>3D copper model</td><td>Gmsh, manual mesh and supported through-hole geometry. No AC effects.</td></tr>
-<tr><td>Temperature changes resistance</td><td>Include Joule heating / temperature feedback</td><td>Explicit materials, cooling, bounds and converged coupling.</td></tr>
+<tr><td>Temperature changes resistance</td><td>Include Joule heating, then Run</td><td>Steady screening with editable materials, cooling and temperature bounds.</td></tr>
 <tr><td>SMPS harmonic skin/proximity losses</td><td>More → AC / SMPS copper study</td><td>Declared straight conductor cross-sections and RMS harmonics; no whole-board AC extraction.</td></tr>
 <tr><td>Capacitors close to load pins</td><td>Decoupling placement</td><td>Saved rail/return connectivity and distance thresholds; proximity heuristic.</td></tr>
 <tr><td>Lumped PDN impedance</td><td>Decoupling → Lumped impedance screen</td><td>Source R/L, effective capacitor C/ESR/ESL and target; no distributed board extraction.</td></tr>
@@ -160,14 +160,7 @@
 <pre><code>wayricad-pi C:/Projects/Example/board.kicad_pcb --net VCC --source J1.1 --sink U1.1 --voltage 3.3 --current 2 --pulse 0.01 --ambient 25 --melting-temperature 1084.62 --latent-heat 206750 --output pulse.json --html pulse.html</code></pre>
 <p>See <a href="README.md#copper-melting-and-bottleneck-screening">material integral, validity and references</a>.</p>
 <h2 id="joule-temperature-feedback">Joule temperature feedback</h2>
-<p>Check Include Joule heating / temperature feedback only after reviewing the thermal model. This adds steady temperature-dependent resistance iteration; it does not enable or disable ordinary DC loss accounting.</p>
-<ol>
-<li>Enter thermal conductivity, cooling, emissivity, ambient, allowed material range and temperature cap. Review copper resistivity and its temperature coefficient. Required unknown values block the run.</li>
-<li>Review where electrical copper losses enter the shared thermal layer model. Do not add delivered load power as board heat without a separate justified component dissipation source.</li>
-<li>Run and inspect temperature, resistance/voltage change, iteration history, energy transfer and acceptance. Nonconvergence is not a valid final operating temperature.</li>
-<li>Refine spatial and iteration settings as appropriate and retain cold/hot evidence in the report.</li>
-</ol>
-<p>More → Electrothermal study also offers explicit lumped rail/thermal-RC transients. These are separate from spatial full-board transient fields. Finite-contact temperature feedback and individual shunt-bank electrothermal stepping remain unsupported. See <a href="ELECTROTHERMAL.md">complete input, example and CLI guide</a>.</p>
+<p>Enable <strong>Include Joule heating</strong>, choose <strong>2.5D</strong> or <strong>3D</strong>, and click <strong>Run</strong>. Quick PI uses the saved board and selected prescribed-current path. Screening starts with generic FR-4, copper and effective air cooling. Use <strong>Mesh &amp; material</strong> to edit ambient, laminate conductivity, convection, emissivity and the temperature stop. Review the cold reference and convergence before using a heated result.</p><p>More → Electrothermal study also offers explicit lumped rail/thermal-RC transients. These are separate from spatial full-board transient fields. Finite-contact temperature feedback and individual shunt-bank electrothermal stepping remain unsupported. See <a href="ELECTROTHERMAL.md">complete input, example and CLI guide</a>.</p>
 <pre><code>wayricad-pi C:/Projects/Example/board.kicad_pcb --electrothermal reviewed-electrothermal.json --output electrothermal.json --html electrothermal.html</code></pre>
 <h2 id="ac-and-switching-ripple-losses">AC and switching-ripple losses</h2>
 <ol>
@@ -281,15 +274,7 @@ python -m wayricad_runtime.tool_cli report transient-result.json --html review.h
 <p><img src="help-marble-3d-volume.png" alt="Actual native Marble 3D result" width="800" height="573"></p>
 <p>This is a genuine native result window from that bounded saved-net calculation. It is not a package-solid rendering or a larger board simulation. <a href="https://github.com/wayri/WayriCAD/blob/develop/docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md">Numerical equivalence, timing and capture evidence</a>.</p>
 <h3 id="joule-feedback-without-editing-json-first">Joule feedback without editing JSON first</h3>
-<ol>
-<li>Return to <strong>2.5D / Sink current</strong> and retain the intended net/source/loads.</li>
-<li>Check <strong>Include Joule heating / temperature feedback</strong>, then Run. The updated source opens <strong>Materials + cooling</strong>, with the selected net/source and unit count shown. The complete model remains in <strong>Advanced model inputs</strong>.</li>
-<li>Enter reviewed materials, convection/radiation boundaries and valid material range. Blank inputs remain unknown. The screenshot uses explicitly assumed values, not material/cooling data recovered from Marble.</li>
-<li>Click <strong>Run electrothermal</strong>. Review cold/hot electrical results, thermal temperatures and convergence. Temperature-cap/material-range/iteration stops are not valid operating points. Refine electrical and thermal meshes separately.</li>
-<li>Changing current or cooling requires another coupled solve; fast fixed- temperature Ctrl+scroll reuse is not applied to this nonlinear study.</li>
-</ol>
-<p><img src="help-joule-guided.png" alt="Guided Joule physical-input setup" width="800" height="580"></p>
-<p><strong>Marble is currently blocked for this coupled workflow.</strong> The retained <a href="studies/marble-joule.example.json">Marble Joule input</a> is a complete, schema-valid configuration for reproducing the diagnostic below; it is not a successful temperature-solve example. Running it against the unchanged reference board:</p>
+<p>Enable <strong>Include Joule heating</strong>, choose <strong>2.5D</strong> or <strong>3D</strong>, and click <strong>Run</strong>. Quick PI uses the saved board and selected prescribed-current path. Screening starts with generic FR-4, copper and effective air cooling. Use <strong>Mesh &amp; material</strong> to edit ambient, laminate conductivity, convection, emissivity and the temperature stop. Review the cold reference and convergence before using a heated result.</p><p><strong>Marble is currently blocked for this coupled workflow.</strong> The retained <a href="studies/marble-joule.example.json">Marble Joule input</a> is a complete, schema-valid configuration for reproducing the diagnostic below; it is not a successful temperature-solve example. Running it against the unchanged reference board:</p>
 <pre><code>wayricad-pi Marble.kicad_pcb --electrothermal quick_pi_plugin/studies/marble-joule.example.json --output marble-joule.json --html marble-joule.html</code></pre>
 <p>The recipe uses 25 °C, dielectric k=0.3 W/(m·K), copper k=385 W/(m·K), h=10 W/(m²·K), emissivity 0.8, ρ20=<code>1.724e-8 Ω·m</code>, α=<code>0.00393/K</code>, material range −40…150 °C and stop bound 105 °C. <strong>These are assumptions for the tutorial, not validated Marble thermal properties.</strong> Only modeled copper loss is injected; delivered IC power is not automatically added as board heat. The actual native run stops with <strong>Plated or mounting slots require a noncircular thermal-contact model</strong>. PI coupling currently uses a separate thermal backend from QuickTherm; its plated-slot and nonplated-hole support is not equivalent. Do not delete holes, bypass the guard or substitute a different geometry to obtain a Marble temperature.</p>
 <p>For a complete successful coupling demonstration, run the bundled <a href="studies/electrothermal-steady.json">explicit steady-coupling example</a>:</p>

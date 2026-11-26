@@ -28,6 +28,8 @@ def load_inventory(path):
     parts = {}
     repeated = set()
     pads = defaultdict(set)
+    ambiguous_pads = set()
+    seen_pads = set()
     nets = {str(row.GetNetname()) for row in board.GetNetsByNetcode().values() if row.GetNetname()}
     for footprint in board.GetFootprints():
         ref = str(footprint.GetReference())
@@ -36,13 +38,19 @@ def load_inventory(path):
         parts[ref] = str(footprint.GetValue())
         for pad in footprint.Pads():
             net = str(pad.GetNetname())
-            if net and pad.GetNumber():
-                pads[f'{ref}.{pad.GetNumber()}'].add(net)
+            if pad.GetNumber():
+                label = f'{ref}.{pad.GetNumber()}'
+                if label in seen_pads:
+                    ambiguous_pads.add(label)
+                seen_pads.add(label)
+                if net:
+                    pads[label].add(net)
     if fingerprint(path) != before:
         raise ValueError('The saved PCB changed while reading circuit names. Reload it and try again.')
     for ref in repeated:
         del parts[ref]
-    unique_pads = {name: values for name, values in pads.items() if name.rsplit('.', 1)[0] not in repeated}
+    unique_pads = {name: values for name, values in pads.items()
+                   if name.rsplit('.', 1)[0] not in repeated and name not in ambiguous_pads}
     return CircuitInventory(nets, parts, unique_pads, before)
 
 
@@ -58,6 +66,18 @@ class CircuitInventory:
                 self.net_aliases[alias].add(name)
         self.pad_aliases = {name.casefold(): name for name in pads}
         self.ref_aliases = {name.casefold(): name for name in parts}
+        self._pads_by_ref = defaultdict(list)
+        for pad in self.pads:
+            self._pads_by_ref[pad.rsplit('.', 1)[0].casefold()].append(pad)
+
+    def pads_for(self, reference, net=None):
+        return [pad for pad in self._pads_by_ref.get(reference.casefold(), ())
+                if net is None or net in self.pads[pad]]
+
+    def contact_nets(self, reference, pads):
+        if not pads:
+            return set().union(*(self.pads[pad] for pad in self.pads_for(reference)))
+        return set.intersection(*(set(self.pads.get(self.pad_aliases.get(pad.casefold()), ())) for pad in pads))
 
     def net_matches(self, name):
         exact = name in self.nets
@@ -155,4 +175,17 @@ def result_message(value):
     status = value.get('status')
     if numbers and isinstance(status, str):
         numbers.insert(0, status)
-    return ' · '.join(numbers)
+    summary = ' · '.join(numbers)
+    sinks = value.get('sinks')
+    if not isinstance(sinks, list) or len(sinks) < 2:
+        return summary
+    readings = []
+    for row in sinks[:6]:
+        if not isinstance(row, dict):
+            continue
+        current, voltage = row.get('current_A'), row.get('voltage_V')
+        if all(type(v) in (float, int) and math.isfinite(v) for v in (current, voltage)):
+            readings.append(f"{row.get('label') or row.get('id') or 'Load'} · {current:.5g} A at {voltage:.5g} V")
+    if len(sinks) > 6:
+        readings.append('Open the study report for the remaining load groups.')
+    return '\n'.join(([summary] if summary else []) + readings)

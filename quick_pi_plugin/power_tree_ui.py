@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 from .power_tree import (KINDS, infer_power_tree, load_power_tree, new_edge,
-                         new_node, save_power_tree, validate_power_tree)
+                         new_node, reviewed_result_overlays, save_power_tree, validate_power_tree)
+
+
+_NODE_WIDTH = 208
+_NODE_HEIGHT = 114
 
 
 def diagram_positions(tree):
@@ -18,7 +22,7 @@ def diagram_positions(tree):
     counts = {}; positions = {}
     for node in sorted(tree['nodes'], key=lambda row: (levels[row['id']], row['id'])):
         column = levels[node['id']]; row = counts.get(column, 0); counts[column] = row + 1
-        positions[node['id']] = (24 + column * 210, 24 + row * 105)
+        positions[node['id']] = (24 + column * 246, 24 + row * 142)
     return positions
 
 
@@ -28,9 +32,10 @@ class PowerTreeDialog:
     ``draft`` remains a private detached document until save/accept. No PCB,
     schematic, solver endpoint or previous result is changed by this editor.
     """
-    def __init__(self, parent, inventory, board_path=None, existing=None):
+    def __init__(self, parent, inventory, board_path=None, existing=None, *, solved_tree=None):
         import wx
         self.wx = wx; self.inventory = inventory; self.tree = None; self.selected = None
+        self.solved_tree = solved_tree
         self.draft = validate_power_tree(existing) if existing is not None else infer_power_tree(
             inventory, {'board_path': str(board_path), 'source_sha256':inventory.get('source_sha256')} if board_path else None)
         self.dialog = wx.Dialog(parent, title='Quick PI · Reviewed power tree',
@@ -38,6 +43,8 @@ class PowerTreeDialog:
         root = wx.BoxSizer(wx.VERTICAL)
         intro = wx.StaticText(self.dialog, label='Review power intent from source → rail → converter → rail → load. '
                               'Arrows show energy flow. Voltages are signed relative to each rail’s explicit return; isolation remains separate.')
+        if solved_tree:
+            intro.SetLabel(intro.GetLabel() + ' Solved path values appear on uniquely matched, reviewed rails.')
         intro.Wrap(1100); root.Add(intro, 0, wx.EXPAND | wx.ALL, 12)
         main = wx.BoxSizer(wx.HORIZONTAL)
         self.canvas = wx.ScrolledWindow(self.dialog, style=wx.HSCROLL | wx.VSCROLL | wx.BORDER_SIMPLE)
@@ -100,6 +107,7 @@ class PowerTreeDialog:
         self.status.SetLabel(str(exc)); self.status.Wrap(max(500, self.dialog.GetClientSize().width - 30)); self.dialog.Layout()
 
     def _refresh(self):
+        self.overlays = reviewed_result_overlays(self.draft, self.inventory, self.solved_tree)
         self.ids = [node['id'] for node in self.draft['nodes']]
         labels = [node['label'] + ' · ' + node['kind'] + ('' if node.get('reviewed') else ' · review') for node in self.draft['nodes']]
         self.choose.SetItems(labels)
@@ -114,8 +122,8 @@ class PowerTreeDialog:
             for field in self.fields.values(): field.SetValue('')
             self.evidence.SetValue('Add a node or load a saved tree.'); self.reviewed.SetValue(False)
         self.positions = diagram_positions(self.draft)
-        self.canvas.SetVirtualSize((max([x + 200 for x, y in self.positions.values()] + [600]),
-                                    max([y + 105 for x, y in self.positions.values()] + [300])))
+        self.canvas.SetVirtualSize((max([x + _NODE_WIDTH + 22 for x, y in self.positions.values()] + [600]),
+                                    max([y + _NODE_HEIGHT + 22 for x, y in self.positions.values()] + [300])))
         self.canvas.Refresh()
 
     def _selected(self, event=None):
@@ -126,7 +134,29 @@ class PowerTreeDialog:
         self.kind.SetStringSelection(node['kind']); self.reviewed.SetValue(node.get('reviewed', False))
         for key, control in self.fields.items():
             value = node.get(key); control.SetValue('' if value is None else str(value))
-        self.evidence.SetValue('ID: ' + node['id'] + '\nEvidence: ' + node.get('confidence', 'manual') + '\n' + '\n'.join(node.get('evidence', [])))
+        text = 'ID: ' + node['id'] + '\nEvidence: ' + node.get('confidence', 'manual') + '\n' + '\n'.join(node.get('evidence', []))
+        solved = self.overlays.get(node['id'])
+        if solved:
+            text += '\n\n' + '\n'.join(self._overlay_text(solved))
+            text += '\nPath results use the solver reference and do not replace reviewed rail intent.'
+        self.evidence.SetValue(text)
+
+    def _overlay_text(self, solved):
+        from .voltage_tolerance import voltage_text
+
+        state = 'Cold reference' if solved['cold_reference'] else 'Analyzed path'
+        if solved['diagnostic']:
+            state += ' · diagnostic'
+        current = f"I {solved['current_A']:.5g} A"
+        loss = solved['loss_W']
+        power = f"{solved['loss_label']} {loss:.5g} W" if loss is not None else 'loss unavailable'
+        display = self.solved_tree.get('display') or {}
+        drop = solved['voltage_drop_V']
+        if drop is not None:
+            drop_label = voltage_text(display,drop,exact=display.get('exact',True),drop=True)
+            current += ' · ' + solved['drop_label'] + ' ' + drop_label
+        return state,current,power
+
 
     def _apply(self, event=None):
         if not self.selected: return False
@@ -228,19 +258,24 @@ class PowerTreeDialog:
         for edge in self.draft['edges']:
             x, y = self.positions[edge['source']]; tx, ty = self.positions[edge['target']]
             dc.SetPen(wx.Pen(foreground, 1, wx.PENSTYLE_SOLID if edge.get('reviewed') else wx.PENSTYLE_SHORT_DASH))
-            dc.DrawLine(x + 170, y + 38, tx, ty + 38)
+            dc.DrawLine(x + _NODE_WIDTH, y + 38, tx, ty + 38)
             dc.DrawLine(tx - 8, ty + 33, tx, ty + 38); dc.DrawLine(tx - 8, ty + 43, tx, ty + 38)
         for node in self.draft['nodes']:
             x, y = self.positions[node['id']]
             dc.SetPen(wx.Pen(wx.SystemSettings.GetColour(wx.SYS_COLOUR_HIGHLIGHT) if node['id'] == self.selected else foreground, 3 if node['id'] == self.selected else 1))
-            dc.SetBrush(wx.Brush(background)); dc.DrawRoundedRectangle(x, y, 170, 78, 6)
+            dc.SetBrush(wx.Brush(background)); dc.DrawRoundedRectangle(x, y, _NODE_WIDTH, _NODE_HEIGHT, 6)
             label = node['label']; label = label if len(label) <= 22 else label[:19] + '…'
             dc.DrawText(label, x + 8, y + 7); dc.DrawText(node['kind'] + ('' if node.get('reviewed') else ' · review'), x + 8, y + 28)
             detail = ('? V' if node.get('voltage_v') is None else str(node['voltage_v']) + ' V') if node['kind'] == 'rail' else node.get('reference', '')
             dc.DrawText(detail[:24], x + 8, y + 49)
+            solved = self.overlays.get(node['id'])
+            if solved:
+                state,current,power = self._overlay_text(solved)
+                dc.DrawText(state + ' · ' + current.split(' · ')[0], x + 8, y + 70)
+                dc.DrawText(power, x + 8, y + 92)
 
     def _pick(self, event):
         point = self.canvas.CalcUnscrolledPosition(event.GetPosition())
         for key, (x, y) in self.positions.items():
-            if x <= point.x <= x + 170 and y <= point.y <= y + 78:
+            if x <= point.x <= x + _NODE_WIDTH and y <= point.y <= y + _NODE_HEIGHT:
                 self.selected = key; self.choose.SetSelection(self.ids.index(key)); self._show_node(); self.canvas.Refresh(); break

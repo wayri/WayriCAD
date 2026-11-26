@@ -30,6 +30,25 @@ saved footprint fields. Supported fields are `QuickPI:Role` (`source`, `load`,
 when both nets actually occur on that footprint. Missing values stay unknown.
 Saved footprint fields are included in the native inventory. If those fields are absent, manual review is needed.
 
+## Solved power overlays
+
+After **Run**, open **More → Power tree results**. The block diagram shows the
+source, reviewed modeled stages or shared rail, and load groups. Each block
+shows the available current, voltage or drop, power in/out, and its modeled
+loss. The shared rail reports common loss once. Independent load blocks
+show their own voltage, current, delivered power and source-to-load drop.
+The drop contribution is group current times the source-to-load drop.
+Shared copper keeps one heat total at the rail level. Reviewed parallel stage parts use their individual solved values. A
+representative planar track chain is labeled separately from electrical
+power and shared loss.
+
+The 3D results dialog and saved PI reports include the same solved diagram.
+A stopped Joule run displays the cold reference. In the **Power tree · review
+rails and converters** editor, a matching saved revision lets a uniquely
+matched, reviewed rail show read-only path facts. This visual overlay preserves
+the draft's declared rail-to-return voltage and keeps converter behavior
+separate from the copper solver.
+
 ## JSON interface
 
 `power_tree.infer_power_tree(inventory, source=None)` returns a schema-1 draft.

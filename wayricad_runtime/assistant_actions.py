@@ -151,6 +151,19 @@ _add('quick-pi.solve', 'quick-pi', 'DC rail analysis',
           return_nets=field('Explicit return nets', 'list'),
           temperature=number('Copper temperature', 'C')), effect='analysis',
      summary='2.5D DC analysis with explicit source voltage and sink current; no inferred loads.')
+_add('quick-pi.grouped', 'quick-pi', 'DC rail with grouped loads',
+     ('PI grouped pads and multiple loads', 'DC grouped loads on one rail'),
+     ('board', 'net', 'source_unit', 'load_units', 'voltage'),
+     dict(board=BOARD, net=NET,
+          source_unit=field('Source pad or pad group, for example J1.1+J1.2'),
+          load_units=field('Load pad groups, separated by |, for example U1.1+U1.2 | U2.1'),
+          voltage=number('Source voltage', 'V', **POSITIVE),
+          current=number('Current per load group without its own current', 'A', **POSITIVE),
+          mesh_edge=number('Mesh edge', 'mm', **POSITIVE),
+          mesh_backend=field('Mesh backend', 'choice', choices=['auto','vtk','gmsh']),
+          return_nets=field('Explicit return nets', 'list'),
+          temperature=number('Copper temperature', 'C')), effect='analysis',
+     summary='One saved rail with explicit pad contacts and separate prescribed-current loads.')
 _add('quick-pi.verify', 'quick-pi', 'PI analytical benchmarks',
      ('verify pi solver', 'pi benchmarks'), effect='analysis')
 
@@ -433,6 +446,27 @@ def compile_action(action_id, params, context, output_dir):
         output(); output('--html','report.html')
         result['assumptions'].append('Steady thin-sheet screen: effective conductivity 0.3 W/(m K), emissivity 0.9, still air. No layer or junction temperatures.')
     elif action_id == 'quick-pi.verify': args.append('--verify'); output()
+    elif action_id == 'quick-pi.grouped':
+        from .assistant_grouped_pi import bind
+        sources, sinks = bind(values)
+        electrical = dict(net=values['net'], source_terminals=sources, sinks=sinks,
+                          source_voltage=values['voltage'],
+                          options=dict(temperature_c=values.get('temperature', 20.0)))
+        if 'mesh_backend' in values:
+            electrical['mesh_backend'] = values['mesh_backend']
+        if 'mesh_edge' in values:
+            electrical['edge_mm'] = values['mesh_edge']
+        else:
+            electrical['mesh_sizing'] = 'auto'
+        case = dict(name='Grouped DC rail', electrical=electrical)
+        if values.get('return_nets'):
+            case['return_path'] = dict(return_nets=values['return_nets'])
+            result['assumptions'].append('Return geometry is reviewed separately from the supply copper solve.')
+        result['documents']['settings.json'] = dict(schema='wayricad.pi-batch/v1', cases=[case])
+        args.extend([values['board'], '--batch', str(root/'settings.json')])
+        output(); output('--html', 'study.html')
+        result['assumptions'].append(
+            'Each load group draws its assigned total current. Copper conductance determines the split across its pads.')
     elif action_id == 'quick-pi.solve':
         args.append(values['board'])
         if values.get('return_nets'):

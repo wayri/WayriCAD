@@ -66,7 +66,7 @@ models; selecting a more detailed-looking plot does not change the physics.
 | Shared ground rise between rails | Rails / ground returns | Explicit ground source and load contacts. Fixed-current 2.5D shared-return groups. |
 | Reference-plane coverage and nearby return vias | Return path tab | Explicit return nets. Geometric audit, not electrical loop impedance. |
 | DC current through copper volume | 3D copper model | Gmsh, manual mesh and supported through-hole geometry. No AC effects. |
-| Temperature changes resistance | Include Joule heating / temperature feedback | Explicit materials, cooling, bounds and converged coupling. |
+| Temperature changes resistance | Include Joule heating, then Run | Steady screening with editable materials, cooling and temperature bounds. |
 | SMPS harmonic skin/proximity losses | More → AC / SMPS copper study | Declared straight conductor cross-sections and RMS harmonics; no whole-board AC extraction. |
 | Capacitors close to load pins | Decoupling placement | Saved rail/return connectivity and distance thresholds; proximity heuristic. |
 | Lumped PDN impedance | Decoupling → Lumped impedance screen | Source R/L, effective capacitor C/ESR/ESL and target; no distributed board extraction. |
@@ -423,21 +423,15 @@ See [material integral, validity and references](README.md#copper-melting-and-bo
 
 ## Joule temperature feedback
 
-Check Include Joule heating / temperature feedback only after reviewing the
-thermal model. This adds steady temperature-dependent resistance iteration;
-it does not enable or disable ordinary DC loss accounting.
-
-1. Enter thermal conductivity, cooling, emissivity, ambient, allowed material
-   range and temperature cap. Review copper resistivity and its temperature
-   coefficient. Required unknown values block the run.
-2. Review where electrical copper losses enter the shared thermal layer model.
-   Do not add delivered load power as board heat without a separate justified
-   component dissipation source.
-3. Run and inspect temperature, resistance/voltage change, iteration history,
-   energy transfer and acceptance. Nonconvergence is not a valid final operating
-   temperature.
-4. Refine spatial and iteration settings as appropriate and retain cold/hot
-   evidence in the report.
+Enable **Include Joule heating**, choose **2.5D** or **3D**, and click **Run**.
+Quick PI uses the saved board geometry and the selected prescribed-current
+path. The initial estimate uses generic FR-4, copper and effective air
+cooling. Under **Mesh & material** you can set ambient, laminate conductivity,
+effective convection, emissivity and the temperature stop. The results include
+the assumptions, the ambient-temperature reference and the convergence status.
+In 3D, the copper FEM exchanges heat with a board-layer thermal model. It
+shows the estimated temperature on the 3D copper along with voltage, current
+density and losses.
 
 More → Electrothermal study also offers explicit lumped rail/thermal-RC
 transients. These are separate from spatial full-board transient fields.
@@ -722,20 +716,14 @@ It is not a package-solid rendering or a larger board simulation.
 
 ### Joule feedback without editing JSON first
 
-1. Return to **2.5D / Sink current** and retain the intended net/source/loads.
-2. Check **Include Joule heating / temperature feedback**, then Run. The updated
-   source opens **Materials + cooling**, with the selected net/source and unit
-   count shown. The complete model remains in **Advanced model inputs**.
-3. Enter reviewed materials, convection/radiation boundaries and valid material
-   range. Blank inputs remain unknown. The screenshot uses explicitly assumed
-   values, not material/cooling data recovered from Marble.
-4. Click **Run electrothermal**. Review cold/hot electrical results, thermal
-   temperatures and convergence. Temperature-cap/material-range/iteration stops
-   are not valid operating points. Refine electrical and thermal meshes separately.
-5. Changing current or cooling requires another coupled solve; fast fixed-
-   temperature Ctrl+scroll reuse is not applied to this nonlinear study.
-
-![Guided Joule physical-input setup](help-joule-guided.png)
+1. Set **Sink current**, the intended copper model, net and endpoints.
+2. Check **Include Joule heating** and click **Run** once.
+3. Review the estimated temperatures, cold and hot electrical quantities,
+   convergence and power/heat balance. A temperature stop or exhausted
+   iteration budget leaves an unaccepted heated result.
+4. Adjust **Mesh & material** and rerun for different cooling or refine both
+   meshes as appropriate. In 2.5D, **Materials + cooling** on the results
+   dialog exposes the full reviewed inputs and **Advanced model inputs**.
 
 **Marble is currently blocked for this coupled workflow.** The retained
 [Marble Joule input](studies/marble-joule.example.json) is a complete, schema-valid

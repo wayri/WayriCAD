@@ -197,9 +197,10 @@ def _json_preview(document):
 def preview_content(path):
     with path.open('rb') as stream:
         data = stream.read(MAX_INPUT + 1)
-    if len(data) > MAX_INPUT:
-        raise ValueError('This result is too large for a preview. Open the full report.')
     suffix = path.suffix.lower()
+    truncated = len(data) > MAX_INPUT
+    if truncated and suffix not in {'.html', '.htm'}:
+        raise ValueError('This result is too large for a preview. Open the full report.')
     if suffix == '.png':
         return '', _png(data), None
     if suffix == '.svg':
@@ -212,7 +213,7 @@ def preview_content(path):
         report.feed(text)
         report.close()
         content = ''.join(report.fragments)
-        if report.remaining < MAX_TEXT // 2:
+        if truncated or report.remaining < MAX_TEXT // 2:
             content += '<p>Open the full report for complete results and interactive views.</p>'
         return content, report.png, None if report.png else report.svg
     if suffix == '.json':
@@ -229,3 +230,42 @@ def preview_content(path):
         note = '<p>Preview shows up to 30 rows and 10 columns.</p>' if len(rows) > 30 or len(headers) > 10 else ''
         return _table(headers[:10], (row[:10] for row in rows[:30])) + note, None, None
     return '<pre>' + escape(text[:MAX_TEXT]) + '</pre>', None, None
+
+
+# Edge limits its in-memory navigation to 2 MiB. Keep larger images in the
+# existing native preview, where they can be scaled without a data URL.
+MAX_WEB_DOCUMENT = 1_900_000
+
+
+def web_document(title, content, png=None, svg=None):
+    """Wrap previously sanitized report content for an offline native WebView."""
+    image = ''
+    if png or svg:
+        mime, data = ('image/png', png) if png else ('image/svg+xml', svg)
+        if len(data) * 4 // 3 > MAX_WEB_DOCUMENT:
+            return None
+        encoded = base64.b64encode(data).decode('ascii')
+        image = f'<figure><img src="data:{mime};base64,{encoded}" alt="Report figure"></figure>'
+    policy = ("default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+              "base-uri 'none'; form-action 'none'")
+    page = ('<!doctype html><html><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            f'<meta http-equiv="Content-Security-Policy" content="{policy}">'
+            f'<title>{escape(title)}</title>'
+            '''<style>
+            :root { color-scheme: light dark; font: 14px/1.55 system-ui, sans-serif }
+            body { margin: 0; padding: 1rem 1.25rem; overflow-wrap: anywhere }
+            h1, h2, h3 { line-height: 1.2; margin: 1em 0 .45em }
+            h1 { font-size: 1.45rem; margin-top: 0 }
+            h2 { font-size: 1.2rem }
+            h3 { font-size: 1rem }
+            table { border-collapse: collapse; width: 100%; margin: .6rem 0 1rem }
+            th, td { padding: .45rem .6rem; text-align: left; border: 1px solid #80808055 }
+            th { background: #80808022 }
+            tr:nth-child(even) { background: #8080800b }
+            figure { margin: 0 0 .85rem }
+            img { display: block; max-width: 100%; max-height: 62vh; object-fit: contain }
+            pre { white-space: pre-wrap }
+            </style></head><body>'''
+            + image + content + '</body></html>')
+    return page if len(page.encode('utf-8')) <= MAX_WEB_DOCUMENT else None

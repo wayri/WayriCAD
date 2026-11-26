@@ -18,12 +18,17 @@ drop divided by total source current under the current load distribution.
 Unsupported portions stay blank. For branched copper the plot is a
 transfer measure, with the assumptions shown in the window.
 
-Under **PCB selection**, enable **Watch routing** and run a reviewed 2.5D DC
-scenario once. Quick PI checks for saved changes and refreshes the scenario
-when you return to it. With **Use unsaved edits**, Quick PI checks the solved
-net in the originating editor while the analysis window is active. Live
-copper checks pause when you return to PCB Editor. Series paths use explicit
-unsaved runs. Saved project and rule inputs apply.
+Under **PCB selection**, enable **Live analysis in background** and run a
+reviewed 2.5D DC scenario once. Quick PI watches that net in the originating
+PCB Editor, including unsaved copper edits, while you work in the editor.
+It waits for edits to settle, then reruns the same source, load groups and
+settings on a private board copy. One solve runs at a time. The next settled
+revision is checked after it finishes. Live checks pause when minimized.
+Series paths, 3D, electrothermal and batch studies require explicit runs.
+
+**Watch routing while active** checks for changes when Quick PI has focus.
+With **Use unsaved edits** it watches the solved net. The saved-board
+workflow refreshes saved copper and rules when you return to Quick PI.
 
 The idle window makes no editor calls by default. **Follow PCB** is optional.
 Solvers run in a lower-priority process with two numerical threads by default.
@@ -105,26 +110,15 @@ Every parallel device retains its pin groups and numerical model; a ground
 branch is not added as a forward-path stage. Unresolved converter behaviour and
 missing topology still need explicit review rather than guessed connections.
 
-**More > AC two-port impedance** opens an explicit geometry/ports/results
-workflow with complex Z11/Z12/Z21/Z22 curves and a full numerical table. Both
-port excitations share a factorization per frequency and mesh. This is a bounded
-MQS cross-section model, not automatic arbitrary-board full-wave extraction or
-a demonstrated speedup over Palace. See [two-port setup and solver limits](AC_PORTS.md).
+**More → AC two-port impedance** computes complex Z11, Z12, Z21 and Z22 for
+explicit straight copper conductors using the MQS cross-section model.
+[Two-port setup and solver limits](AC_PORTS.md).
 
-For magnitude/anti-resonance plots, **More > Planar PDN impedance from selected
-pad ports** uses the saved copper triangle mesh with explicit dielectric
-separation/loss and a reviewed ideal full-reference-plane assumption. P1/P2 are
-the two selected positive pad groups relative to that common reference, not a
-differential pair. The result viewer shows log-log magnitudes, actual-reference
-overlays, signed dB differences at common samples and hover probes. Multilayer,
-via-containing, nonuniform-thickness and disconnected meshes are rejected.
-`MODELLED` does not establish mesh convergence or agreement with Palace.
-See [planar model, assumptions and validation](PLANE_PORTS.md).
-
-![Actual computed planar PDN magnitudes and fine/coarse mesh differences](help-planar-pdn.png)
-
-This is a synthetic 100 x 50 mm ideal-reference cavity, not a Palace or measured
-comparison. [Saved studies, numerical results and reproduction steps](examples/planar_pdn/README.md).
+**More → Planar PDN impedance from selected pad ports** uses a single-layer
+saved copper mesh and a declared ideal reference plane. The result viewer
+shows complex impedance, magnitudes and original-sample probes. Its
+`MODELLED` status leaves mesh refinement for review.
+[Planar model and assumptions](PLANE_PORTS.md) · [Real-board Zxx demonstration on Marble](examples/marble_zxx/README.md).
 
 The board opens across the window. **Setup** opens net, pad and load inputs;
 **Details** opens layers, colours, tables and probes. **Focus view** hides both
@@ -245,10 +239,8 @@ the saved PCB used by the solver. Batch studies save complete per-case files.
 
 [Every control and CLI option](CONTROL_REFERENCE.md) · [Marble walkthrough](USER_GUIDE.md#marble-worked-example) · [White Rabbit input review](USER_GUIDE.md#white-rabbit-worked-example)
 
-The updated source adds a guided **Materials + cooling** page for the Joule
-checkbox, faster first board loading, lower-overhead full-3D assembly and faster
-3D field preparation. Physical assumptions and convergence checks are unchanged.
-[Measured scope and validation](../docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md).
+The Joule checkbox runs steady heating directly in either copper model.
+[3D assembly and field preparation performance](../docs/audits/QUICK_PI_3D_SPEED_2026-10-28.md).
 
 Start with [Choose a study](USER_GUIDE.md#choose-a-study), then follow the inputs,
 inspection, reports and troubleshooting steps for your selected workflow.
@@ -558,6 +550,12 @@ ground-reference plots direct you to the coupled study. Steady electrothermal
 reports show separate cold and hot DC budgets with acceptance status; transient storage is not
 represented by a DC Sankey.
 
+**More → Power tree results** and the 3D results **Power tree** button open
+the solved block diagram. It overlays voltage, current, input and output power
+and modeled loss on the shared rail or reviewed series stages. Each load group
+retains its own pin list and delivered power. Review the [power tree guide](POWER_TREE.md)
+for saved-board suggestions, converter boundaries and the reporting workflow.
+
 ## SMPS ripple and AC copper losses
 
 Open **More → AC / SMPS copper study…** for a declared straight copper section
@@ -571,7 +569,7 @@ CLI and limits. Both low- and high-voltage rails can be described: rail voltage
 is an operating context, not an insulation or dielectric qualification. High
 current is accepted as a prescribed input; a fixed-temperature loss result does
 not establish a safe operating temperature or ampacity. The existing
-**Include Joule heating / temperature feedback** checkbox remains the
+**Include Joule heating** checkbox starts the
 saved-board DC electrothermal workflow described below.
 
 ## Multi-net cases, return copper and Joule feedback
@@ -582,15 +580,20 @@ saved-board DC electrothermal workflow described below.
 | Include ground-return voltage drop | In **Batch**, select a rail and **Set up ground / return…**. One form shows the return net, supply-ground pads and every load-ground pad unit. | Existing `return_conduction` studies remain supported and editable; new groups use `shared_returns`. |
 | Shared ground and multi-pad units | Check the rails in the return setup, choose their ground net and pad units, then **Apply return setup**. **Suggest matching footprint pads** proposes candidates for explicit review. | Add top-level `shared_returns`, as in [the shared-return example](studies/shared-return.example.json). |
 | Review reference planes and return vias | Open **Return path**, choose the return net and **Review return path**. Advanced sampling, multiple returns and optional pins stay collapsed. | Existing `--return-path --return-nets GND`, or the batch example. |
-| Solve temperature feedback | Check **Include Joule heating / temperature feedback**, then **Run**. Fill the explicit thermal/material settings before running the steady study. | Existing `--electrothermal study.json`; batch cases may include explicit `electrothermal` settings. |
+| Solve temperature feedback | Choose 2.5D or 3D, check **Include Joule heating**, then **Run**. | Existing `--electrothermal study.json`; batch cases may include explicit `electrothermal` settings. |
 
-Ordinary DC **always computes copper I²R loss**. The checkbox adds a steady
-thermal solve and temperature-dependent resistance; it does not switch losses
-on or off. Its setup leaves material conductivity, cooling, emissivity, ambient,
-material temperature range, temperature cap, resistivity and its temperature
-coefficient unset until reviewed. Missing values prevent the run. Delivered
-load power is not automatically counted as board heat. See
-[the coupling model and inputs](ELECTROTHERMAL.md).
+Enable **Include Joule heating**, choose **2.5D** or **3D**, and click **Run**.
+Quick PI uses the saved board geometry and the selected prescribed-current
+path. The initial estimate uses generic FR-4, copper and effective air
+cooling. Under **Mesh & material** you can set ambient, laminate conductivity,
+effective convection, emissivity and the temperature stop. The results include
+the assumptions, the ambient-temperature reference and the convergence status.
+In 3D, the copper FEM exchanges heat with a board-layer thermal model. It
+shows the estimated temperature on the 3D copper along with voltage, current
+density and losses.
+
+Ordinary DC already reports copper I²R loss. The checkbox feeds temperature back
+into copper resistance. See [the coupling model and inputs](ELECTROTHERMAL.md).
 
 ### Easier return setup
 
@@ -747,7 +750,7 @@ platforms retain native popup sizing and the same full-value tooltips.
 
 ## Limitations
 
-- Both copper models solve fixed-temperature DC conduction, not AC electromagnetics or thermal feedback. Series inductance adds stored-energy reporting in those modes. Separate transient and electrothermal studies use the explicit models described below.
+- Both copper models default to fixed-temperature DC. The Joule checkbox adds the steady thermal screen. Series inductance adds stored-energy reporting in those modes. Separate transient and electrothermal studies use the explicit models described below.
 - Zones must be filled when included in the path; valid connectivity and explicit material/stackup inputs are required. Assumed via plating is not a measured property.
 - Local current-density peaks depend on mesh/contact assumptions; stable total resistance alone does not certify hotspot convergence.
 - Pulse-risk estimates omit cooling, heat spreading and fuse-opening dynamics. They are not fusing-time predictions or manufacturing sign-off.
@@ -919,9 +922,12 @@ refinement remains necessary near narrow copper and contacts. A run fails if
 the mesh lacks electrode nodes, has disconnected source/sink copper, exceeds its
 tetrahedron budget, or violates conservation. Plated slots, backdrills and
 unresolved drill contours are unsupported rather than converted to cylinders.
-The 3D model is fixed-temperature DC conduction: it does not solve AC skin or
-proximity effects, dielectric current, thermal feedback or series components.
-In the native window, choose a net and two pads, set **Copper model** to
+The 3D electrical model solves DC conduction. **Include Joule heating** adds
+steady temperature feedback using the saved board's thermal layers. AC skin
+and proximity effects, dielectric leakage and series components use separate
+workflows.
+In the native window, choose a net, a source pad group and one or more
+independent current loads, then set **Copper model** to
 **3D · copper volume (Gmsh)**, and enter a specified sink current. The first
 run prepares Gmsh in Quick PI's private Python runtime when needed; setup may
 require access to the configured package source. Set the 3D tetrahedron budget
@@ -1202,6 +1208,10 @@ half-step comparison, charge balance, energy accounting and voltage bounds.
 Step timestamps include before/after samples for instantaneous ESR jumps.
 Refine the integration step until the reported waveform differences are
 acceptable; stable integration alone does not establish waveform accuracy.
+Transient review shows conservation and half-step voltage/current changes.
+Compare the changes with your voltage and current margins, then refine further
+when the margins are comparable. Use reviewed path and mounting parasitics for
+board-level conclusions.
 Source current limits are **budget diagnostics**, not simulated regulator
 CV/CC, foldback or control loops. The resulting time traces are not full-board
 transient field maps or a distributed electromagnetic solve.

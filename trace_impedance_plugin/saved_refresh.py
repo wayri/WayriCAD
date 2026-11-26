@@ -25,6 +25,8 @@ class SavedRefreshMixin:
         self.source_refresh.state.reset(self.origin_selection.stamp)
 
     def invalidate_source(self):
+        if not self.source_dirty:
+            self.previous_summary = self.summary.GetLabel()
         self.source_dirty = True
         self.selection_follower.state.reset()
         self._invalidate(None)
@@ -69,7 +71,8 @@ class SavedRefreshMixin:
             old_island = self.zone_layer.GetSelection()
             zone = self.zone_options[old_island]['id'] if old_island >= 0 else None
             self.board, self.engine, self.all_net_names, self.terminal_index = payload
-            self.route_preview.board = self.board
+            if self.watch_evidence is None:
+                self.route_preview.board = self.board
             self.origin_selection = OriginSelection(origin.path, launch_context=origin.launch_context, stamp=stamp)
             net, ends = self.terminal_index.restore(old_net, old_ids, self.all_net_names)
             query = self.net_search.GetValue().strip().casefold()
@@ -96,7 +99,17 @@ class SavedRefreshMixin:
                 self.diff_net.SetSelection(self.diff_net.FindString(previous_mate,True))
             self.source_dirty = False
             self.config_scroll.Enable()
-            self._terminal_changed()
+            request = self.watch_request
+            if request is not None and (request.net != net or request.endpoints != tuple(old_ids)
+                                        or not all(ends) or request.reference != self.reference.GetValue()
+                                        or request.mate != self._mate_net()):
+                self.stop_watching_path("Saved route inputs changed. Review the setup before watching again.")
+                self._invalidate(None)
+            self.update_watch_controls()
+            if self.watch_evidence is not None:
+                self.summary.SetLabel(self.previous_summary)
+                self.route_watch.poll()
+                return
             self.summary.SetLabel("PCB refreshed. " + ("Ready to analyze the selected path."
                                   if self.measure_button.IsEnabled() else "Review the missing route inputs."))
         self.refresh_worker.start(read, finish, wx.CallAfter)

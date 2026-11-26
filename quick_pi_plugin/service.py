@@ -339,16 +339,16 @@ def _execute(request,*,_boards=None):
         source_names(source_check)
         specs=sink_requests(request)
         grouped='source_terminals' in request or any('terminals' in spec for spec in specs)
-        if grouped and (request.get('model_dimension','2.5d')!='2.5d' or
-                        request.get('package_conduction') or voltage_mode or sweep_mode):
-            raise ValueError('Grouped pad units support 2.5D copper loads only; package, 3D and resistive/sweep modes are unsupported.')
+        if grouped and (request.get('package_conduction') or voltage_mode or sweep_mode):
+            raise ValueError('Grouped pad units require current-driven copper loads without package, resistive or sweep modeling.')
     from .board_geometry import extract
     full3d=request.get('model_dimension','2.5d')=='3d'
     if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
         raise ValueError('Choose model_dimension 2.5d or 3d.')
-    if full3d and (request.get('series') or voltage_mode or sweep_mode or request.get('html_output') or 'sinks' in request or
-                   any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage','voltage_tolerance_pct'))):
-        raise ValueError('Full 3D currently supports one net with prescribed current and JSON output; series, load/sweep and HTML views require 2.5D.')
+    if full3d and (request.get('series') or voltage_mode or sweep_mode or request.get('html_output') or
+                   request.get('package_conduction') or request.get('_shared_return_contacts') or
+                   (action=='solve' and any('power_W' in spec for spec in specs))):
+        raise ValueError('Full 3D supports one net with prescribed-current groups and numerical output. Series, shared return, package, power-controlled and sweep models require another study.')
     if full3d and request.get('mesh_backend')=='vtk':
         raise ValueError('Full 3D requires Gmsh; VTK is only a 2.5D meshing backend.')
     if request.get('series'):
@@ -356,6 +356,10 @@ def _execute(request,*,_boards=None):
         output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
         return _display_output(output,request,board,path,before)
+    if request.get('joule_feedback') is not None and (not full3d or action != 'solve'):
+        raise ValueError('This Joule feedback input is for a 3D copper solve.')
+    if request.get('joule_feedback') is not None and request.get('stackup_override') is not None:
+        raise ValueError('Use the saved board stackup for 3D Joule feedback.')
     geometry=extract(board,request['net'],source_path=path,stackup_override=request.get('stackup_override'))
     if full3d:
         output={'geometry':geometry,'request':request,
@@ -367,17 +371,27 @@ def _execute(request,*,_boards=None):
                                    max_tetrahedra=int(request.get('max_tetrahedra',250000)))
             output['mesh']=mesh
             if action=='solve':
-                def nodes(key):
-                    chosen=request[key]
-                    if chosen in mesh['terminal_nodes']:return mesh['terminal_nodes'][chosen]
-                    match=[t['id'] for t in geometry['terminals'] if t['label']==chosen]
-                    if len(match)!=1:raise ValueError('Select one unambiguous source and sink pad on this net: '+str(chosen))
-                    if match[0] not in mesh['terminal_nodes']:
-                        raise ValueError('Selected pad has no 3D electrode mesh vertices. Reduce the mesh edge: '+str(chosen))
-                    return mesh['terminal_nodes'][match[0]]
-                output['result']=solve_volume(mesh,nodes('source_terminal'),nodes('sink_terminal'),
-                    source_voltage=float(request.get('source_voltage',1.)),
-                    sink_current=float(request.get('sink_current',1.)),options=request.get('options'))
+                from .terminals import resolve_units
+                _, source_nodes, loads, units = resolve_units(request, geometry, mesh, specs)
+                electrical = dict(source_voltage=float(request.get('source_voltage',1.)),
+                                  sinks=loads, options=request.get('options'), source_current_limit=(
+                                      float(request['source_current_limit']) if request.get('source_current_limit') is not None else None))
+                sink_nodes = None
+                output['terminal_units'] = units
+                if request.get('joule_feedback') is not None:
+                    from .volume_joule import solve_volume_feedback
+                    from . import board_geometry
+                    from wayricad_runtime.thermal_geometry import collect_thermal_geometry
+                    thermal = collect_thermal_geometry(board, path, geometry_helpers=board_geometry,
+                                                       model_drill_voids=True)
+                    if geometry.get('source_sha256') != before or thermal.get('source_sha256') != before:
+                        raise ValueError('Saved PCB changed between copper and thermal extraction. Reload and retry.')
+                    output['result'] = solve_volume_feedback(
+                        mesh, source_nodes, sink_nodes, thermal, request['joule_feedback'], **electrical)
+                    output['model'] = '3D DC copper FEM with steady layer thermal feedback'
+                    assert_current(board)
+                else:
+                    output['result'] = solve_volume(mesh,source_nodes,sink_nodes,**electrical)
         if hashlib.sha256(path.read_bytes()).hexdigest()!=before:
             raise ValueError('The board changed during analysis. Reload and run again.')
         return _display_output(output,request,board,path,before)

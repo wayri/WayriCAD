@@ -23,9 +23,9 @@
 <tr><td>Additional sinks…</td><td>Add simultaneous units with currents/powers, bounds and reviewed grouped pins. Repeated or overlapping contacts are invalid.</td></tr>
 <tr><td>Package contacts…</td><td>Explicit lead/solder/BGA geometry and material paths. Supported 2.5D prescribed-current cases only; not the same as ideal grouped pins.</td></tr>
 <tr><td>Copper model</td><td>2.5D sheets/barrels or full 3D copper volume. Switching invalidates old fields; 3D does not add AC or temperature feedback.</td></tr>
-<tr><td>Include Joule heating / temperature feedback</td><td>DC already computes I²R. This additionally opens explicit temperature/resistance coupling, supported for one-net 2.5D prescribed-current units.</td></tr>
+<tr><td>Include Joule heating</td><td>Run starts steady temperature feedback using the selected 2.5D or 3D prescribed-current copper model.</td></tr>
 <tr><td>Batch</td><td>Explicit multi-rail and return-contact configuration. Different from sampled reference-plane auditing.</td></tr>
-<tr><td>Preview / Run</td><td>Inspect saved copper first; Run validates, meshes and solves. Joule checkbox opens required physical settings first.</td></tr>
+<tr><td>Preview / Run</td><td>Inspect saved copper first; Run validates, meshes and solves. With Joule heating enabled, Run starts coupling directly using the screening settings.</td></tr>
 <tr><td>Export / Power flow / Blender…</td><td>Current HTML/JSON evidence, source-to-sink power accounting, or optional Blender field export. None changes PCB geometry.</td></tr>
 <tr><td>Series</td><td>Build an explicit component/net path; review component interpretation, polarity and routing.</td></tr>
 <tr><td>Cancel / progress</td><td>Cancel the isolated worker. Partial work is discarded, not accepted as complete.</td></tr>
@@ -202,7 +202,7 @@
 <p>These captures use complete explicit circuit examples. They are not measured Marble/White Rabbit PDNs. The older aggregate-only setup predates the individual bank controls; its capture version is retained rather than relabelled.</p>
 <h2 id="guided-joule-feedback-and-advanced-coupling">Guided Joule feedback and advanced coupling</h2>
 <p>Saved-board coupling uses PI’s own thermal backend. It currently rejects plated slots and nonplated holes, even where standalone QuickTherm supports them. The unchanged Marble example stops at this geometry guard; a valid input file alone does not establish a successful temperature solve.</p>
-<p>The updated-source checkbox opens <strong>Materials + cooling</strong> first. Guided fields and <strong>Advanced model inputs</strong> edit one canonical study. Required blank values remain unknown; editing invalidates results. The current net/source and load-unit count are shown so the carried-over selection can be checked.</p>
+<p>Enable <strong>Include Joule heating</strong>, choose <strong>2.5D</strong> or <strong>3D</strong>, and click <strong>Run</strong>. Quick PI uses the saved board and selected prescribed-current path. Screening starts with generic FR-4, copper and effective air cooling. Use <strong>Mesh &amp; material</strong> to edit ambient, laminate conductivity, convection, emissivity and the temperature stop. Review the cold reference and convergence before using a heated result.</p>
 <div class="table-scroll"><table>
 <tr><th>Guided input</th><th>Required interpretation</th></tr>
 <tr><td>Ambient temperature · °C</td><td>Actual boundary/initial temperature within the declared material range.</td></tr>

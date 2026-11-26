@@ -45,6 +45,24 @@ class VolumeViewTests(unittest.TestCase):
             self.assertIn('Display movement does not change',html)
             self.assertEqual(json.loads(path.with_suffix('.json').read_text()),bundle)
 
+    def test_heated_volume_exposes_temperatures_and_cold_comparison(self):
+        from quick_pi_plugin.volume_view import feedback_text, field_quantities
+
+        bundle = sample_bundle()
+        self.assertNotIn('temperature', field_quantities(bundle).values())
+        result = bundle['result']
+        result.update(total_power_W=1.1, drop_over_current_ohm=.011,
+                      element_temperature_c=[28., None, 31.],
+                      joule_feedback={'converged': True, 'peak_temperature_c': 31.,
+                                      'cold': {'total_power_W': 1., 'drop_over_current_ohm': .01}})
+        self.assertIn('temperature', field_quantities(bundle).values())
+        self.assertEqual(sampled_cells(bundle, quantity='temperature')[1].tolist(), [28., 31.])
+        self.assertIn('Resistance 10', feedback_text(bundle))
+        result.pop('element_temperature_c')
+        result['joule_feedback']={'converged':False, 'diagnostic':'Temperature cap reached.'}
+        self.assertNotIn('temperature', field_quantities(bundle).values())
+        self.assertIn('Cold reference shown.', feedback_text(bundle))
+
     def test_display_limit_does_not_change_model(self):
         bundle = sample_bundle()
         _, values, total = sampled_cells(bundle, limit=1)

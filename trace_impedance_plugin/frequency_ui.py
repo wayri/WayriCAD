@@ -9,7 +9,7 @@ from .frequency_analysis import sweep
 class FrequencyPanel(wx.Panel):
     def __init__(self,parent,board_path=None,check_source=None):
         self.check_source=check_source
-        super().__init__(parent);self.board_path=Path(board_path).resolve() if board_path else None;self.path=None;self.result=None;self.hover=None
+        super().__init__(parent);self.board_path=Path(board_path).resolve() if board_path else None;self.path=None;self.result=None;self.hover=None;self.allow_export=True
         s=wx.BoxSizer(wx.VERTICAL);controls=wx.BoxSizer(wx.HORIZONTAL)
         self.lo=wx.TextCtrl(self,value='0.001',size=(90,-1));self.hi=wx.TextCtrl(self,value='1000',size=(90,-1))
         for label,control in [('Start MHz',self.lo),('Stop MHz',self.hi)]:
@@ -27,7 +27,8 @@ class FrequencyPanel(wx.Panel):
         self.result=None;self.hover=None;self.export.Disable();self.canvas.SetToolTip('');self.canvas.Refresh()
         if event:event.Skip()
 
-    def set_path(self,path):
+    def set_path(self,path,*,allow_export=True):
+        self.allow_export=allow_export
         self.path=path;self.invalidate();self.notes.SetValue('Analyze a path, then sweep its copper sections. Values are model estimates, not compliance results.')
 
     def run(self,event=None):
@@ -36,7 +37,7 @@ class FrequencyPanel(wx.Panel):
             if self.check_source:self.check_source()
             if not self.path:raise ValueError('Analyze a connected path first.')
             self.result=sweep(self.path,float(self.lo.GetValue()),float(self.hi.GetValue()))
-            self.notes.SetValue('\n'.join(self.result['notes']));self.export.Enable();self.canvas.Refresh()
+            self.notes.SetValue('\n'.join(self.result['notes']));self.export.Enable(self.allow_export);self.canvas.Refresh()
         except (ValueError,KeyError) as exc:self.notes.SetValue(str(exc))
 
     def inspect(self,event):
@@ -76,7 +77,7 @@ class FrequencyPanel(wx.Panel):
         dc.DrawText('Frequency (MHz), logarithmic',65,h-15)
 
     def save(self,event):
-        if self.result is None:return
+        if self.result is None or not self.allow_export:return
         with wx.FileDialog(self,'Export AC sweep',defaultDir=str(self.board_path.parent) if self.board_path else '',defaultFile=(self.board_path.stem if self.board_path else 'WayriCAD')+'-rlc-ac.csv',wildcard='CSV (*.csv)|*.csv',style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as dialog:
             if dialog.ShowModal()!=wx.ID_OK:return
             target=Path(dialog.GetPath())

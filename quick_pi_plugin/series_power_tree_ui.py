@@ -151,7 +151,8 @@ def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=Non
             if source_guard is not None: source_guard()
         guard()
 
-    dialog = wx.Dialog(parent, title='Quick PI · Series power tree',
+    fanout = tree.get('schema') == 'rail-power-tree-1'
+    dialog = wx.Dialog(parent, title='Quick PI · ' + ('Solved rail power tree' if fanout else 'Series power tree'),
                        size=parent.FromDIP((960, 760)),
                        style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
     layout = wx.BoxSizer(wx.VERTICAL)
@@ -170,14 +171,14 @@ def show_series_power_tree(parent, tree, *, board_path=None, expected_sha256=Non
         button.SetToolTip(tip);button.Bind(wx.EVT_BUTTON,callback)
         navigation.Add(button,0,wx.RIGHT,5)
     layout.Add(navigation,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
-    tabs.AddPage(canvas, 'Series path diagram')
+    tabs.AddPage(canvas, 'Power path diagram')
     panel = ScrolledPanel(tabs)
     flow = wx.BoxSizer(wx.VERTICAL)
     for index, node in enumerate(tree['nodes']):
-        if index:
+        if index and not fanout:
             flow.Add(wx.StaticText(panel, label='↓'), 0, wx.ALIGN_CENTER | wx.ALL, 3)
         box = wx.StaticBoxSizer(wx.VERTICAL, panel, node['label'] + ' · ' + node['kind'].replace('_', ' '))
-        text = tree_text(dict(notice='', nodes=[node])).strip()
+        text = tree_text(dict(notice='', nodes=[node], display=tree.get('display'))).strip()
         # The box title already names this node.
         text = '\n'.join(text.splitlines()[1:])
         details = wx.StaticText(panel, label=text)

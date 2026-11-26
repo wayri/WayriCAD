@@ -12,7 +12,7 @@ from pathlib import Path
 def _uid(item):
     return item.m_Uuid.AsString()
 
-def _outline(board):
+def _outline(board, drill_voids=None):
     try:
         import pcbnew
         polygon = pcbnew.SHAPE_POLY_SET()
@@ -21,6 +21,9 @@ def _outline(board):
         return [], "KiCad could not extract the saved Edge.Cuts outline."
     if not valid or polygon.OutlineCount() == 0:
         return [], "The saved Edge.Cuts outline is incomplete or invalid."
+    if drill_voids is not None and drill_voids.OutlineCount():
+        drill_voids.Simplify()
+        polygon.BooleanSubtract(drill_voids)
     contours = []
     for index in range(polygon.OutlineCount()):
         chain = polygon.COutline(index)
@@ -63,7 +66,7 @@ def _backdrilled(item):
     return False
 
 
-def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tolerance_mm=0.005):
+def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tolerance_mm=0.005, model_drill_voids=False):
     """Return JSON-safe physical copper, barrel and hole data from a saved PCB.
 
     The caller loads ``board`` from ``source_path`` and checks that it has not
@@ -102,6 +105,7 @@ def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tole
     holes = {layer: api.SHAPE_POLY_SET() for layer in enabled}
     barrels = []
     mounting_holes = []
+    drill_voids = api.SHAPE_POLY_SET()
     counts = {"tracks_and_arcs": 0, "vias": 0, "pads": 0, "zones": 0,
               "plated_pads": 0, "mounting_holes": 0}
 
@@ -146,8 +150,15 @@ def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tole
             for layer in hole_span:
                 holes[layer].Append(hole)
         plated = via or (pad and item.GetAttribute() == api.PAD_ATTRIB_PTH)
+        drill_length = None
         if pad and drilled:
-            drill = _drill(api, item, False)
+            if model_drill_voids:
+                size = item.GetDrillSize()
+                drill, drill_length = sorted((api.ToMM(size.x), api.ToMM(size.y)))
+                if not plated or drill_length > drill:
+                    drill_voids.Append(hole)
+            else:
+                drill = _drill(api, item, False)
             if drill <= 0:
                 raise ValueError("Mounting-hole pad has an invalid drill: " + _uid(item))
             record = {"id": _uid(item), "reference": str(item.GetParentFootprint().GetReference()),
@@ -160,7 +171,8 @@ def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tole
             mounting_holes.append(record)
             counts["mounting_holes"] += 1
         if plated:
-            drill = _drill(api, item, via)
+            if drill_length is None:
+                drill = _drill(api, item, via)
             if drill <= 0:
                 raise ValueError("Plated barrel has an invalid drill: " + _uid(item))
             if not flashed:
@@ -174,6 +186,7 @@ def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tole
             barrels.append({"id": _uid(item), "kind": "via" if via else "plated_pad",
                             "net": str(item.GetNetname()), "x_mm": api.ToMM(pos.x), "y_mm": api.ToMM(pos.y),
                             "drill_mm": drill, "outer_diameters_mm": diameters,
+                            **({"drill_length_mm":drill_length} if drill_length is not None and drill_length > drill else {}),
                             "span_layers": span, "contact_layers": flashed,
                             "plating_thickness_mm": None})
             if pad:
@@ -202,12 +215,17 @@ def collect_thermal_geometry(board, source_path, *, geometry_helpers, curve_tole
         holes[layer].Simplify()
         copper[layer].BooleanSubtract(holes[layer])
         row["polygons_mm"] = _polygons(copper[layer], api)
+    if model_drill_voids:
+        outline, outline_issue = _outline(board, drill_voids)
+        if outline_issue:
+            raise ValueError(outline_issue)
     if hashlib.sha256(path.read_bytes()).digest() != hashlib.sha256(data).digest():
         raise ValueError("Saved PCB changed during thermal geometry extraction; reload and retry.")
     return {"schema_version": 1, "source_path": str(path),
             "source_sha256": hashlib.sha256(data).hexdigest(),
             "outline": outline, "bbox_mm": bbox, "outline_status": "valid",
             "layers": layers, "barrels": barrels, "mounting_holes": mounting_holes,
+            **({"drill_voids_modelled":True} if model_drill_voids else {}),
             "counts": counts, "curve_tolerance_mm": tolerance,
             "geometry_meaning": "Physical copper occupancy from saved filled geometry; no thermal conductivity or contact inferred.",
             "missing_material_inputs": ["dielectric thermal conductivity by interval",

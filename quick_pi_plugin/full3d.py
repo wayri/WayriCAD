@@ -240,7 +240,8 @@ def build_volume_mesh(geometry, edge_mm=.25, plating_mm=.025, max_tetrahedra=250
             gmsh.finalize()
 
 
-def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current=1., options=None):
+def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current=1., options=None,
+                 *, element_temperature_c=None, sinks=None, source_current_limit=None):
     """Solve ∇·(σ∇V)=0 on tetrahedra with ideal pad electrodes and DC load.
 
     SI units are used for the tetrahedron stiffness integral. The prescribed
@@ -271,7 +272,6 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
             repeated |= cells[:, a] == cells[:, b]
     if np.any(cells < 0) or np.any(cells >= len(points)) or np.any(repeated):
         raise VolumeModelError('3D mesh has invalid tetrahedron vertices.')
-    current = _positive(sink_current, 'Sink current')
     voltage = float(source_voltage)
     if not math.isfinite(voltage):
         raise VolumeModelError('Source voltage must be finite.')
@@ -282,14 +282,41 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
         raise VolumeModelError('Copper temperature and coefficient must be finite; coefficient must be nonnegative.')
     rho = _positive(rho20 * (1 + alpha * (temperature - 20)), 'Adjusted copper resistivity')
     sigma = 1. / rho
+    if element_temperature_c is not None:
+        element_temperature_c = np.asarray(element_temperature_c, dtype=float)
+        if element_temperature_c.shape != (len(cells),) or not np.isfinite(element_temperature_c).all():
+            raise VolumeModelError('3D feedback needs one finite temperature per tetrahedron.')
+        adjusted = rho20 * (1 + alpha * (element_temperature_c - 20))
+        if np.any(~np.isfinite(adjusted)) or np.any(adjusted <= 0):
+            raise VolumeModelError('A 3D feedback cell has invalid copper resistivity.')
+        sigma = 1. / adjusted
     def electrode(value, name):
         if not isinstance(value, (list, tuple)) or not value or any(type(i) not in (int, np.int32, np.int64) or not 0 <= i < len(points) for i in value):
             raise VolumeModelError(name + ' has no valid mesh vertices; reduce the mesh edge or choose a larger pad.')
         return sorted(set(map(int, value)))
-    source = electrode(source_nodes, 'Source pad')
-    sink = electrode(sink_nodes, 'Sink pad')
-    if set(source) & set(sink):
-        raise VolumeModelError('Source and sink electrode nodes overlap.')
+    source = electrode(source_nodes, 'Source pad unit')
+    if sinks is None:
+        sinks = [{'id': 'sink', 'label': 'Sink', 'nodes': sink_nodes, 'current_A': sink_current}]
+    if not isinstance(sinks, (tuple,list)) or not sinks or len(sinks)>1024:
+        raise VolumeModelError('Specify 1 to 1,024 independent 3D sink units.')
+    occupied = set(source)
+    contacts, loads = [], []
+    identifiers = set()
+    for spec in sinks:
+        identifier = spec['id']
+        if identifier in identifiers:
+            raise VolumeModelError('3D sink unit IDs must be unique.')
+        identifiers.add(identifier)
+        label = spec.get('label', identifier)
+        nodes = electrode(spec['nodes'], 'Sink ' + label)
+        if occupied.intersection(nodes):
+            raise VolumeModelError('Source and sink electrode nodes overlap across units: ' + label)
+        occupied.update(nodes)
+        contacts.append(nodes)
+        demand = _positive(spec['current_A'], 'Sink current')
+        loads.append(dict(id=identifier, label=label, current_A=demand,
+                          min_voltage_V=spec.get('min_voltage_V', 0.), max_voltage_V=spec.get('max_voltage_V')))
+    current = math.fsum(row['current_A'] for row in loads)
     xyz = points[cells] * 1e-3
     edge = xyz[:, 1:] - xyz[:, :1]
     det = np.linalg.det(edge)
@@ -301,17 +328,14 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
     gradients = np.empty((len(cells), 4, 3))
     gradients[:, 1:, :] = inverse.transpose(0, 2, 1)
     gradients[:, 0, :] = -gradients[:, 1:, :].sum(axis=1)
-    stiffness = sigma * volumes[:, None, None] * np.einsum('mik,mjk->mij', gradients, gradients)
-    # There are exactly two already validated, disjoint ideal electrodes. Their
-    # node sets can be contracted directly; scanning every vertex through a
-    # Python union-find adds no further connectivity information.
+    stiffness = (sigma * volumes)[:, None, None] * np.einsum('mik,mjk->mij', gradients, gradients)
+    # Contract each reviewed equipotential pad unit to its own electrical port.
     parent = np.arange(len(points), dtype=np.int32)
-    for contact in (source, sink):
+    for contact in (source, *contacts):
         parent[contact] = contact[0]
     _, groups = np.unique(parent, return_inverse=True)
-    src, dst = int(groups[source[0]]), int(groups[sink[0]])
-    if src == dst:
-        raise VolumeModelError('Source and sink electrodes share one copper contact.')
+    src = int(groups[source[0]])
+    destinations = [int(groups[contact[0]]) for contact in contacts]
     mapped = groups[cells].astype(np.int32, copy=False)
     matrix = coo_matrix((stiffness.ravel(), (np.repeat(mapped, 4, axis=1).ravel(),
                          np.tile(mapped, (1, 4)).ravel())), shape=(groups.max()+1,)*2).tocsr()
@@ -325,11 +349,12 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
                        shape=matrix.shape).tocsr()
     _, components = connected_components(graph, directed=False)
     active = components == components[src]
-    if not active[dst]:
-        raise VolumeModelError('Source and sink are disconnected in the 3D copper volume.')
+    disconnected = [spec['label'] for port, spec in zip(destinations, loads) if not active[port]]
+    if disconnected:
+        raise VolumeModelError('Sink units disconnected from the source in the 3D copper volume: ' + ', '.join(disconnected))
     free = np.flatnonzero(active & (np.arange(len(active)) != src))
     load = np.zeros(len(active))
-    load[dst] = -current
+    load[destinations] = [-spec['current_A'] for spec in loads]
     offset = np.zeros(len(active))
     reduced = matrix[free][:, free].tocsc()
     diagonal = reduced.diagonal()
@@ -348,14 +373,18 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
     if residual > max(1e-8, current*1e-6):
         raise VolumeModelError('3D current conservation failed; refine the mesh.')
     field = np.einsum('mi,mij->mj', offset[mapped], gradients)
-    j = -sigma * field / 1e6
+    j = -np.asarray(sigma)[..., None] * field / 1e6
     cell_power = sigma * np.einsum('mi,mi->m', field, field) * volumes
     active_cell = active[mapped].all(axis=1)
     cell_power[~active_cell] = 0
-    drop = float(-offset[dst])
+    from .load_results import fixed_current_results
+    sink_results, feasibility = fixed_current_results(loads, -offset[destinations], voltage,
+                                                      current, source_current_limit)
+    drop = max(row['voltage_drop_V'] for row in sink_results)
     power = float(cell_power.sum())
-    balance = abs(power - current * drop) / max(current * drop, 1e-30)
-    if drop <= 0 or balance > 1e-6:
+    accounted_loss = math.fsum(row['current_A']*row['voltage_drop_V'] for row in sink_results)
+    balance = abs(power - accounted_loss) / max(accounted_loss, 1e-30)
+    if accounted_loss <= 0 or balance > 1e-6:
         raise VolumeModelError('3D electrical power balance failed; refine the mesh.')
     valid_j = np.linalg.norm(j[active_cell], axis=1)
     potentials = (voltage+offset[groups]).tolist()
@@ -365,7 +394,7 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
     for index in np.flatnonzero(~active_cell):
         currents[int(index)] = None
         powers[int(index)] = None
-    return {'model': '3D linear tetrahedral DC conductivity FEM', 'frequency_dependent': False,
+    result = {'model': '3D linear tetrahedral DC conductivity FEM', 'frequency_dependent': False,
             'fusing': {'status':'unavailable','reason':'Copper melting/bottleneck screening is implemented for the 2.5D sheet/barrel model only.',
                        'notice':'No 3D melting or fuse-opening calculation is performed.','bottlenecks':[]},
             'potential_V': potentials,
@@ -375,6 +404,8 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
             'cell_volume_mm3': (volumes * 1e9).tolist(),
             'source_voltage_V': voltage, 'sink_voltage_V': voltage-drop,
             'source_current_A': float(reaction[src]), 'sink_current_A': current,
+            'total_sink_current_A': current, 'sinks': sink_results, 'feasibility': feasibility,
+            'negative_sink_voltage': voltage-drop < 0,
             'voltage_drop_V': drop, 'drop_over_current_ohm': drop/current,
             'total_power_W': power, 'conductor_power_W': power,
             'current_balance_error_A': abs(float(reaction[src])-current),
@@ -387,3 +418,12 @@ def solve_volume(mesh, source_nodes, sink_nodes, source_voltage=1., sink_current
             'limitations': ['DC fixed-temperature copper conduction only; no AC skin/proximity effect.',
                             'Ideal equipotential pad electrodes; no source/load/package contact impedance.',
                             'No dielectric leakage, thermal feedback, or component series models.']}
+    if element_temperature_c is not None:
+        result['element_temperature_c'] = [float(t) if is_active else None
+                                           for t, is_active in zip(element_temperature_c, active_cell)]
+        result['material'].pop('resistivity_ohm_m')
+        result['material'].pop('temperature_c')
+        result['limitations'] = ['Steady DC copper conduction with per-cell temperature-dependent resistivity.',
+                                 *result['limitations'][1:2],
+                                 'No dielectric leakage, AC skin/proximity effect, or component series models.']
+    return result

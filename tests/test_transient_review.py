@@ -41,6 +41,17 @@ class TransientReviewTests(unittest.TestCase):
         self.assertIn('id="transient-caps"',text)
         self.assertIn('value="1"',text)
 
+    def test_half_step_and_balance_evidence_are_separate(self):
+        from wayricad_runtime.transient_review import numerical_evidence
+        result = dict(times_s=[0., 1.], loads=[dict(id='U1', voltage_V=[3.3, 3.1],
+                      requested_current_A=[0., 1.])], checks=dict(balance_status='PASSED',
+                      time_refinement=dict(max_load_voltage_difference_V=.00125)))
+        evidence = dict(numerical_evidence(result))
+        self.assertEqual(evidence['Energy and charge balance'], 'PASSED')
+        self.assertEqual(evidence['Half-step energy and charge balance'], 'Unavailable')
+        self.assertEqual(evidence['Maximum load-voltage change at half step'], '1.25 mV')
+        self.assertIn('1.25 mV', review_html({'transient': result}))
+
     def test_unspecified_limits_are_not_a_pass_and_statistics_are_exact(self):
         result = thermal_bundle()['transient']; original = copy.deepcopy(result)
         result['components'][0]['limit_c'] = None

@@ -49,9 +49,10 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
 
 
 from .saved_refresh import SavedRefreshMixin
+from .route_watch import RouteWatchMixin
 
 
-class TraceFrame(SavedRefreshMixin, wx.Frame):
+class TraceFrame(SavedRefreshMixin, RouteWatchMixin, wx.Frame):
     def __init__(self, parent: Any, board: Any, saved_board: bool = False) -> None:
         super().__init__(parent, title="WayriCAD Trace RLC / Impedance Analyzer", size=(1180, 760), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((940, 650))
@@ -67,6 +68,8 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         self.selection_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.on_selection_timer, self.selection_timer)
         self._build_ui()
+        if self.saved_board:
+            self.init_route_watch()
         self._load_nets()
         self._load_stackup()
         self._terminal_changed()
@@ -84,7 +87,7 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         self.workflow = add_workflow(panel, root, "Trace RLC / Impedance Analyzer", "Choose a route and stackup context, preview measured geometry, then export the engineering estimate.", ("Configure path", "Review result", "Export"), help_handler=lambda event:open_help(self))
         if self.saved_board:
-            banner = wx.StaticText(panel, label="Saved PCB · Saving in KiCad refreshes the geometry and clears previous results.")
+            banner = wx.StaticText(panel, label="Saved PCB for manual analysis · Live path analysis uses the originating editor.")
             root.Add(banner, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self.workspace_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.workspace_splitter.SetMinimumPaneSize(self.FromDIP(130));self.workspace_splitter.SetSashGravity(0.)
@@ -165,8 +168,15 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         self.protocol_button.Bind(wx.EVT_BUTTON,self.open_protocols)
         row = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(self.protocol_button,0,wx.ALL,5);row.Add(self.bulk_button, 0, wx.ALL, 5); row.Add(self.measure_button, 0, wx.ALL, 5); row.Add(export, 0, wx.ALL, 5); row.Add(more, 0, wx.ALL, 5)
+        if self.saved_board:
+            self.watch_path = wx.CheckBox(panel, label="Live path analysis")
+            self.watch_path.SetToolTip("Repeat the same path analysis in the background when its net or mate changes in the originating editor.")
+            row.Insert(0, self.watch_path, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         self.measure_button.SetDefault()
         root.Add(row, 0, wx.ALIGN_RIGHT)
+        if self.saved_board:
+            self.watch_status = wx.StaticText(panel, label="")
+            root.Add(self.watch_status, 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         self.summary = wx.StaticText(panel, label="Select a net and optional start/end pads.")
         root.Add(self.summary, 0, wx.EXPAND | wx.ALL, 8)
         notebook = wx.Notebook(self.workspace_splitter)
@@ -280,14 +290,21 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         if self.mode.GetSelection() == 1:
             self.summary.SetLabel(f"{len(pads)} terminals touch this filled island. R/L uses the assumed current width; C uses reference overlap.")
 
-    def _invalidate(self, _event: Any) -> None:
+    def _invalidate(self, _event: Any, *, keep_watch: bool = False) -> None:
         self.export_button.Disable()
+        if self.saved_board and self.watch_request is not None and not keep_watch:
+            if self.source_dirty:
+                return  # Snapshot reload restores and revalidates the exact watched setup.
+            self.stop_watching_path("Settings changed. Enable live path analysis again to watch this setup.")
+        if self.saved_board:
+            self.watch_evidence = None
         if self.current is None:
             return
         self.current = self.mate_result = None
         self.table.DeleteAllItems(); self.sections.DeleteAllItems(); self.model_table.DeleteAllItems()
         self.notes.Clear()
         self.route_preview.show_measurement(None)
+        self.route_preview.board = self.board
         self.sweep_canvas.curve = []; self.sweep_canvas.marker = None
         self.sweep_canvas.Refresh()
         self.frequency_panel.set_path(None)
@@ -329,8 +346,7 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
             self.start.Clear()
             self.end.Clear()
             self.zone_layer.Clear()
-            self._invalidate(None)
-            self.measure_button.Disable()
+            self._terminal_changed()
 
     def _load_stackup(self, _event: Any = None) -> None:
         previous_reference = self.reference.GetValue()
@@ -390,6 +406,9 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         return "" if (not value or value == "<none>" or value == self.net.GetValue()) else value
 
     def analyze(self, _event: Any) -> None:
+        if self.saved_board and self.watch_request is not None:
+            self.run_watched_path()
+            return
         try:
             self.check_source()
             frequency = float(self.frequency.GetValue())
@@ -502,12 +521,13 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         count = select_items(self.board, targets)
         self.summary.SetLabel(f"Selected {count} pads/tracks on {net_name} in PCB Editor.")
 
-    def _show(self, result: PathMeasurement) -> None:
+    def _show(self, result: PathMeasurement, *, fit_view: bool = True) -> None:
         from .via_feedback import via_notes
         for note in via_notes(result):
             if note not in result.notes:result.notes.append(note)
-        self.export_button.Enable()
-        self.frequency_panel.set_path(result.as_report())
+        from_saved_board = not (self.saved_board and self.watch_evidence is not None)
+        self.export_button.Enable(from_saved_board)
+        self.frequency_panel.set_path(result.as_report(), allow_export=from_saved_board)
         self.table.DeleteAllItems()
         for key, value in result.as_dict().items():
             index = self.table.InsertItem(self.table.GetItemCount(), key); self.table.SetItem(index, 1, str(value))
@@ -523,7 +543,7 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
                 self.sections.SetItem(index, column, value)
         index = self.zone_layer.GetSelection()
         selected_zone = self.zone_options[index] if self.mode.GetSelection() == 1 and index != wx.NOT_FOUND else None
-        self.route_preview.show_measurement(result, self.mate_result, selected_zone)
+        self.route_preview.show_measurement(result, self.mate_result, selected_zone, fit_view=fit_view)
         if self.saved_board and self.auto_refresh.GetValue():
             self.follow_selection(self.selection_follower.state.last or ())
         if self.mate_result:
@@ -624,11 +644,7 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
 
     def _terminal_changed(self, _event=None):
         self._invalidate(None)
-        a, b = self.start.GetValue(), self.end.GetValue()
-        zone = self.mode.GetSelection() == 1
-        self.measure_button.Enable(bool(not self.source_dirty and a and b and a != b
-            and self.reference.GetValue() and (zone or self.diff_net.GetValue())
-            and (not zone or self.zone_layer.GetSelection() != wx.NOT_FOUND)))
+        self.update_watch_controls()
 
     def _apply_pcb_selection(self, identifiers):
         net, pads = saved_pick(self.board, identifiers, route=True)
@@ -682,6 +698,8 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
         self.selection_timer.Stop()
         self.selection_worker.close()
         if self.saved_board:
+            self.route_watch.stop()
+            self.watch_worker.close()
             self.source_refresh.stop()
             self.selection_follower.stop()
             self.refresh_worker.close()
@@ -705,6 +723,8 @@ class TraceFrame(SavedRefreshMixin, wx.Frame):
                 if self.current is None:
                     raise ValueError("The result was cleared. Analyze the refreshed PCB before exporting.")
                 row = self.current.as_dict()
+                if self.saved_board and self.watch_evidence is not None:
+                    raise ValueError("Save the board, turn off live path analysis and click Analyze before exporting.")
                 evidence = provenance(self.board)
                 if evidence is not None:
                     row['saved_board_provenance'] = json.dumps(evidence, sort_keys=True)
@@ -779,7 +799,7 @@ class RoutePreview(PanZoomCanvas):
         except Exception:
             return str(number)
 
-    def show_measurement(self, result, mate=None, selected_zone=None) -> None:
+    def show_measurement(self, result, mate=None, selected_zone=None, *, fit_view=True) -> None:
         self.measurement = result
         self.selected_uuid=None
         self.followed_ids=frozenset()
@@ -860,7 +880,7 @@ class RoutePreview(PanZoomCanvas):
         picks += [dict(x=point[0],y=point[1],r=max(width,.3),data=('section',str(item.m_Uuid.AsString())),marker=False) for point,width,drill,layer,item in self.vias]
         self.set_picks(picks)
         self.Refresh()
-        if self.scene_bounds():
+        if fit_view and self.scene_bounds():
             self.fit()
 
     def scene_bounds(self):

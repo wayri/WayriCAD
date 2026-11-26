@@ -17,11 +17,18 @@ Describe a check or simulation in plain English. The Assistant uses local fuzzy 
 2. Type a question in the chat. Use **Up** and **Down** to highlight a suggestion and **Tab** to insert it. A double-click also inserts it. Quoted hierarchical net names retain their spaces.
 3. Review the plan and assumptions in **Plan & inputs**. Use **Edit inputs** to correct the populated settings. Reply to questions in chat, or enter missing inputs in the form. Drag the divider to give the lower pane more room.
 4. For a simulation, click **Run plan** or type **run** after the plan is ready. Simple read-only checks can run immediately when **Auto-run simple checks** is enabled.
-5. Read the result in chat and open files under **Results & reports**. Use **Board selection** to highlight saved copper and navigate to the originating PCB Editor.
+5. Read the result in chat or inspect the report directly under **Results & reports**. Use **Board selection** to highlight saved copper and navigate to the originating PCB Editor.
 
 Try **Quick PI voltage drop at 3.3 V from J1.1 to U1.1 with 250 mA**, **Quick SI route delay at 100 MHz from J1.1 to U1.1, rise time 1 ns, driver 25 ohms**, or **Thermal board heat map with U1 at 0.5 W and ambient 25 C**. Replace the references with pads or parts on your board.
 
-The Assistant can use a unique shared pad net and resolve a component to a unique pad on the selected net. Duplicate sheet-local names and multiple matching pads require a choice. It asks for physical operating conditions such as load current, temperature, or driver rise time. For coupled or advanced models, supply the reviewed native study JSON.
+The Assistant can use a unique shared net and rank net-matching part and pad completions. Ask **Which pins on J1 and U1 are on VBUS?** to see the saved connectivity and possible groups, or **Which nets connect J1 and U1?** to inspect their common nets. Design questions about decoupling, return paths, thermal setup and antenna feeds get local study guidance. Ambiguous nets and electrical inputs need review.
+
+### Connector pad groups and multiple loads
+
+1. Ask **Run PI on VBUS from J1 to U1 and U2 with each drawing 400 mA and input voltage 5 V**. Replace the references and net with names from your saved board.
+2. Review the same-net pad choices for each part. Reply **J1.2 to U1 pins 1, 2 and 6 and same pins for U2**, or choose and edit the proposed groups in **Plan & inputs**. The reply updates the original plan and keeps its voltage and demand.
+3. Review the exact loads before running. A group uses **+** between its pads, and **|** separates separate loads. For two groups on one connector, enter **J2.1+J2.2 @ 500 mA | J2.3+J2.4 @ 250 mA**. The current is the total for each group. The study verifies membership in one saved net and rejects overlapping pads.
+4. Click **Run plan** to solve all groups in a single rail calculation. Use the reviewed native study file for shared-return groups or other advanced settings.
 
 ## What it can do
 
@@ -70,12 +77,13 @@ The model limits of the underlying tool still apply. A generated report is evide
 
 ## Results in the window
 
-In **Results & reports**, select an output and toggle **Preview selected report**.
-The Assistant shows HTML summaries and tables, the first supported plot,
-routing drawings, and tables from JSON or CSV. AC two-port and planar PDN
-previews include complex impedance samples. DC requests with return nets show
-the solved outgoing rail and a separate return geometry review. Use **Open selected report** for large outputs,
-PDFs, interactive graphs, and complete result data.
+**Results & reports** opens a supported result inside the Assistant. Select a
+different output from the report list and drag the divider to resize the view.
+The embedded WebView shows local summaries, tables, supported plots and
+drawings. Platforms without WebView use a native HTML and image preview.
+Use **Run log** for tool messages and **Open full report** for interactive
+plots, PDFs and complete result data. The embedded view keeps report scripts
+and external requests disabled.
 
 ![Native Assistant chat showing a completed Quick PI run](help-assistant.png)
 

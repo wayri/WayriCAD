@@ -63,7 +63,8 @@ class AssistantBackendBundleTests(unittest.TestCase):
             plugin.mkdir()
             (plugin / 'metadata.json').write_text(json.dumps({'versions': [{'version': '1.2.3'}]}))
             (plugin / '__init__.py').write_text('raise RuntimeError("must not register actions")')
-            for name in ('cli.py', 'help.html', 'LICENSE.thirdparty', 'test_points/fixture.py',
+            for name in ('cli.py', 'plugin.json', 'help.html', 'LICENSE.thirdparty',
+                         'test_points/fixture.py',
                          'tests/test_hidden.py', '.private/token.txt', '__pycache__/cached.pyc',
                          '.env', 'build.log'):
                 source = plugin / name
@@ -72,17 +73,28 @@ class AssistantBackendBundleTests(unittest.TestCase):
             assistant = root / 'suite_assistant_plugin'
             assistant.mkdir()
             (assistant / 'metadata.json').write_text('{}')
+            (plugin / 'worker.py').write_text(
+                'import sys\nfrom pathlib import Path\n'
+                'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n'
+                'from wayricad_runtime import PAYLOAD\n'
+                'assert PAYLOAD == "private runtime"\n', encoding='utf-8')
             target = root / 'assistant.zip'
             with zipfile.ZipFile(target, 'w') as archive:
                 bundle_assistant_backends(archive, root)
-            prefix = 'plugins/_suite/sample_backend_plugin/'
+                archive.writestr('plugins/wayricad_runtime/__init__.py', 'PAYLOAD = "private runtime"\n')
+            prefix = 'plugins/sample_backend_plugin/'
             with zipfile.ZipFile(target) as archive:
                 names = archive.namelist()
-                for name in ('cli.py', 'help.html', 'LICENSE', 'LICENSE.thirdparty', 'test_points/fixture.py'):
+                for name in ('cli.py', 'worker.py', 'help.html', 'LICENSE', 'LICENSE.thirdparty', 'test_points/fixture.py'):
                     self.assertIn(prefix + name, names)
                 self.assertFalse(any('/tests/' in name or '/.private/' in name or
                                      name.endswith(('.pyc', '.env', '.log')) for name in names))
                 self.assertFalse(any('/suite_assistant_plugin/' in name for name in names))
+                self.assertNotIn(prefix + 'plugin.json', names)
                 archive.extractall(root / 'installed')
             initializer = root / 'installed' / prefix / '__init__.py'
             self.assertEqual(runpy.run_path(str(initializer))['__version__'], '1.2.3')
+            completed = subprocess.run(
+                [sys.executable, '-I', '-B', str(initializer.with_name('worker.py'))],
+                cwd=root, capture_output=True, text=True, timeout=15)
+            self.assertEqual(completed.returncode, 0, completed.stderr)

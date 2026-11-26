@@ -45,13 +45,12 @@ def set_feedback_value(study, path, value):
 
 def initial_studies(electrical, terminals=()):
     from .transient_inputs import initial_study
+    from .joule_setup import coupling_defaults
     steady = {'electrical': copy.deepcopy(electrical),
         'thermal_settings': {'ambient_c': 20., 'dielectric_k_w_mk': None,
             'copper_k_w_mk': 385., 'via_plating_mm': electrical.get('plating_mm', .025),
             'grid_cells_long_axis': 48, 'board_h_w_m2k': None, 'board_emissivity': None},
-        'coupling': {'material_temperature_range_c': [-40., 150.], 'temperature_cap_c': 105.,
-            'max_iterations': 60, 'relaxation': .5, 'temperature_tolerance_c': .01,
-            'loss_relative_tolerance': 1e-5}}
+        'coupling': coupling_defaults()}
     for key in ('action', 'board_path', 'source_sha256'):
         steady['electrical'].pop(key, None)
     transient = initial_study(electrical, terminals)
@@ -113,9 +112,11 @@ class ElectrothermalStudyDialog(wx.Dialog):
         if steady_only:
             self.guided=wx.ScrolledWindow(self.book,style=wx.VSCROLL); self.guided.SetScrollRate(0,14)
             guided_layout=wx.BoxSizer(wx.VERTICAL)
-            heading=wx.StaticText(self.guided,label='1 · Review materials and cooling   2 · Run coupled PI   3 · Check convergence')
+            heading=wx.StaticText(self.guided,label='Materials and cooling')
             guided_layout.Add(heading,0,wx.EXPAND|wx.ALL,12)
-            message=wx.StaticText(self.guided,label='The selected net, source and loads are carried over. Fill the physical inputs below; blank means unknown. DC copper loss is already I²R. This study additionally updates resistance from the calculated temperature.')
+            explanation='The selected net, source and loads are carried over. Review and adjust the physical inputs here.'
+            assumptions=initial['steady'].get('assumptions',[])
+            message=wx.StaticText(self.guided,label=' '.join([explanation,*assumptions]))
             message.Wrap(940);guided_layout.Add(message,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,12)
             electrical=initial['steady'].get('electrical',{})
             source=electrical.get('source_terminals') or [electrical.get('source_terminal','Not selected')]

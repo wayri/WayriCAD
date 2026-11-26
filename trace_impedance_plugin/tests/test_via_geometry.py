@@ -129,6 +129,10 @@ class ViaGeometryTests(unittest.TestCase):
         self.assertEqual(result.as_dict()['C (pF)'],'Unavailable')
         self.assertIsNone(path['segments'][0]['return_loop_inductance_nh'])
         self.assertEqual(sweep(path,points=2)['status'],'PARTIAL')
+        handoff = path['circuit_handoff']
+        self.assertEqual(handoff['status'], 'REVIEW_REQUIRED')
+        self.assertIn('inductance_nh', handoff['incomplete_quantities'])
+        self.assertIn('VIA_DISCONTINUITY_UNMODELED', handoff['blocker_codes'])
 
     def test_sweep_withholds_reactance_when_modeled_tracks_have_an_unresolved_transition(self):
         tracks=[dict(kind='track',width_mm=.2,copper_thickness_mm=.035,length_mm=1,
