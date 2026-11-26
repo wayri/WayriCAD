@@ -10,8 +10,8 @@ def test_series_results_show_numerical_summary_both_banks_and_every_current_pin(
     electrical['result'].update(voltage_drop_V=.3166666666666666,total_power_W=.6333333333333332)
     row=dict(name='Full path',status='COMPLETED',electrical=electrical);before=deepcopy(row)
     text=case_result_text(row)
-    for value in ('Full path · COMPLETED','Source voltage: 3.3 V','Load current: 2 A',
-            'Load voltage: 2.98333 V','Path drop: 0.316667 V','Total loss: 0.633333 W',
+    for value in ('Full path · COMPLETED','Source voltage: 100% (3.3 V)','Load current: 2 A',
+            'Load voltage: 90.404% (2.98333 V)','Path drop: 9.596% (316.667 mV)','Total loss: 0.633333 W',
             'VIN [copper]','MID [copper]','OUT [copper]',
             'Q1 || Q2 [parallel_stage]','Q3 || Q4 [parallel_stage]',
             'Q1: Vin','Q2: Vin','I 1.33333 A','I 0.666667 A'):
@@ -31,8 +31,12 @@ def test_nonseries_multiload_results_keep_total_and_individual_load_metrics():
     text=case_result_text(row)
     assert 'Rail · COMPLETED' in text and 'Load current: 3 A' in text
     assert 'Load voltage: Unavailable' in text and 'Path drop: Unavailable' in text
-    assert 'Load U1.1 · Current: 1 A · Voltage: 4.95 V · Drop: 0.05 V' in text
-    assert 'Load U2.1 · Current: 2 A · Voltage: 4.96 V · Drop: 0.04 V' in text
+    assert 'Load U1.1 · Current: 1 A · Voltage: 99% (4.95 V) · Drop: 1% (50 mV)' in text
+    assert 'Load U2.1 · Current: 2 A · Voltage: 99.2% (4.96 V) · Drop: 0.8% (40 mV)' in text
+    row['electrical']['request'] = {'voltage_tolerance_pct': 5}
+    relative = case_result_text(row)
+    assert 'Load U1.1 · Current: 1 A · Voltage: 99% · Drop: 1%' in relative
+    assert '4.95 V' not in relative and '50 mV' not in relative
 
 
 def test_missing_nonfinite_or_boolean_metrics_are_not_replaced_with_inputs_or_zero():
@@ -52,6 +56,6 @@ def test_failures_remain_visible_and_return_loop_uses_its_own_delivered_voltage(
         source_voltage_V=3.3,sink_current_A=2.,sink_voltage_V=3.2,voltage_drop_V=.1,total_power_W=.2)),
         loop=dict(delivered_load_voltage_V=3.15,total_drop_V=.15,total_loss_W=.3))
     text=case_result_text(row)
-    assert 'Returned rail · INFEASIBLE' in text and 'Load voltage: 3.2 V' in text
-    assert 'Delivered load voltage: 3.15 V' in text
-    assert 'Total loop drop: 0.15 V' in text and 'Total loop loss: 0.3 W' in text
+    assert 'Returned rail · INFEASIBLE' in text and 'Load voltage: 96.97% (3.2 V)' in text
+    assert 'Delivered load voltage: 95.455% (3.15 V)' in text
+    assert 'Total loop drop: 4.5455% (150 mV)' in text and 'Total loop loss: 0.3 W' in text

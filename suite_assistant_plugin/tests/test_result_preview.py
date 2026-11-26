@@ -8,7 +8,9 @@ from suite_assistant_plugin import result_preview
 
 class ResultPreviewTests(unittest.TestCase):
     def setUp(self):
-        self.directory = self.enterContext(TemporaryDirectory())
+        temporary = TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.directory = temporary.name
 
     def preview(self, filename, data):
         path = Path(self.directory) / filename

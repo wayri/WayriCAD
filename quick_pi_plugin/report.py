@@ -940,6 +940,8 @@ def _report_snapshot(bundle,layer,metric,style):
         return '<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>'
     finally:
         stream.close();figure.clear()
+        # Matplotlib axes retain the parent figure after it is cleared.
+        axis = None
         del figure
         gc.collect()
 

@@ -151,7 +151,7 @@ class AssistantActionsTests(unittest.TestCase):
                                        '--result-file',str(result),'--report-file',str(html),
                                        '--research-solver','PARDISO','--research-threads','4']),0)
             request = run.call_args.args[0]
-            self.assertEqual(report.call_args.args, (html, run.return_value))
+            self.assertEqual(report.call_args.args, (html.resolve(), run.return_value))
             record = json.loads(request.read_text(encoding='utf-8'))
             self.assertEqual(record['source'],backend.source_identity(board))
             self.assertEqual(record['config_sha256'],backend.config_digest(record['config']))

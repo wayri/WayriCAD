@@ -25,9 +25,18 @@ class CurrentPreviewTests(unittest.TestCase):
         self.assertAlmostEqual(b['loss'],4*a['loss'])
         self.assertAlmostEqual(b['melt'],4*a['melt'])
         pending=comparison(before,None,'density',('sheet',0),all_fields=True,pending_current=3.)
-        self.assertEqual(len(pending),10)
+        self.assertEqual(len(pending),12)
+        by_key={row['key']:row for row in pending}
+        self.assertEqual(by_key['voltage_pct']['unit'],'%')
+        self.assertEqual(by_key['drop_pct']['unit'],'%')
+        self.assertAlmostEqual(by_key['voltage_pct']['before'],100*a['voltage'])
+        self.assertAlmostEqual(by_key['drop_pct']['before'],.1*a['drop'])
         self.assertEqual(pending[0]['after'],3.)
         self.assertTrue(all(row['after'] is None for row in pending[1:]))
+        before['request']['voltage_tolerance_pct']=5.
+        relative=comparison(before,after,'drop',('sheet',0))
+        self.assertEqual(relative[1]['key'],'drop_pct')
+        self.assertAlmostEqual(relative[1]['after'],.1*b['drop'])
 
     def test_projection_retains_known_sink_voltage_without_inventing_local_j(self):
         before,_=self.fixture()

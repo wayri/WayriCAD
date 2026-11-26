@@ -70,7 +70,8 @@ class ViewScopeTests(unittest.TestCase):
         axes=draw_view(figure,data,board_view=True,net_scope='Selected nets',visible_nets=['Analytical strip'],
                        dim_context=True,show_context=False)
         self.assertGreater(axes.dataLim.xmax,29)
-        self.assertTrue(any((patch.get_alpha() or 1)<.16 for patch in axes.patches))
+        copper={round(patch.get_path().get_extents().xmax):patch for patch in axes.patches}
+        self.assertLess(copper[30].get_alpha(),.5*copper[10].get_alpha())
         axes=draw_view(figure,data,board_view=True,net_scope='Selected nets',
                        visible_nets=['Analytical strip','GND'],show_context=False)
         self.assertGreater(axes.dataLim.xmax,29)
