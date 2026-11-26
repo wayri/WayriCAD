@@ -162,7 +162,13 @@ def load_track_chains(request, evidence, *, representative=False):
 
 def diagram_layout(tree):
     """Device-independent drawing commands; every parallel component gets a lane."""
+    from .series_power_tree import metric_text
+
     width, y, commands = 1100, 12, []
+    fanout = tree.get('schema') == 'rail-power-tree-1'
+    display = tree.get('display')
+    fanout_centers = []
+    branch_start = None
     palettes = {'source': ('#e2f1fc', '#2476a8'), 'copper': ('#fff2d5', '#ad7316'),
                 'load': ('#f1e8fb', '#7950a5'), 'sink': ('#f1e8fb', '#7950a5')}
     def text(x, top, value, size=13):
@@ -181,24 +187,41 @@ def diagram_layout(tree):
         line(557, bottom - 7, 550, bottom)
     def pins(values):
         return ', '.join(pin['label'] for pin in values) or 'Unknown'
-    text(30, y, 'Sequential power path · source to load', 18); y += 28
-    text(30, y, 'Blue: source   Amber: copper rail   Green: in-path devices   Violet: load', 12); y += 25
-    text(30, y, 'Reviewed series connectivity; return branches are not forward-path stages.', 12); y += 30
+    title = 'Solved rail · source and load groups' if fanout else 'Sequential power path · source to load'
+    y += text(30, y, title, 18) + 4
+    summary = tree.get('summary') or {}
+    if summary.get('input_power_W') is not None:
+        y += text(30, y, 'Whole path · ' + metric_text(summary, display), 13) + 4
+    if tree.get('solution_basis') == 'cold_baseline':
+        y += text(30, y, 'Cold reference · Joule heating stopped before convergence', 13) + 4
+    if tree.get('feasible') is False:
+        y += text(30, y, 'Requested-load diagnostic · operating constraints failed', 13) + 4
+    y += text(30, y, 'Blue: source   Amber: copper rail   Green: in-path devices   Violet: load', 12) + 7
+    if fanout:
+        y += text(30, y, 'Shared copper loss belongs to the rail. Each load group shows its own voltage, current and delivered power.', 12) + 12
+    else:
+        y += text(30, y, 'Reviewed series connectivity. Return branches are outside this forward path.', 12) + 12
     for number, node in enumerate(tree['nodes'], 1):
-        if number > 1:
+        load_branch = fanout and node['kind'] == 'load'
+        if load_branch:
+            if branch_start is None:
+                branch_start = y - 8
+            y += 14
+        elif number > 1:
             arrow(y, y + 18); y += 26
         if node['kind'] == 'parallel_stage':
             entry = y
             y += text(80, y, str(number) + '. ' + node['label'] + ' · parallel stage', 16) + 6
+            if node.get('current_A') is not None:
+                y += text(80, y, 'Stage total · ' + metric_text(node, display), 13)
             top = y
             line(550, entry, 550, top - 8)
             for part in node.get('parts', []):
                 start = y
                 y += text(160, y + 6, str(part['reference']) + ' · ' + _model(part), 15) + 6
                 y += text(160, y, 'Pins: ' + pins(part['incoming_pins']) + ' → ' + pins(part['outgoing_pins']))
-                metrics = _metric_text(part)
-                if metrics:
-                    y += text(160, y, metrics)
+                if part.get('current_A') is not None:
+                    y += text(160, y, metric_text(part, display))
                 y += 7
                 commands.append(dict(kind='rect', x=140, y=start, width=820, height=y-start,
                                      fill='#e3f4ec', stroke='#258265'))
@@ -215,15 +238,30 @@ def diagram_layout(tree):
             y += text(160, y, str(number) + '. ' + label, 16)
             if node.get('pins'):
                 y += text(160, y, 'Pins: ' + pins(node['pins']))
-            if node['kind'] == 'copper':
+            if node['kind'] == 'copper' and not fanout:
                 y += text(160, y, wire_length_summary(node), 12)
-            metrics = _metric_text(node)
-            if metrics:
-                y += text(160, y, metrics)
+            if load_branch and node.get('wire_lengths'):
+                length = node['wire_lengths'][0]['length_mm']
+                y += text(160, y, f'Representative planar track chain · {length:.6g} mm', 12)
+            if node.get('current_A') is not None:
+                y += text(160, y, metric_text(node, display))
+            if node.get('accounting_notice'):
+                y += text(160, y, node['accounting_notice'], 12)
             y += 12
+            if load_branch:
+                fanout_centers.append((start + y) / 2)
             fill, stroke = palettes.get(node['kind'], ('#e2f1fc', '#2476a8'))
             commands.append(dict(kind='rect', x=140, y=start, width=820, height=y-start,
                                  fill=fill, stroke=stroke))
+    if fanout_centers:
+        rail_exit = branch_start + 8
+        line(550, rail_exit, 550, rail_exit + 8)
+        line(550, rail_exit + 8, 100, rail_exit + 8)
+        line(100, rail_exit + 8, 100, fanout_centers[-1])
+        for middle in fanout_centers:
+            line(100, middle, 140, middle)
+            line(133, middle - 5, 140, middle)
+            line(133, middle + 5, 140, middle)
     return dict(width=width, height=y + 20, commands=commands)
 
 
@@ -263,18 +301,12 @@ def _model(part):
     return ' · '.join(value for value in (description, parameters) if value) or 'reviewed model'
 
 
-def _metric_text(row):
-    return ' · '.join(f'{label} {row[key]:.6g} {unit}' for key, label, unit in
-        (('voltage_V', 'V', 'V'), ('voltage_before_V', 'Vin', 'V'), ('voltage_after_V', 'Vout', 'V'),
-         ('current_A', 'I', 'A'), ('voltage_drop_V', 'drop', 'V'), ('loss_W', 'loss', 'W'))
-        if row.get(key) is not None)
-
-
 def diagram_svg(tree):
     """Export the same complete schematic as the native scrollable canvas."""
     layout = diagram_layout(tree)
     output = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{layout["width"]}" height="{layout["height"]}" '
-              f'viewBox="0 0 {layout["width"]} {layout["height"]}" role="img" aria-label="Reviewed series path diagram">',
+              f'viewBox="0 0 {layout["width"]} {layout["height"]}" style="max-width:100%;height:auto" '
+              'role="img" aria-label="Power path diagram with electrical results">',
               '<rect width="100%" height="100%" fill="white"/>']
     # Draw wires and boxes behind labels, including all parallel branch lanes.
     for command in sorted(layout['commands'], key=lambda c: c['kind'] == 'text'):

@@ -7,7 +7,19 @@ required input has not been supplied. Load a study JSON to use a reviewed model.
 Changing inputs clears accepted results and exports. Cancellation discards partial
 results. The original PCB is read-only.
 
-## Steady saved-board coupling
+## One-click steady heating
+
+Enable **Include Joule heating**, choose **2.5D** or **3D**, and click **Run**.
+Quick PI uses the saved board geometry and the selected prescribed-current
+path. The initial estimate uses generic FR-4, copper and effective air
+cooling. Under **Mesh & material** you can set ambient, laminate conductivity,
+effective convection, emissivity and the temperature stop. The results include
+the assumptions, the ambient-temperature reference and the convergence status.
+In 3D, the copper FEM exchanges heat with a board-layer thermal model. It
+shows the estimated temperature on the 3D copper along with voltage, current
+density and losses.
+
+## Advanced 2.5D saved-board coupling
 
 Supply dielectric thermal conductivity (W/m/K), copper conductivity (W/m/K), via
 plating (mm), ambient (C), board convection coefficient (W/m2/K), emissivity and
@@ -20,9 +32,11 @@ barrels. It rejects unplated drilled holes, plated slots and backdrills. The
 uniform-grid approximation does not resolve plated drill-core air cavities;
 barrel conduction uses its declared annular plating model. Use standalone
 QuickTherm's advanced board model when drilled-void geometry matters. It does not include the newer
-standalone QuickTherm advanced geometry/solver features, nor Quick PI's 3D copper
-model, voltage-driven resistive loads or current sweeps. Saved-board coupling
-uses the 2.5D prescribed-current source and sink selections.
+standalone QuickTherm advanced geometry or solver features. The advanced JSON
+workflow uses 2.5D prescribed-current selections. For 3D, select the source pad group,
+set a prescribed current for each independent load group under **Additional
+sinks**, enable Joule heating, and click **Run**. Group contacts may share a
+connector but each pad belongs to just one electrical unit.
 
 The model transfers integrated planar/via/explicit branch watts onto overlapping
 thermal cells on the matching layer. Via segment losses use an explicit uniform
@@ -47,6 +61,35 @@ block the solve. Unsupported narrow source/grid coverage or subcell cutout
 connections require grid refinement. Thermal properties/contact geometry and
 convection/radiation remain approximate; conductor and junction temperatures are
 distinct. No CFD, melting, fuse-opening or measured-board accuracy is claimed.
+
+## Steady 3D copper feedback
+
+The existing tetrahedral electrical solve supplies integrated watts per copper
+element. Its centroid projects to an in-plane thermal cell. Interlayer losses
+are shared between adjacent copper layers. Temperatures sampled with the same
+weights update individual element resistivities. The result reports cold
+and hot electrical quantities, convergence and energy checks. The reported
+element temperatures reflect the thermal grid and should be checked under
+mesh refinement. The grid masks saved unplated drill voids and slotted drills
+and blocks lateral links crossing their contours. Axial heat conduction in
+plated slots uses the capsule perimeter and declared plating. Electrical 3D
+still requires circular plated holes on the analyzed net.
+
+Use **Power tree** in the 3D result to review each load group's voltage,
+current and delivered power. The board-copper block shows aggregate path loss.
+The model shares copper between loads and therefore reports this loss once.
+
+### Marble grouped-current check
+
+A disposable copy of the public Marble PCB solved net `Net-(C143-Pad1)` at
+a prescribed 1.2 V from grouped pads `U36.18` and `U36.19`. The separate
+load units were `L16.1 + C143.1` at 160 mA and `TP4.1` at 40 mA. Their hot
+drops were 0.0792 mV and 2.3448 mV. Total modeled copper loss was 0.10646 mW.
+The run used a 0.8 mm electrical mesh edge, 33,238 tetrahedra, and a 32-cell
+thermal grid along the longest board dimension. Heat-balance residual was
+below 2e-14 W and source current residual was below 1e-10 A. The copied PCB
+hash matched the original before and after. The prescribed loads and cooling
+settings are a solver check.
 
 ## Lumped transient coupling
 

@@ -154,6 +154,20 @@ renames. A deleted or ambiguous endpoint stays empty. Review the selected
 zone island, reference layer and differential mate after a refill or layer change,
 then run **Analyze**. Frequency and corridor width stay as entered.
 
+Enable **Live path analysis** after choosing a net, two endpoint pads, frequency,
+and reference layer. In PCB Editor sessions with live geometry support, the
+analyzer takes a read-only copy from the originating editor and runs the same
+path analysis in the background after its net or differential mate settles.
+Unsaved routing edits are included. Selection changes and edits on other nets
+do not trigger a run. Saved project or custom rule changes trigger a refresh.
+Changing the analysis setup stops the watch. Re-enable it to analyze the new
+setup. Check the status while a new result is pending. To export CSV, save the
+PCB, turn off live analysis and run **Analyze** on the saved board.
+
+Use manual **Analyze** for zone/plane islands, bundle scans, protocol discovery,
+and standalone sessions. Rerun manually when editing return copper on other
+nets, and refill copper zones in KiCad before relying on their coverage.
+
 Enable **Follow PCB selection** to highlight selected tracks, vias, pads and zones
 in the current route preview. Double-click a section row to select and zoom to
 its exact copper item in the launching editor. Use **Use PCB selection** to

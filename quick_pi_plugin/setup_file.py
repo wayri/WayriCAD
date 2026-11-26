@@ -23,15 +23,22 @@ def capture(frame):
         endpoints=endpoints,return_nets=frame._return_selected_nets(),return_pads=returns,
         extra_sinks=frame._extra_sinks,series_request=frame._series_request,
         package_conduction=frame._package_conduction,
+        joule_options={key:control.GetValue() for key,control in getattr(frame,'joule_options',{}).items()},
         series_draft=getattr(frame,'_series_draft',None),
         primary_sink_pads=list(getattr(frame,'_primary_sink_pads',())),**presentation))
 
 
 def validate(frame,state):
     required={'controls','net','endpoints','return_nets','return_pads','extra_sinks','series_request','package_conduction'}
-    if not isinstance(state,dict) or not required.issubset(state) or set(state)-required-{'series_draft','voltage_display','primary_sink_pads'}:
+    if not isinstance(state,dict) or not required.issubset(state) or set(state)-required-{'series_draft','voltage_display','primary_sink_pads','joule_options'}:
         raise ValueError('Incomplete Quick PI setup.')
     validate_controls(frame,state['controls'],**OPTIONS)
+    if 'joule_options' in state:
+        from .joule_setup import OPTION_FIELDS
+        settings=state['joule_options']
+        if (not isinstance(settings,dict) or set(settings)-OPTION_FIELDS.keys() or
+                any(not isinstance(value,str) or len(value)>100 for value in settings.values())):
+            raise ValueError('Invalid Joule screening setup.')
     if 'voltage_display' in state:
         display=state['voltage_display']
         if (not isinstance(display,dict) or set(display)!={'tolerance_pct','show_exact'} or
@@ -122,6 +129,12 @@ def restore(frame,state):
     frame.net.Set(frame.inventory.get('nets',[]));frame.net.SetValue(state['net'])
     frame._set_terminals()
     restore_controls(frame,state['controls'])
+    if getattr(frame,'joule_options',None):
+        from .joule_setup import preset_values
+        presets=preset_values()
+        values=state.get('joule_options',{})
+        for key,control in frame.joule_options.items():
+            control.ChangeValue(values.get(key,str(presets[key])))
     if hasattr(frame,'voltage_tolerance'):
         display=state.get('voltage_display',{})
         frame.voltage_tolerance.ChangeValue(display.get('tolerance_pct',''))

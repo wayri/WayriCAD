@@ -416,41 +416,14 @@ def solve(mesh, source_nodes, sink_nodes=None, source_voltage=1.0,
             'inductive_voltage_drop_V':0. if connected else None})
     component_loss=sum(c['power_W'] or 0 for c in component_results)
     loss = conductor_loss+component_loss
-    sink_results = []
-    for spec, sink in zip(sink_specs, sink_groups):
-        sink_drop = float(-voltage_offset[spec['nodes'][0]])
-        voltage = source_voltage - sink_drop
-        maximum = spec['max_voltage_V']
-        minimum_tolerance = 1e-12 * max(abs(voltage), abs(spec['min_voltage_V']))
-        maximum_tolerance = None if maximum is None else 1e-12 * max(abs(voltage), abs(maximum))
-        sink_results.append({key: spec[key] for key in ('id', 'label', 'current_A', 'min_voltage_V', 'max_voltage_V')})
-        sink_results[-1].update(voltage_V=voltage, voltage_drop_V=sink_drop,
-                                voltage_limit_tolerances_V={'minimum':minimum_tolerance,'maximum':maximum_tolerance},
-                                within_voltage_limits=voltage >= spec['min_voltage_V'] - minimum_tolerance and
-                                (maximum is None or voltage <= maximum + maximum_tolerance))
+    from .load_results import fixed_current_results
+    sink_results, feasibility = fixed_current_results(
+        sink_specs, (-voltage_offset[spec['nodes'][0]] for spec in sink_specs),
+        source_voltage, sink_current, source_current_limit)
     drop = max(row['voltage_drop_V'] for row in sink_results)
     terminal_loss = math.fsum(row['current_A'] * row['voltage_drop_V'] for row in sink_results)
     energy_error = abs(loss-terminal_loss)/max(abs(terminal_loss), 1e-30)
     if (terminal_loss <= 0 and not (shared_return_contacts and terminal_loss == 0 and loss == 0)) or energy_error > 1e-6: raise SolverError('FEM energy balance failed; inspect mesh conditioning.')
-
-    over_limit = source_current_limit is not None and sink_current > source_current_limit and not math.isclose(
-        sink_current, source_current_limit, rel_tol=1e-12, abs_tol=0.)
-    violations = []
-    if over_limit:
-        violations.append(f'Required source current {sink_current:.9g} A exceeds its {source_current_limit:.9g} A limit.')
-    for row in sink_results:
-        if not row['within_voltage_limits']:
-            violations.append(f"Sink {row['label']} voltage {row['voltage_V']:.9g} V is outside its specified voltage limits.")
-    feasible = not violations
-    feasibility = {'status': 'FEASIBLE' if feasible else 'INFEASIBLE', 'feasible': feasible,
-        'source_current_limit_A': source_current_limit,
-        'source_current_headroom_A': None if source_current_limit is None else
-                                    (source_current_limit - sink_current if over_limit else max(0., source_current_limit - sink_current)),
-        'source_current_limit_exceeded': over_limit, 'violations': violations,
-        'operating_point_valid': feasible, 'basis': 'requested_constant_current_loads_at_source_voltage',
-        'notice': 'Feasibility covers the declared DC current budget and sink voltage windows only. '
-                  'An infeasible result is a requested-load diagnostic, not an attainable operating point. '
-                  'Current-limit foldback, load undervoltage response and return-path losses are not modeled.'}
 
     ambient = number(options.get('ambient_c', temperature), 'Ambient temperature')
     limit = number(options.get('temperature_limit_c', 150), 'Temperature limit')

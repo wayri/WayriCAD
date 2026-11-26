@@ -92,8 +92,11 @@ class BatchUITests(unittest.TestCase):
         calls=[]
         frame=NS(_closed=False,_closing=False,editor_refresh=NS(poll=lambda:None),
                  _viewport_snapshot_current=lambda:True,board_workflow=NS(live_edits=NS(GetValue=lambda:False)),
-                 joule_feedback=NS(GetValue=lambda:True),on_electrothermal=lambda **kw:calls.append(kw))
+                 joule_feedback=NS(GetValue=lambda:True),model_dimension=NS(GetSelection=lambda:0),
+                 on_electrothermal=lambda **kw:calls.append(kw),on_3d_analysis=lambda:calls.append('3d'))
         QuickPIFrame.on_run(frame);self.assertEqual(calls,[{'feedback':True}])
+        frame.model_dimension.GetSelection=lambda:1
+        QuickPIFrame.on_run(frame);self.assertEqual(calls,[{'feedback':True},'3d'])
         studies=feedback_studies(case()['electrical'])
         for key in ('ambient_c','copper_k_w_mk','dielectric_k_w_mk','board_h_w_m2k','board_emissivity'):
             self.assertIsNone(studies['steady']['thermal_settings'][key])

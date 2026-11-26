@@ -56,7 +56,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._run_after_refresh=False
         self._saved_watch_pending=False
         self._auto_run_armed=False
-        self._route_watch_attempted=None
+        self._watched_nets=()
+        self._background_analysis=False
         self._pin_cache=None
         self._pin_callouts={}
         self._primary_sink_pads=()
@@ -121,10 +122,11 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.auto_run.Hide()
         from .board_workflow_ui import BoardWorkflow
         self.board_workflow=BoardWorkflow(self,panel,toolbar)
-        from wayricad_runtime.selection_follow import SelectionFollower
-        self._route_watch=SelectionFollower(self,self.auto_run,self._read_route_stamp,
-            self._route_stamp_changed,self._route_watch_ready,
-            lambda error:self.status.SetLabel('Routing watch paused: '+str(error)),interval_ms=1800)
+        from wayricad_runtime.net_watch import NetWatch
+        self._route_watch=NetWatch(self,self._read_route_stamp,self._route_watch_ready,
+            self._route_stamp_changed,
+            lambda error:self.status.SetLabel('Waiting for KiCad before the next live check. '+str(error)),
+            interval_ms=1800)
         root.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,6)
         body=wx.BoxSizer(wx.HORIZONTAL)
         self.workspace_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
@@ -195,8 +197,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.package_button.Bind(wx.EVT_BUTTON,self.on_package_contacts)
         self.model_dimension=ReadableChoice(self.inputs,choices=['2.5D · layered copper','3D · copper volume']);self.model_dimension.SetSelection(0)
         field('Copper model',self.model_dimension)
-        self.joule_feedback=wx.CheckBox(self.inputs,label='Include Joule heating /\ntemperature feedback')
-        self.joule_feedback.SetToolTip('DC always calculates copper I²R losses. Check this to configure explicit materials, cooling boundaries and steady temperature-to-resistance feedback. Supported for 2.5D prescribed-current loads only.')
+        self.joule_feedback=wx.CheckBox(self.inputs,label='Include Joule heating')
+        self.joule_feedback.SetToolTip('Run steady temperature-to-resistance feedback with the selected 2.5D or 3D copper model. Review or adjust screening assumptions under Mesh & material.')
         controls.Add(self.joule_feedback,0,wx.EXPAND|wx.BOTTOM,6)
         self.joule_feedback.Bind(wx.EVT_CHECKBOX,self._invalidate)
         self.return_button=wx.Button(self.inputs,label='Return paths…')
@@ -218,6 +220,18 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.latent.SetToolTip('Copper heat of fusion, J/kg. Editable nominal pure-copper input; no cooling, arcing or clearing-time prediction.')
         for label,control in [('Mesh · mm',self.edge),('Via plating · mm',self.plating),('Copper · °C',self.temperature),('Initial / ambient · °C',self.ambient),('Pulse · s',self.pulse),('Limit · °C',self.limit),('Copper melt · °C',self.melting),('Latent heat · J/kg',self.latent),('3D cell budget',self.max_tetrahedra)]:
             grid.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL);control.SetMinSize((1,-1));grid.Add(control,0,wx.EXPAND)
+        from .joule_setup import OPTION_FIELDS,preset_values
+        presets=preset_values()
+        self.joule_options={}
+        labels=('Laminate W/(m·K)','Cooling W/(m²·K)','Emissivity','Heating stop °C')
+        for key,label in zip(OPTION_FIELDS,labels):
+            control=wx.TextCtrl(pane,value=str(presets[key]))
+            control.SetMinSize((1,-1))
+            control.SetToolTip('Joule heating only. Default is a screening assumption.')
+            control.Bind(wx.EVT_TEXT,self._invalidate)
+            grid.Add(wx.StaticText(pane,label=label),0,wx.ALIGN_CENTER_VERTICAL)
+            grid.Add(control,0,wx.EXPAND)
+            self.joule_options[key]=control
         self.material_defaults_button=wx.Button(pane,label='Populate defaults…')
         self.material_defaults_button.Bind(wx.EVT_BUTTON,self.on_material_defaults)
         grid.Add(wx.StaticText(pane,label='Starting assumptions'));grid.Add(self.material_defaults_button,0,wx.EXPAND)
@@ -292,7 +306,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         root.Add(footer,0,wx.EXPAND|wx.ALL,6);panel.SetSizer(root)
         self._controls=[self.joule_feedback,self.batch_button,self.net,self.source,self.sink,self.voltage,self.current,self.source_current_limit,self.voltage_tolerance,self.show_exact_voltages,self.sink_min_voltage,self.sink_max_voltage,self.loads_button,self.package_button,self.load_mode,self.model_dimension,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.melting,self.latent,self.max_tetrahedra,self.more,self.series_button,self.layer,self.metric,self.field_style,self.console_input]
         self.net.Bind(wx.EVT_COMBOBOX,self._net_changed);self.net_search.Bind(wx.EVT_TEXT,self._schedule_net_filter)
-        self._controls.extend([self.source_pins,self.sink_pins])
+        self._controls.extend([self.source_pins,self.sink_pins,*self.joule_options.values()])
         for control in (self.source,self.sink):control.Bind(wx.EVT_CHOICE,self._endpoint_changed)
         for control in (self.voltage,self.current,self.source_current_limit,self.voltage_tolerance,self.sink_min_voltage,self.sink_max_voltage,self.edge,self.plating,self.temperature,self.ambient,self.pulse,self.limit,self.melting,self.latent,self.max_tetrahedra):control.Bind(wx.EVT_TEXT,self._invalidate)
         self.load_mode.Bind(wx.EVT_CHOICE,self._invalidate);self.model_dimension.Bind(wx.EVT_CHOICE,self._model_changed)
@@ -630,16 +644,14 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             available={row['id'] for row in self._terminals}
             if any(not available.issuperset(pad_names(row)) for row in self._extra_sinks):
                 return False,'Some additional sink pads changed. Review Additional sinks before running.'
-        if volume and (self._extra_sinks or len(getattr(self,'_primary_sink_pads',()))>1):
-            return False,'3D supports one sink unit. Remove additional sinks, or use 2.5D.'
-        if volume and any(c.GetValue().strip() for c in (self.source_current_limit,self.sink_min_voltage,self.sink_max_voltage)):
-            return False,'3D does not evaluate voltage limits or source budgets. Clear these fields, or use 2.5D.'
         if self.joule_feedback.GetValue():
-            if volume or self.load_mode.GetSelection()!=0:
-                return False,'Joule temperature feedback needs 2.5D specified-current loads.'
+            if self.load_mode.GetSelection()!=0:
+                return False,'Joule temperature feedback needs specified-current loads.'
+            if self.board_workflow.live_edits.GetValue():
+                return False,'Save the PCB and turn off Use unsaved edits before running Joule heating.'
             if self._series_request or self._package_conduction or any('power_W' in row for row in self._extra_sinks):
                 return False,'Joule temperature feedback needs current loads on one copper net, without series or package-contact models.'
-            return True,'Ready. Run opens Materials + cooling.'
+            return True,'Ready. Run solves steady Joule heating using the selected copper model.'
         return True,'Ready. Run the reviewed source and loads.'
 
     def _build_inspector(self):
@@ -816,14 +828,17 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self._foreground():
             self._draw(preserve=True)
         self._buttons()
-        self.status.SetLabel('Saved PCB or rules changed. Copper and endpoints refresh when you return to Quick PI.')
+        self.status.SetLabel('Saved PCB or rules changed. Refreshing copper and endpoints.'
+                             if self._background_analysis else
+                             'Saved PCB or rules changed. Copper and endpoints refresh when you return to Quick PI.')
 
     def _foreground(self):
         return self.IsShownOnScreen() and not self.IsIconized() and self.IsActive()
 
     def _saved_refresh_ready(self):
+        background=self._background_analysis and self.IsShownOnScreen() and not self.IsIconized()
         return (not (self._busy or self._closed or self._closing)
-                and (self._run_after_refresh or self._foreground()))
+                and (self._run_after_refresh or background or self._foreground()))
 
     def _activated(self,event):
         if event.GetActive() and not (self._busy or self._closed or self._closing):
@@ -1638,6 +1653,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self.net.GetValue()!=current:self._net_changed()
 
     def _net_changed(self,event=None):
+        self._route_watch.disarm()
         self._auto_run_armed=False
         self._reset_live()
         self._input_revision=getattr(self,'_input_revision',0)+1
@@ -1650,6 +1666,8 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.status.SetLabel('Preview this net or run the analysis.')
 
     def _invalidate(self,event=None):
+        watch=getattr(self,'_route_watch',None)
+        if watch:watch.disarm()
         self._auto_run_armed=False
         if hasattr(self,'voltage_window'):self._update_voltage_window()
         if hasattr(self,'_reset_live'):self._reset_live()
@@ -1682,7 +1700,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self.model_dimension.GetSelection()==1:
             self.status.SetLabel('3D copper needs a specified sink current; switch Mode from resistive load before running.'
                                  if self.load_mode.GetSelection()!=0 else
-                                 '3D DC copper needs Gmsh in the private runtime, one net, two pads and a specified current. First setup may download Gmsh.')
+                                 '3D DC uses Gmsh, one net and prescribed-current pad groups. First setup may download Gmsh.')
         else:
             self.status.SetLabel('2.5D layered copper is the default model. Choose two pads and run the analysis.')
 
@@ -1697,32 +1715,47 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if self.board_workflow.live_edits.GetValue():
             self._run_unsaved_dc()
             return
-        if getattr(self,'joule_feedback',None) and self.joule_feedback.GetValue():
-            self.on_electrothermal(feedback=True);return
-        if self.model_dimension.GetSelection()==1:self.on_3d_analysis()
+        if self.model_dimension.GetSelection()==1:
+            self.on_3d_analysis()
+        elif self.joule_feedback.GetValue():
+            self.on_electrothermal(feedback=True)
         else:self._analyze('solve')
 
-    def _route_watch_ready(self):
+    def _set_routing_watch(self, enabled, *, background=False):
+        self.auto_run.SetValue(enabled)
+        self._background_analysis=enabled and background
+        if not enabled:
+            self._route_watch.disarm()
+            return
+        if background:
+            self.board_workflow.live_edits.SetValue(True)
         snapshot=self.bundle.get('live_pcb_snapshot',{})
-        # Bulk copper queries run in PCB Editor. Never request them from the
-        # watcher while the user has switched back to routing there.
+        if self._auto_run_armed and snapshot.get('route_stamp'):
+            self._route_watch.arm(snapshot['route_stamp'])
+        else:
+            self.status.SetLabel('Run a 2.5D DC editor-copy study once to start watching its net.'
+                                 if self.board_workflow.live_edits.GetValue() else
+                                 'Run a 2.5D DC study once to start watching saved revisions.')
+
+    def _route_watch_ready(self):
         return (not (self._busy or self._closed or self._closing or self._saved_refresh_pending)
-                and self._foreground() and self._auto_run_armed
+                and self.auto_run.GetValue() and self._auto_run_armed and bool(self._watched_nets)
+                and self.IsShownOnScreen() and not self.IsIconized()
+                and (self._background_analysis or self._foreground())
                 and not self.board_workflow.follower.running
-                and self.board_workflow.live_edits.GetValue() and bool(snapshot.get('route_stamp')))
+                and self.board_workflow.live_edits.GetValue())
 
     def _read_route_stamp(self):
         from wayricad_runtime.live_pcb import route_stamp
-        snapshot=self.bundle.get('live_pcb_snapshot',{})
-        return [route_stamp(self.board_path,self.board_workflow.origin,snapshot['route_nets'])]
+        return route_stamp(self.board_path,self.board_workflow.origin,self._watched_nets)
 
-    def _route_stamp_changed(self,values):
-        if self._route_watch_ready() and values[0]!=self.bundle['live_pcb_snapshot']['route_stamp']:
-            if values[0]!=self._route_watch_attempted:
-                self._route_watch_attempted=values[0]
-                self.on_run()
+    def _route_stamp_changed(self, stamp):
+        self.editor_refresh.poll()
+        if self._route_watch_ready() and self._viewport_snapshot_current():
+            self._run_unsaved_dc(automatic=True)
 
-    def _run_unsaved_dc(self):
+    def _run_unsaved_dc(self, *, automatic=False):
+        if self._busy:return
         if self.model_dimension.GetSelection()!=0 or self.joule_feedback.GetValue():
             self.status.SetLabel('Use unsaved edits supports standalone 2.5D DC. Save before 3D or coupled thermal analysis.')
             return
@@ -1735,13 +1768,14 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         except ValueError as error:
             self.status.SetLabel(str(error))
             return
-        from wayricad_runtime.live_pcb import capture_live_pcb
+        from wayricad_runtime.live_pcb import capture_live_pcb, route_stamp
         from .service import run_job
         origin=self.board_workflow.origin
+        background=self._background_analysis
         # A series path may include additional rails. Use explicit reruns until
         # the watcher can verify its complete net set.
         watched=(request['net'],) if self.auto_run.GetValue() and not request.get('series') else ()
-        self._route_watch.state.reset()
+        if not automatic:self._route_watch.disarm()
         self._reset_live()
         self._inspection=None
         self.bundle.pop('result',None)
@@ -1761,15 +1795,26 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                     raise ValueError('The solver did not return evidence for the captured editor copy.')
                 result.setdefault('request',captured)['board_path']=request['board_path']
                 result['live_pcb_snapshot']=record
-                return result
+            if background and watched and route_stamp(request['board_path'],origin,watched)!=record['route_stamp']:
+                return {'live_pcb_snapshot':record}
+            return result
 
         def finished(result):
-            self._accept_result(result,request,'solve')
-            self._auto_run_armed=bool(result['live_pcb_snapshot'].get('route_stamp'))
-            self._route_watch_attempted=None
+            record=result['live_pcb_snapshot']
+            self._auto_run_armed=bool(record.get('route_stamp'))
+            self._watched_nets=tuple(record.get('route_nets',()))
+            if self._auto_run_armed and self.auto_run.GetValue():
+                self._route_watch.arm(record['route_stamp'])
+            if not result.get('result'):
+                self.status.SetLabel('The analyzed net changed during the solve. Waiting for a stable route.')
+                return
+            self._accept_result(result,request,'solve',preserve_view=automatic)
             self.summary.SetLabel('Editor copy · '+self.summary.GetLabel())
-            follow_status=('Routing watch checks for further changes when Quick PI is active.'
-                           if self._auto_run_armed else 'Run again after further unsaved edits.')
+            follow_status='Run again after further unsaved edits.'
+            if self._auto_run_armed and self.auto_run.GetValue():
+                follow_status=('Watching the analyzed net in background.'
+                               if self._background_analysis else
+                               'Watching the analyzed net while Quick PI is active.')
             self.status.SetLabel('Solved the captured editor copy. '+follow_status+' Save and use the saved PCB for exports.')
 
         self._task(run,finished,'Capturing current PCB Editor geometry and solving…')
@@ -1801,7 +1846,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if hasattr(self,'show_exact_voltages'):
                 request['show_exact_voltages']=self.show_exact_voltages.GetValue()
                 tolerance=self.voltage_tolerance.GetValue().strip()
-                if tolerance and self.model_dimension.GetSelection()==0:
+                if tolerance:
                     tolerance_limits(request['source_voltage'],tolerance)
                     request['voltage_tolerance_pct']=float(tolerance)
             if self.load_mode.GetSelection()==1:request['load_resistance_ohm']=number(self.current,'Load resistance',True)
@@ -1812,7 +1857,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 if limit<0:raise ValueError('Source current limit must be nonnegative.')
                 request['source_current_limit']=limit
             primary=load_values(request.get('sink_terminal'),1 if self.load_mode.GetSelection()==1 else self.current.GetValue(),self.sink_min_voltage.GetValue(),self.sink_max_voltage.GetValue(),power=self.load_mode.GetSelection()==2)
-            if require_terminals and not self._series_request and self.load_mode.GetSelection() in (0,2) and self.model_dimension.GetSelection()==0:
+            if require_terminals and not self._series_request and self.load_mode.GetSelection() in (0,2):
                 sinks=[primary,*[dict(row) for row in self._extra_sinks]]
                 from .pin_units import validate_units
                 validate_units([request['source_terminal']],sinks)
@@ -1821,8 +1866,6 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                 if self._extra_sinks:raise ValueError('Additional sinks require 2.5D constant-current mode without a console/series path.')
                 for source,target in [('min_voltage_V','sink_min_voltage'),('max_voltage_V','sink_max_voltage')]:
                     if source in primary:request[target]=primary[source]
-            if self.model_dimension.GetSelection()==1 and any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage')):
-                raise ValueError('3D does not evaluate source budgets or sink voltage limits. Clear those fields or use 2.5D.')
         else:
             for control,key in ((self.source,'source_terminal'),(self.sink,'sink_terminal')):
                 if control.GetSelection()>=0:request[key]=self._terminals[control.GetSelection()]['id']
@@ -1877,7 +1920,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         def finished(result):self._accept_result(result,request,action)
         self._job(request,finished,{'geometry':'Reading actual copper geometry…','mesh':'Building and validating the copper mesh…','solve':'Meshing copper and solving DC current flow…'}[action])
 
-    def _accept_result(self,result,request,action):
+    def _accept_result(self,result,request,action,*,preserve_view=False):
         self._reset_live()
         self._inspection=None;self._route_cache=(None,())
         self.bundle=result
@@ -1905,7 +1948,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if overview is not None:self.layer.SetSelection(overview)
         mesh=result.get('mesh',{});self.mesh_count.SetLabel(f"{len(mesh.get('points_mm',[])):,} nodes · {len(mesh.get('triangles',[])):,} triangles" if mesh else '')
         for warning in result.get('geometry',{}).get('warnings',[]):self._console_write('Geometry: '+str(warning))
-        self._plot_keys.clear();self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)
+        if not preserve_view:
+            self._plot_keys.clear()
+            self.book.SetSelection(2 if action=='solve' else 1 if action=='mesh' else 0)
         if result.get('result'):
             r=result['result'];scope='Board + package' if r.get('package_contacts') else 'Circuit' if request.get('series') else 'Copper'
             multisink=len(r.get('sinks',[]))>1
@@ -1943,7 +1988,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if not mesh:self.status.SetLabel('Preview ready. '+message.replace('\n',' · '))
         if result.get('convergence'):
             self.auto_mesh.SetValue(False);self.edge.Enable(not self._busy)
-        self._update_inspector(True);self._draw()
+        self._update_inspector(True);self._draw(preserve=preserve_view)
         self._prepare_live()
 
 
@@ -2232,9 +2277,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self.Bind(wx.EVT_MENU,lambda e:(self.model_dimension.SetSelection(1),self._model_changed()),volume)
         power_tree=menu.Append(wx.ID_ANY,'Power tree · review rails and converters…')
         self.Bind(wx.EVT_MENU,self.on_power_tree,power_tree);power_tree.Enable(not self._busy)
-        series_tree=menu.Append(wx.ID_ANY,'Series power tree · drops, losses and pin groups…')
+        series_tree=menu.Append(wx.ID_ANY,'Power tree results…')
         self.Bind(wx.EVT_MENU,self.on_series_power_tree,series_tree)
-        series_tree.Enable(not self._busy and bool(self._series_request))
+        series_tree.Enable(not self._busy and bool(self._series_request or self.bundle.get('result') or
+                                                   self.volume_bundle.get('result')))
         transient=menu.Append(wx.ID_ANY,'Transient load-step study…')
         self.Bind(wx.EVT_MENU,self.on_transient,transient);transient.Enable(not self._busy)
         electrothermal=menu.Append(wx.ID_ANY,'Electrothermal study…')
@@ -2264,10 +2310,16 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         refresh=menu.Append(wx.ID_ANY,'Reload saved board');self.Bind(wx.EVT_MENU,lambda e:self._inspect(),refresh)
         self.PopupMenu(menu);menu.Destroy()
 
+    def _joule_screening(self,request):
+        from .joule_setup import screening_feedback
+        return screening_feedback(request,self.ambient.GetValue(),
+                                  {key:control.GetValue() for key,control in self.joule_options.items()})
+
     def on_3d_analysis(self,event=None):
-        """Run the separate volumetric DC model and show its sampled cell field."""
+        """Run the volumetric DC model and show its sampled cell fields."""
+        if self._busy:return
         if self._series_request or self.load_mode.GetSelection()!=0:
-            self.status.SetLabel('3D analysis needs two pads on one net and a specified sink current.')
+            self.status.SetLabel('3D analysis needs one net with prescribed-current source and load groups.')
             return
         try:
             request=self._request('solve')
@@ -2280,24 +2332,35 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if not 1<=budget<=1_000_000:
                 raise ValueError('3D tetrahedron budget must be between 1 and 1,000,000.')
             request['max_tetrahedra']=budget
-        except Exception as exc:
+            if self.joule_feedback.GetValue():
+                from .joule_setup import COPPER
+                request['joule_feedback']=self._joule_screening(request)
+                request['options'].update(COPPER)
+        except (ValueError,OSError) as exc:
             self.status.SetLabel(str(exc));return
         from .service import run_job
         self.volume_bundle={};self._buttons()
+        heating='joule_feedback' in request
+        message=('Meshing 3D copper and solving steady Joule feedback…' if heating else
+                 'Preparing Gmsh runtime; meshing and solving saved 3D copper…')
         self._task(lambda:run_job(request,cancelled=self._cancel.is_set,timeout=300),
-                   self._show_3d_analysis,'Preparing Gmsh runtime; meshing and solving saved 3D copper…')
+                   self._show_3d_analysis,message)
 
     def _show_3d_analysis(self,bundle):
-        from .volume_view import QUANTITIES,layer_names,sampled_cells
+        from .volume_view import feedback_text,field_quantities,layer_names,sampled_cells
         result=bundle['result'];mesh=bundle['mesh']
         if not sampled_cells(bundle,limit=1)[2]:
             raise ValueError('3D solve returned no connected copper cells.')
         self.volume_bundle=bundle
-        dialog=wx.Dialog(self,title='Quick PI · 3D copper current density',size=(1050,780),
+        heating=result.get('joule_feedback')
+        dialog=wx.Dialog(self,title='Quick PI · 3D copper results',size=(1050,780),
                          style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
         layout=wx.BoxSizer(wx.VERTICAL)
-        summary=(f"3D DC copper  |  ΔV {self._drop_text(result)}  |  "
-                 f"R {result['drop_over_current_ohm']*1000:.4g} mΩ  |  "
+        count=len(result.get('sinks') or [None])
+        resistance='Worst drop / total I' if count>1 else 'R'
+        state=result.get('feasibility',{}).get('status','Solved')
+        summary=(f"{state} · {count} load group(s)  |  ΔV {self._drop_text(result)}  |  "
+                 f"{resistance} {result['drop_over_current_ohm']*1000:.4g} mΩ  |  "
                  f"Loss {result['total_power_W']:.4g} W  |  "
                  f"{mesh['tetrahedron_count']:,} tetrahedra")
         layout.Add(wx.StaticText(dialog,label=summary),0,wx.EXPAND|wx.ALL,10)
@@ -2305,6 +2368,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                f"Power balance {result['energy_relative_error']*100:.3g}%  |  "
                f"Volume check {mesh['volume_relative_error']*100:.3g}%")
         layout.Add(wx.StaticText(dialog,label=audit),0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        if heating:
+            state=wx.StaticText(dialog,label=feedback_text(bundle))
+            state.Wrap(980)
+            layout.Add(state,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         selectors=wx.BoxSizer(wx.HORIZONTAL)
         selectors.Add(wx.StaticText(dialog,label='View'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
         projection=ReadableChoice(dialog,choices=['Board top view','3D copper']);projection.SetSelection(0)
@@ -2313,7 +2380,9 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         layers=ReadableChoice(dialog,choices=layer_names(bundle));layers.SetSelection(0)
         selectors.Add(layers,0,wx.RIGHT,16)
         selectors.Add(wx.StaticText(dialog,label='Field'),0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,6)
-        quantities=ReadableChoice(dialog,choices=list(QUANTITIES));quantities.SetSelection(0)
+        fields=field_quantities(bundle)
+        quantities=ReadableChoice(dialog,choices=list(fields))
+        quantities.SetSelection(len(fields)-1 if 'temperature' in fields.values() else 0)
         selectors.Add(quantities,0)
         layout.Add(selectors,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         figure=Figure(figsize=(9,6),dpi=100,facecolor='white')
@@ -2321,14 +2390,15 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         toolbar=NavigationToolbar2WxAgg(canvas);toolbar.Realize()
         layout.Add(canvas,1,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
         layout.Add(toolbar,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
-        note=wx.StaticText(dialog,label='Ideal pad electrodes · fixed-temperature DC · plotted cells are sampled; JSON includes every tetrahedron.')
+        model_note=('3D electrical FEM with board-layer heat spreading' if heating else 'Fixed-temperature DC')
+        note=wx.StaticText(dialog,label=model_note)
         layout.Add(note,0,wx.EXPAND|wx.ALL,10)
         probe_state={}
         def draw(event=None):
             if probe_state.get('controller'):probe_state['controller']['disconnect']()
             layer=layers.GetStringSelection()
             field=quantities.GetStringSelection()
-            xyz,values,total=sampled_cells(bundle,layer,QUANTITIES[field])
+            xyz,values,total=sampled_cells(bundle,layer,fields[field])
             figure.clear()
             axes=figure.add_subplot(111,projection='3d' if projection.GetSelection()==1 else None)
             if len(values):
@@ -2350,7 +2420,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
                     axes.set_aspect('equal',adjustable='datalim');axes.invert_yaxis()
                 figure.colorbar(artist,ax=axes,label=field,shrink=.75)
                 note.SetLabel(f'{total:,} connected cells on {layer}; {len(values):,} plotted. '+
-                              'Ideal pad electrodes · fixed-temperature DC; JSON contains the complete field.')
+                              model_note+' · JSON contains the complete field.')
             else:
                 axes.text(.1,.5,'No connected copper cells in this view.',transform=axes.transAxes)
                 note.SetLabel(f'No connected cells on {layer}. Floating copper does not carry this solved current.')
@@ -2362,12 +2432,16 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             figure.tight_layout();canvas.draw_idle()
         for choice in (projection,layers,quantities):choice.Bind(wx.EVT_CHOICE,draw)
         buttons=wx.BoxSizer(wx.HORIZONTAL);save=wx.Button(dialog,label='Save 3D results / Pocket KiVi…')
-        buttons.Add(save,0,wx.RIGHT,8);buttons.Add(dialog.CreateButtonSizer(wx.CLOSE),0)
+        tree=wx.Button(dialog,label='Power tree…')
+        tree.Bind(wx.EVT_BUTTON,lambda event:self.on_series_power_tree(bundle=bundle,parent=dialog))
+        buttons.Add(tree,0,wx.RIGHT,8);buttons.Add(save,0,wx.RIGHT,8)
+        buttons.Add(dialog.CreateButtonSizer(wx.CLOSE),0)
         layout.Add(buttons,0,wx.ALIGN_RIGHT|wx.ALL,10)
         save.Bind(wx.EVT_BUTTON,lambda e:self._export_3d(dialog,bundle))
         dialog.Bind(wx.EVT_BUTTON,lambda e:dialog.EndModal(wx.ID_CLOSE),id=wx.ID_CLOSE)
         dialog.SetSizer(layout);draw();dialog.ShowModal();dialog.Destroy()
-        self.status.SetLabel('3D DC solve complete. Export an interactive HTML report and paired complete JSON from this window.')
+        self.status.SetLabel(feedback_text(bundle) if heating else
+                             '3D DC solve complete. Export the interactive report or numerical results from the results window.')
         self._buttons()
 
     def _export_3d(self,parent,bundle):
@@ -2384,22 +2458,27 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             return
         self.status.SetLabel(saved_report_message(exported))
 
-    def on_series_power_tree(self,event=None):
+    def on_series_power_tree(self,event=None,*,bundle=None,parent=None):
         if self._busy:return
         if not self._snapshot_current():
-            self.status.SetLabel('Saved PCB changed. Reload before opening the series power tree.');return
-        from .series_power_tree import build_series_power_tree
+            self.status.SetLabel('Saved PCB changed. Reload before opening the power tree.');return
+        from .series_power_tree import build_power_result_tree
         from .series_power_tree_ui import show_series_power_tree
         from wayricad_runtime.report_ui import checked_sources
-        bundle=self.bundle if self.bundle.get('request',{}).get('series') else {
-            'request':self._series_request or {},'geometry':self.inventory}
-        tree=build_series_power_tree(bundle)
+        if bundle is None:
+            if self.volume_bundle.get('result'):
+                bundle=self.volume_bundle
+            elif self.bundle.get('result') or self.bundle.get('request',{}).get('series'):
+                bundle=self.bundle
+            else:
+                bundle={'request':self._series_request or {},'geometry':self.inventory}
+        tree=build_power_result_tree(bundle)
         if tree is not None:
             try:
                 def guard():
                     if not self._snapshot_current():raise ValueError('Saved PCB changed. Reload before saving the power tree.')
                     checked_sources(bundle)
-                show_series_power_tree(self,tree,board_path=self.board_path,
+                show_series_power_tree(parent or self,tree,board_path=self.board_path,
                     expected_sha256=tree.get('source_sha256') or self.inventory.get('source_sha256'),
                     sources=checked_sources(bundle),source_guard=guard)
             except (OSError,ValueError) as exc:self.status.SetLabel(str(exc))
@@ -2494,7 +2573,10 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         if not self._snapshot_current():
             self.status.SetLabel('Saved PCB changed. Reload before reviewing power intent.');return
         from .power_tree_ui import PowerTreeDialog
-        editor=PowerTreeDialog(self,self.inventory,self.board_path,getattr(self,'power_tree_draft',None))
+        from .series_power_tree import build_power_result_tree
+        bundle=self.volume_bundle if self.volume_bundle.get('result') else self.bundle
+        editor=PowerTreeDialog(self,self.inventory,self.board_path,getattr(self,'power_tree_draft',None),
+                               solved_tree=build_power_result_tree(bundle))
         try:
             if editor.dialog.ShowModal()==wx.ID_OK:
                 self.power_tree_draft=editor.tree
@@ -2565,7 +2647,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if self.model_dimension.GetSelection()!=0 or self.load_mode.GetSelection()!=0:
                 raise ValueError('Seed electrothermal studies from 2.5D specified-current loads. 3D and resistive-load modes are separate models.')
             import hashlib
-            from .electrothermal_ui import ElectrothermalStudyDialog,initial_studies,feedback_studies
+            from .electrothermal_ui import ElectrothermalStudyDialog,initial_studies
             from .service import run_job
             request=self._request('solve')
             if request.get('package_conduction'):raise ValueError('Package contacts are unsupported in electrothermal coupling.')
@@ -2574,11 +2656,20 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
             if 'load_power_W' in request or any('power_W' in row for row in request.get('sinks',[])):
                 raise ValueError('Electrothermal studies currently require current profiles; constant-power regulation dynamics are not modeled.')
             sha=hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()
-            dialog=ElectrothermalStudyDialog(self,(feedback_studies if feedback else initial_studies)(request,self._terminals),
-                lambda payload,cancel:run_job(payload,cancelled=cancel),
+            initial=initial_studies(request,self._terminals)
+            if feedback:
+                from .joule_setup import COPPER
+                screening=self._joule_screening(request)
+                steady=initial['steady']
+                steady['thermal_settings']=screening['thermal_settings']
+                steady['coupling']=screening['coupling']
+                steady['assumptions']=screening['assumptions']
+                steady['electrical']['options'].update(COPPER)
+            dialog=ElectrothermalStudyDialog(self,initial,lambda payload,cancel:run_job(payload,cancelled=cancel),
                 (FigureCanvasWxAgg,NavigationToolbar2WxAgg),self.board_path,sha,steady_only=feedback)
             from wayricad_runtime.project_results_ui import add_study_results
             add_study_results(dialog,'quick-pi',self.board_path)
+            if feedback:wx.CallAfter(dialog._run)
             try:dialog.ShowModal()
             finally:dialog.Destroy()
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc))
@@ -2744,6 +2835,7 @@ class QuickPIFrame(LiveCurrentControls,wx.Frame):
         self._run_after_refresh=False
         self._saved_watch_pending=False
         self._auto_run_armed=False
+        self._route_watch.disarm()
         pending=getattr(self,'_net_filter_timer',None)
         if pending:pending.Stop()
         self._cancel.set();self.status.SetLabel('Stopping the isolated worker…')

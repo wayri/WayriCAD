@@ -24,7 +24,7 @@ class ProtocolPanel(wx.Panel):
         self.profile=ReadableChoice(self,choices=[p['title'] for p in self.profiles]);self.profile.SetSelection(0)
         top.Add(self.profile,1,wx.RIGHT,10)
         add=wx.Button(self,label='Add current Quick SI path');add.Bind(wx.EVT_BUTTON,self.add_current)
-        add.Bind(wx.EVT_UPDATE_UI,lambda e:e.Enable(self.quick.report is not None))
+        add.Bind(wx.EVT_UPDATE_UI,lambda e:e.Enable(self.quick.report is not None and not self.quick.report.get('live_editor_preview')))
         top.Add(add,0,wx.RIGHT,6)
         remove=wx.Button(self,label='Remove selected path');remove.Bind(wx.EVT_BUTTON,self.remove);top.Add(remove)
         root.Add(top,0,wx.EXPAND|wx.LEFT|wx.RIGHT,10)
@@ -106,6 +106,8 @@ class ProtocolPanel(wx.Panel):
         try:
             self.fresh()
             if self.quick.report is None or self.quick.path is None:raise ValueError('Screen a path in Quick SI first.')
+            if self.quick.report.get('live_editor_preview'):
+                raise ValueError('Turn off Live net analysis and run against the saved PCB before adding a path to a protocol suite.')
             if len(self.snapshots)>=64:raise ValueError('Use at most 64 reviewed paths per suite.')
             report=copy.deepcopy(self.quick.report);report.update(board=str(self.source) if self.source else None,board_sha256=self.digest)
             path=report['path'];identity=(path['net_name'],path['start_pad'],path['end_pad'])

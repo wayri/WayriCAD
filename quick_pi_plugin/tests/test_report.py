@@ -245,6 +245,9 @@ class ReportTests(unittest.TestCase):
             self.assertNotIn('Copper resistance ΔV/I',html)
             stored=json.loads(Path(paths['json']).read_text(encoding='utf-8'))
             self.assertEqual(stored['result']['sinks'],b['result']['sinks'])
+            self.assertEqual(stored['rail_power_tree']['nodes'][-2]['label'],'B.1')
+            self.assertEqual(stored['rail_power_tree']['nodes'][-1]['label'],'C.1')
+            self.assertIn('Solved rail power tree',html)
             self.assertFalse(stored['result']['feasibility']['operating_point_valid'])
 
 

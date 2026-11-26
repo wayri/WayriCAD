@@ -52,6 +52,26 @@ def _polygon_contains(point, polygon):
             not any(_inside(point, hole) for hole in polygon.get("holes", [])))
 
 
+def _copper_probe(polygon):
+    """Cull disjoint hole rings before calling the same winding test."""
+    holes = polygon.get('holes', [])
+    if not holes:
+        return lambda point: _inside(point, polygon['outer'])
+    import numpy as np
+    bounds = np.asarray([(min(x for x,y in ring), min(y for x,y in ring),
+                          max(x for x,y in ring), max(y for x,y in ring)) for ring in holes], dtype=float)
+    bounds += np.array([-1e-9,-1e-9,1e-9,1e-9])
+
+    def contains(point):
+        if not _inside(point, polygon['outer']):
+            return False
+        x,y = point
+        candidates = np.flatnonzero((bounds[:,0]<=x)&(bounds[:,1]<=y)&
+                                    (bounds[:,2]>=x)&(bounds[:,3]>=y))
+        return not any(_inside(point,holes[index]) for index in candidates)
+    return contains
+
+
 def _source_weights(component, cells, xs, ys, dx_mm, dy_mm):
     """Overlap-weighted footprint bbox, or labelled point fallback."""
     bounds = component.get("bbox_mm")
@@ -78,7 +98,111 @@ def _source_weights(component, cells, xs, ys, dx_mm, dy_mm):
     return [(index, area/total) for index, area in hits], "footprint_bbox_proxy"
 
 
-def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_sources=None, prepared_sources=None, cancel=None):
+def _copper_conductance(geometry, layers, cells, xs, ys, dx_mm, dy_mm, node,
+                        dielectric_k, copper_k, plating, blur):
+    dx, dy = dx_mm/1000, dy_mm/1000
+    cell_area = dx*dy
+    ncell = len(cells)
+    by_cell = {cell:index for index, cell in enumerate(cells)}
+    # A dielectric slice is bounded halfway to its neighboring copper layers.
+    z = [_num(row["z_mm"], "Layer Z (mm)") for row in layers]
+    thickness = [_num(row["thickness_mm"], "Copper thickness (mm)", low=1e-9) for row in layers]
+    intervals = []
+    for i in range(len(layers)-1):
+        gap = z[i+1]-z[i]-(thickness[i]+thickness[i+1])/2
+        if gap <= 0:
+            raise ValueError("Stackup layers overlap or have no dielectric separation.")
+        intervals.append(gap/1000)
+    slice_thickness = [((intervals[i-1] if i else 0)+(intervals[i] if i < len(intervals) else 0))/2
+                       for i in range(len(layers))]
+    # Copper membership is kept per polygon. Supersampling improves subcell
+    # occupancy but lateral copper edges require the *same* polygon at the face.
+    memberships, copper_probes = [], []
+    for layer in layers:
+        polygons = layer.get("polygons_mm", [])
+        probes_by_polygon = [_copper_probe(polygon) for polygon in polygons]
+        copper_probes.append(probes_by_polygon)
+        bounds = []
+        for polygon in polygons:
+            outer = polygon["outer"]
+            bounds.append((min(p[0] for p in outer), min(p[1] for p in outer),
+                           max(p[0] for p in outer), max(p[1] for p in outer)))
+        layer_members = []
+        for i, j in cells:
+            if blur == 1:
+                probes = [(xs[i]+a*dx_mm/3, ys[j]+b*dy_mm/3)
+                          for a in (-1, 0, 1) for b in (-1, 0, 1)]
+            elif blur == .5:
+                probes = [(xs[i], ys[j]), (xs[i]-dx_mm/3, ys[j]),
+                          (xs[i]+dx_mm/3, ys[j]), (xs[i], ys[j]-dy_mm/3),
+                          (xs[i], ys[j]+dy_mm/3)]
+            else:
+                probes = [(xs[i], ys[j])]
+            weights = {}
+            for poly_index, test in enumerate(probes_by_polygon):
+                x0, y0, x1, y1 = bounds[poly_index]
+                if (x1 < xs[i]-dx_mm/2 or x0 > xs[i]+dx_mm/2 or
+                        y1 < ys[j]-dy_mm/2 or y0 > ys[j]+dy_mm/2):
+                    continue
+                fraction = sum(test(point) for point in probes)/len(probes)
+                if fraction:
+                    weights[poly_index] = fraction
+            layer_members.append(weights)
+        memberships.append(layer_members)
+    edges = []
+    copper_edges = 0
+    blocked = (_blocked_grid_links(geometry['outline'], xs, ys, by_cell)
+               if geometry.get('drill_voids_modelled') else set())
+    def add_edge(a, b, g):
+        if g > 0:
+            edges.append((a, b, g))
+    for li, layer_probes in enumerate(copper_probes):
+        for ci, (i, j) in enumerate(cells):
+            for key, length, run, face in (
+                ((i+1, j), dy, dx, (xs[i]+dx_mm/2, ys[j])),
+                ((i, j+1), dx, dy, (xs[i], ys[j]+dy_mm/2))):
+                cj = by_cell.get(key)
+                if cj is None or ((i,j),key) in blocked:
+                    continue
+                base = dielectric_k*slice_thickness[li]*length/run
+                common = memberships[li][ci].keys() & memberships[li][cj].keys()
+                copper_fraction = max((min(memberships[li][ci][p], memberships[li][cj][p])
+                                       for p in common if layer_probes[p](face)), default=0)
+                bonus = copper_k*(thickness[li]/1000)*length/run*copper_fraction
+                if bonus:
+                    copper_edges += 1
+                add_edge(node(li, ci), node(li, cj), base+bonus)
+    for li, gap in enumerate(intervals):
+        conductance = dielectric_k*cell_area/gap
+        for ci in range(ncell):
+            add_edge(node(li, ci), node(li+1, ci), conductance)
+    layer_ids = {row["id"]: i for i, row in enumerate(layers)}
+    via_edges = 0
+    for via in geometry.get("barrels", []):
+        span = [layer_ids[lid] for lid in via.get("span_layers", []) if lid in layer_ids]
+        if len(span) < 2:
+            continue
+        span.sort()
+        drill = _num(via["drill_mm"], "Barrel drill (mm)", low=1e-9)
+        if plating*2 >= drill:
+            raise ValueError(f"{via['id']}: plating thickness is implausible for its drill.")
+        length = _num(via.get('drill_length_mm',drill), 'Barrel drill length (mm)', low=drill)
+        perimeter = math.pi*drill + 2*(length-drill)
+        barrel_area = plating*(perimeter + math.pi*plating)/1e6
+        x, y = float(via["x_mm"]), float(via["y_mm"])
+        ci = min(range(ncell), key=lambda ci: (xs[cells[ci][0]]-x)**2+(ys[cells[ci][1]]-y)**2)
+        if abs(xs[cells[ci][0]]-x)>dx_mm or abs(ys[cells[ci][1]]-y)>dy_mm:
+            continue
+        for a, b in zip(span, span[1:]):
+            if b != a+1:
+                raise ValueError(f"{via['id']}: barrel span is not continuous through the stackup.")
+            add_edge(node(a, ci), node(b, ci), copper_k*barrel_area/((z[b]-z[a])/1000))
+            via_edges += 1
+    return z, edges, copper_edges, via_edges
+
+
+def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_sources=None,
+                             prepared_sources=None, cancel=None, _assembly=None):
     """Solve layer temperatures, explicit mount fluxes and a heat balance.
 
     ``geometry`` is from ``collect_thermal_geometry``; ``view`` and ``result``
@@ -86,7 +210,7 @@ def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_so
     Components whose heat path is a separate heatsink are not silently included.
     """
     for hole in geometry.get("mounting_holes", []):
-        if not hole.get("plated", False) and hole.get("drill_mm") is not None:
+        if not geometry.get('drill_voids_modelled') and not hole.get("plated", False) and hole.get("drill_mm") is not None:
             diameter = _num(hole["drill_mm"], "Unplated drill diameter (mm)", low=0)
             if diameter > 0:
                 raise ValueError(
@@ -153,95 +277,13 @@ def solve_multilayer_thermal(geometry, view, result, settings, *, distributed_so
     by_cell = {cell: index for index, cell in enumerate(cells)}
     node = lambda layer_index, cell_index: layer_index*ncell+cell_index
     cell_area = dx*dy
-    # A dielectric slice is bounded halfway to its neighboring copper layers.
-    z = [_num(row["z_mm"], "Layer Z (mm)") for row in layers]
-    thickness = [_num(row["thickness_mm"], "Copper thickness (mm)", low=1e-9) for row in layers]
-    intervals = []
-    for i in range(len(layers)-1):
-        gap = z[i+1]-z[i]-(thickness[i]+thickness[i+1])/2
-        if gap <= 0:
-            raise ValueError("Stackup layers overlap or have no dielectric separation.")
-        intervals.append(gap/1000)
-    slice_thickness = [((intervals[i-1] if i else 0)+(intervals[i] if i < len(intervals) else 0))/2
-                       for i in range(len(layers))]
-    # Copper membership is kept per polygon. Supersampling improves subcell
-    # occupancy but lateral copper edges require the *same* polygon at the face.
-    memberships = []
-    for layer in layers:
-        polygons = layer.get("polygons_mm", [])
-        bounds = []
-        for polygon in polygons:
-            outer = polygon["outer"]
-            bounds.append((min(p[0] for p in outer), min(p[1] for p in outer),
-                           max(p[0] for p in outer), max(p[1] for p in outer)))
-        layer_members = []
-        for i, j in cells:
-            if blur == 1:
-                probes = [(xs[i]+a*dx_mm/3, ys[j]+b*dy_mm/3)
-                          for a in (-1, 0, 1) for b in (-1, 0, 1)]
-            elif blur == .5:
-                probes = [(xs[i], ys[j]), (xs[i]-dx_mm/3, ys[j]),
-                          (xs[i]+dx_mm/3, ys[j]), (xs[i], ys[j]-dy_mm/3),
-                          (xs[i], ys[j]+dy_mm/3)]
-            else:
-                probes = [(xs[i], ys[j])]
-            weights = {}
-            for poly_index, polygon in enumerate(polygons):
-                x0, y0, x1, y1 = bounds[poly_index]
-                if (x1 < xs[i]-dx_mm/2 or x0 > xs[i]+dx_mm/2 or
-                        y1 < ys[j]-dy_mm/2 or y0 > ys[j]+dy_mm/2):
-                    continue
-                fraction = sum(_polygon_contains(point, polygon) for point in probes)/len(probes)
-                if fraction:
-                    weights[poly_index] = fraction
-            layer_members.append(weights)
-        memberships.append(layer_members)
-    edges = []
-    copper_edges = 0
-    def add_edge(a, b, g):
-        if g > 0:
-            edges.append((a, b, g))
-    for li, layer in enumerate(layers):
-        polygons = layer.get("polygons_mm", [])
-        for ci, (i, j) in enumerate(cells):
-            for key, length, run, face in (
-                ((i+1, j), dy, dx, (xs[i]+dx_mm/2, ys[j])),
-                ((i, j+1), dx, dy, (xs[i], ys[j]+dy_mm/2))):
-                cj = by_cell.get(key)
-                if cj is None:
-                    continue
-                base = dielectric_k*slice_thickness[li]*length/run
-                common = memberships[li][ci].keys() & memberships[li][cj].keys()
-                copper_fraction = max((min(memberships[li][ci][p], memberships[li][cj][p])
-                                       for p in common if _polygon_contains(face, polygons[p])), default=0)
-                bonus = copper_k*(thickness[li]/1000)*length/run*copper_fraction
-                if bonus:
-                    copper_edges += 1
-                add_edge(node(li, ci), node(li, cj), base+bonus)
-    for li, gap in enumerate(intervals):
-        conductance = dielectric_k*cell_area/gap
-        for ci in range(ncell):
-            add_edge(node(li, ci), node(li+1, ci), conductance)
-    layer_ids = {row["id"]: i for i, row in enumerate(layers)}
-    via_edges = 0
-    for via in geometry.get("barrels", []):
-        span = [layer_ids[lid] for lid in via.get("span_layers", []) if lid in layer_ids]
-        if len(span) < 2:
-            continue
-        span.sort()
-        drill = _num(via["drill_mm"], "Barrel drill (mm)", low=1e-9)
-        if plating*2 >= drill:
-            raise ValueError(f"{via['id']}: plating thickness is implausible for its drill.")
-        barrel_area = math.pi*((drill+2*plating)**2-drill**2)/4/1e6
-        x, y = float(via["x_mm"]), float(via["y_mm"])
-        ci = min(range(ncell), key=lambda ci: (xs[cells[ci][0]]-x)**2+(ys[cells[ci][1]]-y)**2)
-        if abs(xs[cells[ci][0]]-x)>dx_mm or abs(ys[cells[ci][1]]-y)>dy_mm:
-            continue
-        for a, b in zip(span, span[1:]):
-            if b != a+1:
-                raise ValueError(f"{via['id']}: barrel span is not continuous through the stackup.")
-            add_edge(node(a, ci), node(b, ci), copper_k*barrel_area/((z[b]-z[a])/1000))
-            via_edges += 1
+    assembly = None if _assembly is None else _assembly.get('conductances')
+    if assembly is None:
+        assembly = _copper_conductance(geometry,layers,cells,xs,ys,dx_mm,dy_mm,node,
+                                       dielectric_k,copper_k,plating,blur)
+        if _assembly is not None:
+            _assembly['conductances'] = assembly
+    z, edges, copper_edges, via_edges = assembly
     sources = np.zeros(nnode, dtype=float)
     view_refs = {row["reference"]: row for row in view.get("components", [])}
     output_components = []
@@ -582,6 +624,45 @@ def _clean_clipped_contact(ring):
     return clean
 
 
+def _blocked_grid_links(outline, xs, ys, indices):
+    blocked = set()
+    rings = [ring for shape in outline
+             for ring in [shape['outer_mm'], *shape.get('holes_mm', [])]]
+    def crossings(level, axis):
+        values = []
+        other = 1-axis
+        for ring in rings:
+            for a,b in zip(ring, ring[1:]+ring[:1]):
+                if a[axis] == b[axis]:
+                    if abs(level-a[axis]) <= 1e-12:
+                        values.extend((a[other], b[other]))
+                elif min(a[axis],b[axis]) <= level <= max(a[axis],b[axis]):
+                    fraction = (level-a[axis])/(b[axis]-a[axis])
+                    values.append(a[other]+fraction*(b[other]-a[other]))
+        return sorted(set(values))
+    horizontal = [crossings(y,1) for y in ys]
+    vertical = [crossings(x,0) for x in xs]
+    for i,j in indices:
+        for neighbor,horizontal_link in (((i+1,j),True), ((i,j+1),False)):
+            if neighbor not in indices:
+                continue
+            if horizontal_link:
+                values,start,stop,level = horizontal[j],xs[i],xs[i+1],ys[j]
+            else:
+                values,start,stop,level = vertical[i],ys[j],ys[j+1],xs[i]
+            interior = [v for v in values if start < v < stop]
+            if not interior:
+                continue
+            cuts = [start,*interior,stop]
+            for a,b in zip(cuts,cuts[1:]):
+                middle = (a+b)/2
+                point = (middle,level) if horizontal_link else (level,middle)
+                if b-a > 1e-10 and not _board_contains(point,outline):
+                    blocked.add(((i,j),neighbor))
+                    break
+    return blocked
+
+
 def prepare_distributed_sources(geometry, settings, sources, *, cancel=None):
     """Conservative integrated-watt support with no nearest-cell fallback.
 
@@ -601,38 +682,8 @@ def prepare_distributed_sources(geometry, settings, sources, *, cancel=None):
              if _board_contains((x, y), geometry['outline'])]
     indices = {cell: index for index, cell in enumerate(cells)}
     layers = {layer['id']: i for i, layer in enumerate(geometry['layers'])}
-    if sources:
-        # A center-grid may otherwise bridge an arbitrarily narrow cutout or
-        # disconnected board gap. Reject such grids instead of inventing a
-        # dielectric path. Intersections partition each center-to-center link.
-        rings = [ring for shape in geometry['outline']
-                 for ring in [shape['outer_mm'], *shape.get('holes_mm', [])]]
-        def crossings(level, axis):
-            values = []
-            other = 1-axis
-            for ring in rings:
-                for a,b in zip(ring, ring[1:]+ring[:1]):
-                    if a[axis] == b[axis]:
-                        if abs(level-a[axis]) <= 1e-12:
-                            values.extend((a[other], b[other]))
-                    elif min(a[axis],b[axis]) <= level <= max(a[axis],b[axis]):
-                        fraction = (level-a[axis])/(b[axis]-a[axis])
-                        values.append(a[other]+fraction*(b[other]-a[other]))
-            return sorted(set(values))
-        horizontal = [crossings(y,1) for y in ys]
-        vertical = [crossings(x,0) for x in xs]
-        for i,j in cells:
-            for neighbor,values,start,stop,level,horizontal_link in (
-                    ((i+1,j), horizontal[j], xs[i], xs[i]+dx, ys[j], True),
-                    ((i,j+1), vertical[i], ys[j], ys[j]+dy, xs[i], False)):
-                if neighbor not in indices:
-                    continue
-                cuts = [start]+[v for v in values if start < v < stop]+[stop]
-                for a,b in zip(cuts,cuts[1:]):
-                    middle = (a+b)/2
-                    point = (middle,level) if horizontal_link else (level,middle)
-                    if b-a > 1e-10 and not _board_contains(point,geometry['outline']):
-                        raise ValueError('Thermal grid bridges a cutout or disconnected board gap; refine the grid.')
+    if sources and not geometry.get('drill_voids_modelled') and _blocked_grid_links(geometry['outline'],xs,ys,indices):
+        raise ValueError('Thermal grid bridges a cutout or disconnected board gap; refine the grid.')
     prepared, identities = [], set()
     for source in sources:
         if cancel and cancel():

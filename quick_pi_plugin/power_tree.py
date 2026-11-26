@@ -206,6 +206,29 @@ def validate_power_tree(tree, *, require_reviewed=False, inventory=None):
     return result
 
 
+# These patterns signal a possible rail name. They carry no polarity,
+# voltage, source direction or evidence about an isolation boundary.
+_RAIL_TOKEN = re.compile(
+    r'(?:[+-]?\d+V\d*|P\d+V\d*|N\d+V\d*|V(?:CC|DD|SS|IN|OUT|BAT|BUS)\d*[A-Z]*|'
+    r'(?:A|D|MGT|MGTAV|MGTA|USB)?V(?:CC|DD)|VCORE\d*|VIO\d*|VBUS\d*)',
+    re.IGNORECASE,
+)
+
+
+def _rail_named(net):
+    short = net.rsplit('/', 1)[-1].lstrip('+')
+    tokens = re.split(r'[_.-]', short.upper())
+    signals = {'EN', 'ENABLE', 'PG', 'PGOOD', 'SNS', 'SENSE', 'MON', 'FB', 'RESET'}
+    return not signals.intersection(tokens) and any(_RAIL_TOKEN.fullmatch(token) for token in tokens if token)
+
+
+def _attached_rail_evidence(connected):
+    named = sorted(net for net in connected if _rail_named(net))
+    if not named:
+        return None
+    shown = ', '.join(named[:12])
+    return 'Attached rail-named pads: ' + shown + (' and more' if len(named) > 12 else '') + '. Review port roles.'
+
 def infer_power_tree(inventory, source=None):
     """Suggest intent for review; never infer an electrical component model.
 
@@ -226,7 +249,7 @@ def infer_power_tree(inventory, source=None):
         if key not in rails:
             node = new_node('rail-' + str(len(rails) + 1), label=net)
             node.update(net=net, return_net=return_net, domain=domain, confidence='candidate',
-                        evidence=['Saved net name; voltage, reference and power role require review.'])
+                        evidence=['Saved net identity. Review voltage, reference and power role.'])
             tree['nodes'].append(node); rails[key] = node
         return rails[key]
 
@@ -249,7 +272,7 @@ def infer_power_tree(inventory, source=None):
                 kind = 'ldo'
             elif re.search(r'\bDC[/ -]?DC\b|\b(buck|boost) converter\b', value, re.I):
                 kind = 'dcdc'
-        if kind is None:
+        if kind is None or len(tree['nodes']) >= MAX_NODES:
             continue
         ref = first.get('reference') or str(first.get('label', '')).rsplit('.', 1)[0]
         node = new_node('device-' + str(len(tree['nodes']) + 1), kind, ref or owner)
@@ -259,11 +282,21 @@ def infer_power_tree(inventory, source=None):
                               ('Saved value contains a converter description: ' + value)])
         tree['nodes'].append(node)
         connected = {pad.get('net') for pad in pads if pad.get('net')}
+        terminal_evidence = _attached_rail_evidence(connected)
+        if terminal_evidence:
+            node['evidence'].append(terminal_evidence[:2048])
         for direction, enabled in (('Input', kind != 'source'), ('Output', kind != 'load')):
             net = props.get('QuickPI:' + direction + 'Net', '')
             ret = props.get('QuickPI:' + direction + 'Return', '')
             domain = props.get('QuickPI:' + direction + 'Domain', '')
-            if isinstance(net, str) and isinstance(ret, str) and net and ret and net in connected and ret in connected and net != ret:
+            if not (isinstance(net, str) and net and net in connected):
+                continue
+            if not isinstance(ret, str) or not ret or ret not in connected or ret == net:
+                node['evidence'].append(('Saved ' + direction.lower() + ' declaration matches pad net ' +
+                    net + '. Its return needs review before a flow connection can be proposed.')[:2048])
+                continue
+            if (len(tree['edges']) < MAX_EDGES and
+                    ((net,ret,str(domain)) in rails or len(tree['nodes']) < MAX_NODES)):
                 node_count, edge_count, old_rails = len(tree['nodes']), len(tree['edges']), dict(rails)
                 target = rail(net, ret, str(domain))
                 if len(target['evidence']) < 31:
@@ -280,10 +313,56 @@ def infer_power_tree(inventory, source=None):
                     node['evidence'].append('Rejected ' + direction.lower() + ' metadata connection: ' + str(exc))
     covered = {node['net'] for node in rails.values()}
     for net in nets:
-        if net not in covered and re.search(r'(^|/)([+-]\d|V(?:CC|DD|SS|IN|OUT|BAT|BUS)(?:$|[_\d])|\d+V\d*)', net, re.I):
+        if len(tree['nodes']) >= MAX_NODES:
+            break
+        if net not in covered and _rail_named(net):
             rail(net)
     return validate_power_tree(tree)
 
+
+def reviewed_result_overlays(intent, inventory, solved_tree):
+    """Project same-revision path evidence onto unambiguous reviewed rails.
+
+    The reviewed voltage is relative to a declared return. Ordinary copper
+    results can use an ideal reference, so only the path's voltage difference,
+    current and modeled loss appear on the editable intent graph.
+    """
+    if not solved_tree or solved_tree.get('status') != 'solved':
+        return {}
+    stamp = inventory.get('source_sha256')
+    if not stamp or solved_tree.get('source_sha256') != stamp:
+        return {}
+    draft_stamp = intent.get('source', {}).get('source_sha256')
+    if draft_stamp and draft_stamp != stamp:
+        return {}
+
+    from collections import Counter
+    rails = [node for node in intent['nodes'] if node['kind'] == 'rail']
+    counts = Counter(node['net'] for node in rails)
+    paths = [node for node in solved_tree['nodes'] if node['kind'] == 'copper' and node.get('net')]
+    solved_counts = Counter(node['net'] for node in paths)
+    by_net = {node['net']: node for node in paths if solved_counts[node['net']] == 1}
+    overlays = {}
+    for rail in rails:
+        net = rail['net']
+        if not (rail.get('reviewed') and rail.get('return_net') and
+                rail.get('voltage_v') is not None and counts[net] == 1):
+            continue
+        path = by_net.get(net, {})
+        if path.get('current_A') is None:
+            continue
+        loss = path.get('modeled_copper_loss_W')
+        worst = path.get('worst_path_drop_V')
+        drop = path.get('voltage_drop_V') if worst is None else worst
+        overlays[rail['id']] = {
+            'current_A': path['current_A'], 'voltage_drop_V': drop,
+            'drop_label': 'worst path drop' if worst is not None else 'drop',
+            'loss_W': path.get('loss_W') if loss is None else loss,
+            'loss_label': 'path loss' if loss is None else 'copper loss',
+            'cold_reference': solved_tree.get('solution_basis') == 'cold_baseline',
+            'diagnostic': solved_tree.get('feasible') is False,
+        }
+    return overlays
 
 def load_power_tree(path, **validation):
     path = Path(path)

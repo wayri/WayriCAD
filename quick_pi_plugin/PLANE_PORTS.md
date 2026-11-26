@@ -221,6 +221,9 @@ and frequency. No radiation, launches, vias, stacks, component models or
 unmodeled return geometry are implied. Limitations and primary references are
 included in each result.
 
+The separate [real-board Marble Zxx demonstration](examples/marble_zxx/README.md)
+includes a saved trace mesh, the complex impedance sweep and CLI replay steps.
+
 ## Focused Validation
 
 ```text

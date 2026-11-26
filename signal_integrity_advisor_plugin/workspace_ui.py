@@ -46,9 +46,16 @@ class Workspace:
         self._button(header, row, 'Help', self.show_help)
         header.SetSizer(row)
         layout.Add(header, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        summary_row = wx.BoxSizer(wx.HORIZONTAL)
         self.summary = wx.StaticText(panel, style=wx.ST_ELLIPSIZE_MIDDLE)
         self.summary.SetMinSize((1,-1))
-        layout.Add(self.summary,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
+        summary_row.Add(self.summary,1,wx.ALIGN_CENTER_VERTICAL)
+        self.live_analysis=wx.CheckBox(panel,label='Live net analysis')
+        self.live_analysis.Show(self.can_navigate and panel.saved_board)
+        self.live_analysis.SetToolTip('Run SI once, then rerun this path when its signal or selected return copper changes in the originating PCB Editor.')
+        self.live_analysis.Bind(wx.EVT_CHECKBOX,panel.toggle_live_analysis)
+        summary_row.Add(self.live_analysis,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,12)
+        layout.Add(summary_row,0,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,10)
         # These existing controllers own enable/disable and error handling.
         # Their commands stay visible in Files instead of consuming the sidebar.
         for control in (panel.export, panel.blender, panel.export_circuit_button, panel.copy_circuit_button,
@@ -122,7 +129,11 @@ class Workspace:
     def refresh_summary(self):
         values={key:self.panel.fields[key].GetValue() for key in ('net','start','end')}
         from .result_feedback import summary_text
-        message,tooltip=summary_text(values,self.panel.report,saved_board=self.panel.saved_board)
+        live=self.panel._analysis_board is not None
+        message,tooltip=summary_text(values,self.panel.report,saved_board=self.panel.saved_board and not live)
+        if live:
+            message+=' · Live editor preview'
+            tooltip+='\nLive editor preview. Turn off Live net analysis and run against the saved PCB to export.'
         self.summary.SetLabel(message);self.summary.SetToolTip(tooltip)
 
     def setup_limit(self):

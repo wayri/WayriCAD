@@ -110,6 +110,8 @@ def write_report(path, bundle):
     note = result.get('notice') or '; '.join(result.get('assumptions', []))
     html = '<!doctype html><html lang="en"><meta charset="utf-8"><title>Electrothermal study</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto;padding:0 20px}img{width:100%}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>'
     html += '<h1>Quick PI · Electrothermal ' + escape(bundle['mode']) + '</h1><p>' + escape(note) + '</p>'
+    for assumption in bundle.get('study',{}).get('assumptions',[]):
+        html += '<p>' + escape(str(assumption)) + '</p>'
     html += '<p>Operating-point checks: ' + ('accepted' if valid_operating_point(bundle) else 'failed or violated') + '.</p>'
     from .sankey import sankey_section
     html += sankey_section(bundle)

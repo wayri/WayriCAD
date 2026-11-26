@@ -14,6 +14,29 @@ QUANTITIES = {
 }
 
 
+def field_quantities(bundle):
+    quantities = dict(QUANTITIES)
+    if bundle['result'].get('element_temperature_c') is not None:
+        quantities['Copper temperature (°C)'] = 'temperature'
+    return quantities
+
+
+def feedback_text(bundle):
+    result = bundle['result']
+    feedback = result.get('joule_feedback')
+    if not feedback:
+        return ''
+    if not feedback.get('converged'):
+        diagnostic = feedback.get('diagnostic') or feedback.get('status','Stopped')
+        return f'Cold reference shown. {diagnostic}'
+    peak = feedback['peak_temperature_c']
+    cold = feedback['cold']
+    resistance = 'Worst drop / total I' if len(result.get('sinks',[])) > 1 else 'Resistance'
+    return (f'Steady Joule feedback · Peak estimated copper {peak:.2f} °C · '
+            f"Copper loss {cold['total_power_W'] * 1000:.4g} → {result['total_power_W'] * 1000:.4g} mW · "
+            f"{resistance} {cold['drop_over_current_ohm'] * 1000:.4g} → {result['drop_over_current_ohm'] * 1000:.4g} mΩ.")
+
+
 def layer_names(bundle):
     """Return copper layers with geometry, plus the interlayer barrel span."""
     layers = [row['name'] for row in bundle['geometry']['layers'] if row.get('polygons')]
@@ -27,7 +50,7 @@ def sampled_cells(bundle, layer='All copper', quantity='current_density', limit=
     interlayer barrels appear under Via barrels. A deterministic uniform sample
     limits Matplotlib work on large tetrahedral meshes.
     """
-    if quantity not in QUANTITIES.values():
+    if quantity not in field_quantities(bundle).values():
         raise ValueError('Unknown 3D field quantity.')
     if not isinstance(limit, int) or limit < 1:
         raise ValueError('Display cell limit must be positive.')
@@ -58,6 +81,8 @@ def sampled_cells(bundle, layer='All copper', quantity='current_density', limit=
         if vectors.shape != centers.shape:
             raise ValueError('3D current-density vectors and cell coordinates disagree.')
         values = np.linalg.norm(vectors, axis=1)
+    elif quantity == 'temperature':
+        values = np.asarray(result['element_temperature_c'], dtype=float)
     elif quantity == 'loss_density':
         power = result['cell_power_W']
         volume = result['cell_volume_mm3']
@@ -94,13 +119,35 @@ def write_volume_report(path,bundle,*,pocket_kivi=False):
         from .report import _pocket_evidence
         pocket=_pocket_evidence(bundle)
     path,_=report_paths(path)
+    from .series_power_tree import build_power_result_tree, tree_html
+    tree=build_power_result_tree(bundle)
+    if tree:
+        bundle=dict(bundle,rail_power_tree=tree)
     if pocket is None and not pdf:
         path.parent.mkdir(parents=True,exist_ok=True)
         path.with_suffix('.json').write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
-    html='<html lang="en"><meta charset="utf-8"><title>Quick PI 3D copper</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto}figure{margin:18px 0}</style><h1>Quick PI 3D copper</h1><p>Display samples only. Exact complete tetrahedron results are retained in the paired JSON. This is fixed-temperature DC conduction, not AC impedance or thermal transient analysis.</p>'
+    from html import escape
+    html='<html lang="en"><meta charset="utf-8"><title>Quick PI 3D copper</title><style>body{font:15px system-ui;max-width:1100px;margin:30px auto}figure{margin:18px 0}dt{font-weight:600}dd{margin:0 0 10px}</style><h1>Quick PI 3D copper</h1><p>The paired JSON includes the complete tetrahedral fields.</p>'
+    feedback=bundle['result'].get('joule_feedback')
+    if feedback:
+        html+='<h2>Joule heating</h2><p>'+escape(feedback_text(bundle))+'</p>'
+        html+='<p>3D copper electrical FEM with steady board-layer heat spreading.</p>'
+        inputs=bundle.get('request',{}).get('joule_feedback',{}).get('thermal_settings',{})
+        html+='<dl>'
+        for key,label,unit in (('ambient_c','Ambient','°C'),('dielectric_k_w_mk','Laminate','W/(m·K)'),
+                               ('board_h_w_m2k','Effective convection','W/(m²·K)'),
+                               ('board_emissivity','Emissivity','')):
+            if key in inputs:
+                html+=f'<dt>{label}</dt><dd>{inputs[key]:.4g} {unit}</dd>'
+        html+='</dl>'
+        for assumption in feedback.get('assumptions',[]):
+            html+='<p>'+escape(assumption)+'</p>'
+    else:
+        html+='<p>Fixed-temperature DC copper conduction.</p>'
     from .sankey import sankey_section
     html+=sankey_section(bundle)
-    for label,quantity in QUANTITIES.items():
+    html+=tree_html(tree,raster=pdf)
+    for label,quantity in field_quantities(bundle).items():
         xyz,values,count=sampled_cells(bundle,quantity=quantity)
         rows=[[float(p[0]),float(p[1]),float(v),'Sampled cell',float(p[2])] for p,v in zip(xyz,values)]
         html+=interactive_plot(label,rows,label,three_d=True)
@@ -109,7 +156,6 @@ def write_volume_report(path,bundle,*,pocket_kivi=False):
             from io import BytesIO
             from matplotlib.figure import Figure
             from matplotlib.backends.backend_agg import FigureCanvasAgg
-            from html import escape
             figure=Figure(figsize=(7,5));FigureCanvasAgg(figure)
             axis=figure.add_subplot(projection='3d')
             image=axis.scatter(xyz[:,0],xyz[:,1],xyz[:,2],c=values,cmap='inferno',s=8)

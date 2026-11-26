@@ -164,6 +164,41 @@ class PowerTreeTests(unittest.TestCase):
         self.assertEqual(len(contradictory['edges']), 1)
         self.assertIn('Rejected output metadata connection', contradictory['nodes'][0]['evidence'][-1])
 
+    def test_hierarchical_rail_candidates_and_incomplete_declarations_keep_evidence(self):
+        props = {'QuickPI:Role': 'dcdc', 'QuickPI:InputNet': '/power/P5V0'}
+        rows = [dict(id=str(i), reference='U1', footprint_uuid='u1', net=net,
+                     component_properties=props)
+                for i, net in enumerate(['/power/P5V0', '/power/VDDIO', 'GND'])]
+        graph = infer_power_tree({'terminals': rows, 'nets': ['CLK_300MHZ', 'VDD_ENABLE']})
+        self.assertEqual({node['net'] for node in graph['nodes'] if node['kind']=='rail'},
+                         {'/power/P5V0', '/power/VDDIO'})
+        self.assertEqual(graph['edges'], [])
+        device = next(node for node in graph['nodes'] if node['kind']=='dcdc')
+        self.assertTrue(any('Attached rail-named pads' in note for note in device['evidence']))
+        self.assertTrue(any('return needs review' in note for note in device['evidence']))
+
+    def test_overlay_only_matches_reviewed_unambiguous_saved_rails(self):
+        from quick_pi_plugin.power_tree import reviewed_result_overlays
+        intent = empty_tree({'source_sha256': 'bound'})
+        rail = dict(new_node('rail'),net='VDD',return_net='GND',voltage_v=3.3,reviewed=True)
+        intent['nodes'].append(rail)
+        before = deepcopy(intent)
+        solved = {'source_sha256':'bound','status':'solved','solution_basis':'cold_baseline',
+                  'nodes':[{'kind':'copper','net':'VDD','current_A':2.,
+                            'worst_path_drop_V':.02,'loss_W':.03}]}
+        inventory = {'source_sha256':'bound'}
+        overlay = reviewed_result_overlays(intent,inventory,solved)['rail']
+        self.assertEqual(overlay['loss_W'], .03)
+        self.assertEqual(overlay['drop_label'], 'worst path drop')
+        self.assertTrue(overlay['cold_reference'])
+        self.assertEqual(intent, before)
+        self.assertEqual(reviewed_result_overlays(intent,{'source_sha256':'stale'},solved), {})
+        rail['reviewed']=False
+        self.assertEqual(reviewed_result_overlays(intent,inventory,solved), {})
+        rail['reviewed']=True
+        solved['nodes'].append(deepcopy(solved['nodes'][0]))
+        self.assertEqual(reviewed_result_overlays(intent,inventory,solved), {})
+
     def test_layout_places_energy_downstream_and_keeps_disconnected_candidates(self):
         tree = example(); tree['nodes'].append(new_node('candidate'))
         positions = diagram_positions(tree)

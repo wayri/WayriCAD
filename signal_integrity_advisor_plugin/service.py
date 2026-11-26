@@ -101,7 +101,7 @@ def restore_path(payload,board):
     return path
 
 
-def run_job(request,cancelled=None,timeout=300,python=None):
+def run_job(request,cancelled=None,timeout=300,python=None,*,background=False):
     """Wait for one cancellable child; no board or wx objects cross threads."""
     if not math.isfinite(float(timeout)) or float(timeout)<=0:raise ValueError('Worker timeout must be finite and positive.')
     if cancelled and cancelled():raise InterruptedError('Quick SI cancelled before starting.')
@@ -123,10 +123,15 @@ def run_job(request,cancelled=None,timeout=300,python=None):
         source.write_text(json.dumps(request,allow_nan=False),encoding='utf-8')
         environment = child_environment()
         environment['WAYRICAD_ANALYSIS_SCRATCH'] = str(root)
+        options=worker_options()
+        if background:
+            options['creationflags'] |= getattr(subprocess,'BELOW_NORMAL_PRIORITY_CLASS',0)
+            for variable in ('OPENBLAS_NUM_THREADS','OMP_NUM_THREADS','MKL_NUM_THREADS'):
+                environment.setdefault(variable,'2')
         with (root/'worker.log').open('w+',encoding='utf-8') as log:
             process=subprocess.Popen([str(python),'-I',str(Path(__file__).with_name('worker.py')),str(source),str(target)],
                 env=environment,stdin=subprocess.DEVNULL,stdout=log,stderr=log,
-                **worker_options())
+                **options)
             started=time.monotonic()
             try:
                 while process.poll() is None:

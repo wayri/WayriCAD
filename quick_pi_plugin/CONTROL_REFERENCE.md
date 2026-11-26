@@ -27,9 +27,9 @@ over the base SI units used in saved JSON. A disabled action is not a passed che
 | Additional sinks… | Add simultaneous units with currents/powers, bounds and reviewed grouped pins. Repeated or overlapping contacts are invalid. |
 | Package contacts… | Explicit lead/solder/BGA geometry and material paths. Supported 2.5D prescribed-current cases only; not the same as ideal grouped pins. |
 | Copper model | 2.5D sheets/barrels or full 3D copper volume. Switching invalidates old fields; 3D does not add AC or temperature feedback. |
-| Include Joule heating / temperature feedback | DC already computes I²R. This additionally opens explicit temperature/resistance coupling, supported for one-net 2.5D prescribed-current units. |
+| Include Joule heating | Run starts steady temperature feedback using the selected 2.5D or 3D prescribed-current copper model. |
 | Rails / ground returns… | Explicit multi-rail and return-contact configuration. Different from sampled reference-plane auditing. |
-| Preview / Run | Inspect saved copper first; Run validates, meshes and solves. Setup's next-action hint and Run tooltips explain missing/conflicting endpoints, stale data and unsupported model combinations. Joule checkbox opens required physical settings first. Readiness is not convergence or feasibility. |
+| Preview / Run | Inspect saved copper first; Run validates, meshes and solves. Setup's next-action hint and Run tooltips explain missing/conflicting endpoints, stale data and unsupported model combinations. With Joule heating selected, Run starts steady coupling using the screening settings. Readiness is not convergence or feasibility. |
 | Export report… | Export the current HTML and complete numerical result; separate from Save setup / Save simulation. |
 | Losses / Probe table copy | Ctrl+C or right-click copies the selected row; Ctrl+Shift+C or Copy table copies all rows in current sort order. Includes headers and complete stored values as tab-separated text; unknowns remain unknown. Copying does not change selection or solve data. |
 | Export / Power flow / Blender… | Current HTML/JSON evidence, source-to-sink power accounting, or optional Blender field export. None changes PCB geometry. |
@@ -238,10 +238,11 @@ unchanged Marble example stops at this geometry guard; a valid input file alone
 does not establish a successful temperature solve.
 
 
-The updated-source checkbox opens **Materials + cooling** first. Guided fields
-and **Advanced model inputs** edit one canonical study. Required blank values
-remain unknown; editing invalidates results. The current net/source and load-unit
-count are shown so the carried-over selection can be checked.
+The checkbox starts the solve with the editable screening inputs in
+**Mesh & material**. For a completed 2.5D result, **Materials + cooling** and
+**Advanced model inputs** edit the same study. Re-run after changing inputs.
+The 3D result includes an additional copper-temperature field when the coupled
+solve converges.
 
 | Guided input | Required interpretation |
 |---|---|
