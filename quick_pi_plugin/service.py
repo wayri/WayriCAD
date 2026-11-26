@@ -192,10 +192,12 @@ def execute(request,*,_boards=None):
     version=producer_version(module_file=__file__,package=__package__)
     from wayricad_runtime.saved_board import assert_current, provenance
     boards={} if _boards is None else _boards
-    from .voltage_tolerance import annotate, request_limits
-    request_limits(request)
+    tolerance_enabled=request.get('voltage_tolerance_pct') is not None
+    if tolerance_enabled:
+        from .voltage_tolerance import annotate, request_limits
+        request_limits(request)
     output=_execute(request,_boards=boards)
-    if output.get('result') and request.get('voltage_tolerance_pct') is not None:
+    if tolerance_enabled and output.get('result'):
         annotate(output['result'],request)
         if output.get('mesh') and output['result'].get('sinks'):
             from .width_guidance import recommend_trace_widths

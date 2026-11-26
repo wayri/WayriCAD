@@ -29,7 +29,7 @@
     "tools/generate_pocket_kivi_examples.py": "0526afa5a198584f0cf1e8f14c827520ea953430a7aaaa56e535fa4de9e04d92",
     "wayricad_runtime/pocket_kivi_export.py": "f79cbf24f7c1f09ea90dc2c96f1c9766ceb3c3ed7db990857fa608a65e37c58d",
     "wayricad_runtime/pocket_report.py": "1c891730933c9140036c8a0c7f20bc877743bd6aa27e85707fe646079594b1d7",
-    "quick_pi_plugin/service.py": "70fd6071f86b05762d2a59e92daae49185f859ac1065f5bf2a5732b437686fde",
+    "quick_pi_plugin/service.py": "20aad1493df4fd74521884b304cab3549c7d5a24bd6d89ee8972361a5db9727b",
     "quick_pi_plugin/board_geometry.py": "f696610674653a3416aa54157cb6c5590726da156002178379770af850de6e97",
     "quick_pi_plugin/mesh.py": "1bd771ef77857b6ff9e021ac17f702f8f30eed69ed1c5da8c5b6796f7b0c660b",
     "quick_pi_plugin/solver.py": "14375abcf6206a049fa9a96564148572f22f83cb38dab875ff3c5c4aed740eda",
