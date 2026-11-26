@@ -476,6 +476,10 @@ class QuickEMergeFrame(wx.Frame):
                 ('Numerical status', 'Mesh not convergence-qualified', ''),
                 ('Port count', result.get('port_count', 0), ''),
                 ('Frequency samples', len(result.get('frequencies_hz', [])), '')]
+        solver = result.get('solver_evidence')
+        if isinstance(solver, dict) and solver.get('solver') and isinstance(solver.get('reports'), int):
+            rows.append(('Verified linear solver', str(solver['solver']),
+                         f"{solver['reports']} matching solve reports"))
         if result.get('s_parameters'):
             from .network import from_result
             analysis = from_result(result).analyze()
@@ -1377,10 +1381,14 @@ class QuickEMergeFrame(wx.Frame):
         self.preview_button.Enable(not (running or self.region_busy or getattr(self,'network_busy',False)))
         can_run = not busy and not self.solver_probe_busy and self.session.review is not None
         verified = getattr(self, 'solver_probe_available', None)
+        run_help = 'Run the reviewed study'
         if verified is not None and self.solver_probe_python == self.python.GetPath():
             selected = self.solver.GetStringSelection()
-            can_run = can_run and bool(verified) and (
-                selected in verified or selected not in ('SUPERLU', 'PARDISO', 'SPARTA', 'CORVID'))
+            unsupported = selected not in verified and selected in ('SUPERLU', 'PARDISO', 'SPARTA', 'CORVID')
+            if unsupported:
+                run_help = f'{selected} has not passed the runtime check. Open Dependencies or choose a verified solver.'
+            can_run = can_run and bool(verified) and not unsupported
+        self.run_button.SetToolTip(run_help)
         self.run_button.Enable(can_run)
         self.cancel_button.Enable(busy)
         self.cancel_button.SetLabel('Cancel')
