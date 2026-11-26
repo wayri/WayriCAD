@@ -417,7 +417,7 @@ class QuickEMergeFrame(wx.Frame):
                 import subprocess
                 try:
                     with (folder/'worker.log').open('wb') as log:
-                        process=subprocess.Popen([self.python.GetPath(),'-I',str(Path(__file__).with_name('network_worker.py')),str(folder/'request.json')],
+                        process=subprocess.Popen([self.python.GetPath(),'-I','-X','utf8',str(Path(__file__).with_name('network_worker.py')),str(folder/'request.json')],
                             stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
                         self.network_process=process
                         try:status=process.wait(timeout=180)
@@ -1357,7 +1357,7 @@ class QuickEMergeFrame(wx.Frame):
                     view.render(plots.geometry, config, reset=True, options=self.display_options)
                 elif name == 'PCB enclosure':
                     view.render(plots.plan_geometry, config, reset=True, options=self.display_options)
-            self.run_button.Enable()
+            self.running_state(self.running)
             self.results_button.SetValue(False); self.results_button.Disable()
             self.select_view('3D setup')
             self.probe_label.SetLabel('Geometry preview · drag to inspect · wheel to zoom · Show results after a simulation')
@@ -1379,7 +1379,8 @@ class QuickEMergeFrame(wx.Frame):
         verified = getattr(self, 'solver_probe_available', None)
         if verified is not None and self.solver_probe_python == self.python.GetPath():
             selected = self.solver.GetStringSelection()
-            can_run = can_run and bool(verified) and (selected in verified or selected not in ('SUPERLU', 'PARDISO'))
+            can_run = can_run and bool(verified) and (
+                selected in verified or selected not in ('SUPERLU', 'PARDISO', 'SPARTA', 'CORVID'))
         self.run_button.Enable(can_run)
         self.cancel_button.Enable(busy)
         self.cancel_button.SetLabel('Cancel')

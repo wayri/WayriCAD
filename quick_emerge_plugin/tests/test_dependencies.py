@@ -22,6 +22,7 @@ class DependencyTests(unittest.TestCase):
         self.commands = []
         self.failure = None
         self.bad_certificate = False
+        self.accelerator_certificate = True
         self.installed_versions = {}
         self.patches = [patch.object(dep, 'latest_release', return_value='3.1.0'),
                         patch.object(dep, 'discover_python', return_value=Path('base-python')),
@@ -35,17 +36,28 @@ class DependencyTests(unittest.TestCase):
         utility.start();self.addCleanup(utility.stop)
 
     def certificate(self, folder, version, output=None):
+        packages = {'emsutil': dep.SUPPORTED_EMSUTIL_VERSION}
+        solvers = {}
+        if self.accelerator_certificate:
+            for solver in dep.expected_accelerators(version):
+                distribution = compatibility.ACCELERATED_SOLVERS[solver]
+                packages[distribution] = '0.5.3' if solver == 'CORVID' else '0.3.9'
+                solvers[solver] = dict(distribution=distribution, version=packages[distribution],
+                    mode='CPU', status='passed', max_s_parameter_delta=1e-8,
+                    tolerance=compatibility.SOLVER_PARITY_TOLERANCE)
         backend.atomic_json(output or folder/compatibility.CERTIFICATE_NAME,
                             dict(schema=1, issuer=compatibility.CERTIFICATE_ISSUER, version=version,
                                  adapter_signature='stale' if self.bad_certificate else compatibility.adapter_signature(),
-                                 packages={'emsutil':dep.SUPPORTED_EMSUTIL_VERSION}))
+                                 packages=packages, solver_backends=solvers))
 
     def metadata_probe(self, argv, **kwargs):
         python = Path(argv[0])
         folder = python.parent.parent
         certificate = json.loads((folder/compatibility.CERTIFICATE_NAME).read_text())
         version = self.installed_versions.get(folder.name, certificate['version'])
-        if 'emsutil' in str(argv[-1]): version=certificate.get('packages',{}).get('emsutil','')
+        if argv[-1] == dep._PACKAGE_PROBE:
+            installed = dict(certificate.get('packages', {}), emerge=version)
+            return SimpleNamespace(returncode=0, stdout=json.dumps(installed))
         return SimpleNamespace(returncode=0, stdout=version+'\n')
 
     def runtime(self, name='old', version='3.0.0b9'):
@@ -82,14 +94,28 @@ class DependencyTests(unittest.TestCase):
         self.assertEqual(result['version'], '3.1.0')
         self.assertEqual(len(self.commands), 4)
         self.assertIn('venv', self.commands[0])
-        self.assertIn('emerge[cad]==3.1.0', self.commands[1])
+        extras = 'cad,corvid' if 'CORVID' in dep.expected_accelerators('3.1.0') else 'cad'
+        self.assertIn(f'emerge[{extras}]==3.1.0', self.commands[1])
+        self.assertEqual(set(result['solver_backends']), set(dep.expected_accelerators('3.1.0')))
         for requirement in dep.SOLVER_EXTRAS:
             self.assertIn(requirement, self.commands[1])
         self.assertNotIn('--upgrade', self.commands[1])
         self.assertEqual(self.run.call_args_list[3].kwargs['timeout'], dep.QUALIFICATION_TIMEOUT)
         self.assertIn('check', self.commands[2])
         self.assertIn('--qualify-runtime', self.commands[3])
+        self.assertEqual(self.commands[3][1:4], ['-I', '-X', 'utf8'])
         self.assertEqual(self.manager.active()['environment'], result['environment'])
+
+    def test_missing_accelerator_certificate_rejects_candidate_without_replacing_active(self):
+        self.runtime()
+        self.state(active='old', checked_at=0)
+        self.accelerator_certificate = False
+        with patch.object(dep, 'expected_accelerators', side_effect=lambda version:
+                          ('SPARTA', 'CORVID') if version == '3.1.0' else ()):
+            result = self.manager.ensure()
+        self.assertEqual(result['environment'], 'old')
+        self.assertIn('CPU qualification', result['message'])
+        self.assertEqual(self.manager._read_state()['active'], 'old')
 
     def test_first_open_latest_failure_falls_back_to_baseline(self):
         rejected = []

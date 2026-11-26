@@ -12,7 +12,7 @@ import tempfile
 from .model import config_digest, source_identity, validate_config
 from .network_keys import s_key
 from .advanced import (configure_solver, dielectric, assign_conductor, conductor_boundaries,
-                       air_region, outer_boundary, field_payload, physics_assumptions)
+                       air_region, outer_boundary, field_payload, physics_assumptions, record_solver_evidence)
 
 
 SUPPORTED_VERSION = '3.0.4'
@@ -196,6 +196,9 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
                                           max_samples=c['points'], tol=c['convergence'])
     else:
         data = model.mw.run_sweep()
+    result = {'schema': 1, 'backend': info, 'model_scope': 'parametric-template',
+              'config': c, 'config_sha256': config_digest(c), 'assumptions': physics_assumptions(c)}
+    record_solver_evidence(result, data, c)
     frequencies = np.asarray(data.scalar.grid.freq).reshape(-1)
     ordering = np.argsort(frequencies)
     frequencies = frequencies[ordering]
@@ -215,10 +218,7 @@ def solve(config, progress=print, *, qualifying=False, region=None, export_conte
         field.set_excitations(*weights)
     progress('Sampling near field and radiation.', flush=True)
     fields = field_payload(np, field, frequency, bbox, c)
-    result = {'schema': 1, 'backend': info, 'model_scope': 'parametric-template',
-              'config': c, 'config_sha256': config_digest(c),
-              'frequencies_hz': frequencies.tolist(), 's_parameters': s,
-              'field': fields, 'assumptions': physics_assumptions(c)}
+    result.update(frequencies_hz=frequencies.tolist(), s_parameters=s, field=fields)
     result['discretization']={'tetrahedra':int(model.mesh.n_tets),
                               'field_grid':c['field_grid'], 'field_layers':c['advanced']['field_layers'],
                               'convergence_qualified':False}

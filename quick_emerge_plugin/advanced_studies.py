@@ -3,7 +3,7 @@ import math
 from .advanced import check_mesh_budget
 
 from .advanced import (configure_solver, dielectric, assign_conductor,
-                       conductor_boundaries, field_payload, verify_step)
+                       conductor_boundaries, field_payload, verify_step, record_solver_evidence)
 from .model import config_digest, validate_config
 
 
@@ -60,6 +60,7 @@ def solve_periodic(em, np, c, info, progress):
         'Infinite rectangular array of identical patches; no finite-array edge effects',
         'Two fundamental Floquet modes; higher diffraction orders are not reported',
         'No convergence qualification; originating PCB is context only'])
+    record_solver_evidence(result, data, c)
     result['frequencies_hz'], result['s_parameters'] = _network(np, data, 2)
     result['port_count'] = 2
     # Floquet ports use the free-space wave impedance, not the lumped Z0 input.
@@ -121,6 +122,7 @@ def solve_scattering(em, np, c, info, progress):
         'Incident angles use the upstream standard spherical convention in degrees',
         'Bistatic RCS at the middle solved frequency; no convergence qualification',
         'Imported STEP materials/components are replaced by PEC' if identity else 'Sphere template; originating PCB is context only'])
+    record_solver_evidence(result, data, c)
     if imported:
         result['assumptions'] = imported['assumptions'] + ['Scattered field from imported geometry with reviewed materials; no driven network ports', 'No convergence qualification']
     result['frequencies_hz'] = frequencies.tolist()
@@ -317,6 +319,7 @@ def solve_waveguide(em, np, c, info, progress):
         'Sweep restricted above TE10 cutoff and below the next propagating mode',
         'Main S matrix renormalized from frequency-dependent TE impedance to the entered real Z0',
         'Analytic uniform-guide comparison is a reference check, not arbitrary-waveguide qualification'])
+    record_solver_evidence(result, data, c)
     result.update(port_count=2, frequencies_hz=frequencies, s_parameters=renormalized, reference_impedance_ohm=c['z0_ohm'])
     beta = 2*np.pi*f/299792458*np.sqrt(1-(fc/f)**2)
     reference = np.exp(-1j*beta*length)

@@ -25,6 +25,10 @@
   Trace Refiner exposes per-proposal validation evidence for review.
 - Component Arranger adds conflict details and bounded placement trials. Quick
   EMerge remains beta and provides a larger antenna and result viewport.
+- Quick EMerge adds the upstream CORVID iterative and SPARTA direct solver
+  selectors with EMerge 3.0.10. New runtime candidates pass compatibility
+  checks before activation. GPU and Hybrid availability depends on hardware
+  and drivers.
 
 ## Validation and model limits
 
@@ -38,4 +42,5 @@ been benchmarked.
 
 [Quick PI guide](../quick_pi_plugin/README.md) ·
 [Assistant guide](../suite_assistant_plugin/README.md) ·
+[Quick EMerge guide](../quick_emerge_plugin/README.md#corvid-and-sparta) ·
 [Installation](INSTALLATION.md)

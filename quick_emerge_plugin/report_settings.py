@@ -113,4 +113,8 @@ def active_settings(result):
     if thermal or coupled:
         add('Thermal', 'Thermal boundary', 'Fixed bottom temperature; adiabatic top and sides')
     add('Solve', 'Linear solver', c['solver'])
+    evidence = result.get('solver_evidence')
+    if evidence:
+        add('Solve', 'Verified backend', evidence['solver'])
+        add('Solve', 'Matching solve reports', evidence['reports'])
     return rows

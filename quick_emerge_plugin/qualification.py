@@ -5,7 +5,8 @@ import math
 from pathlib import Path
 
 from . import backend
-from .compatibility import CERTIFICATE_ISSUER, adapter_signature
+from .compatibility import (ACCELERATED_EMERGE_VERSION, ACCELERATED_SOLVERS, CERTIFICATE_ISSUER,
+                            SOLVER_PARITY_TOLERANCE, adapter_signature, solver_disabled)
 from .model import validate_config
 
 
@@ -119,6 +120,63 @@ def smoke_configs():
             ('pcb_line_adaptive', dict(line, sweep='adaptive', points=5, adaptive_steps=1))]
 
 
+def qualify_solver_backends(*, required=()):
+    # Each selected solver runs the same explicit two-port copper test on CPU.
+    from packaging.version import Version
+    emerge_version = Version(importlib.metadata.version('emerge'))
+    available = {}
+    evidence = {}
+    for name, distribution in ACCELERATED_SOLVERS.items():
+        record = {'distribution': distribution, 'mode': 'CPU'}
+        evidence[name] = record
+        try:
+            record['version'] = importlib.metadata.version(distribution)
+        except importlib.metadata.PackageNotFoundError:
+            record.update(status='unavailable', reason='Official solver wheel is missing.')
+            continue
+        if emerge_version < Version(ACCELERATED_EMERGE_VERSION) or solver_disabled(name):
+            record.update(status='unavailable', reason='Current EMerge runtime does not enable this solver.')
+        else:
+            available[name] = record
+
+    if available:
+        fixture = smoke_configs()[0][1]
+        fixture = dict(fixture, advanced=dict(fixture['advanced'], solver_threads=1, sparta_mode='CPU'))
+        reference = _solver_result(fixture, 'SUPERLU')
+        for name, record in available.items():
+            try:
+                result = _solver_result(fixture, name)
+                if result['frequencies_hz'] != reference['frequencies_hz']:
+                    raise ValueError('Frequency samples differ from SuperLU.')
+                delta = max(
+                    abs(complex(*actual) - complex(*expected))
+                    for port, samples in result['s_parameters'].items()
+                    for actual, expected in zip(samples, reference['s_parameters'][port])
+                )
+                if delta > SOLVER_PARITY_TOLERANCE:
+                    raise ValueError(f'Complex S-parameter difference {delta:.5g} exceeds {SOLVER_PARITY_TOLERANCE:g}.')
+                record.update(status='passed', max_s_parameter_delta=delta,
+                              tolerance=SOLVER_PARITY_TOLERANCE)
+            except Exception as exc:
+                record.update(status='failed', reason=str(exc))
+
+    for name in required:
+        if name not in evidence:
+            raise ValueError(f'Unknown solver {name}.')
+        if evidence[name]['status'] != 'passed':
+            raise RuntimeError(f'{name} CPU qualification failed: {evidence[name]["reason"]}')
+    return evidence
+
+
+def _solver_result(fixture, solver):
+    config = validate_config(dict(fixture, solver=solver))
+    result = backend.solve(config, qualifying=True)
+    check_result(result, config)
+    if result.get('backend', {}).get('solver') != solver:
+        raise ValueError(f'Qualification cannot confirm the requested {solver} solver.')
+    return result
+
+
 def qualify(output):
     """Write only the explicitly requested certificate after all real solves pass."""
     from packaging.version import Version
@@ -142,8 +200,9 @@ def qualify(output):
         check_result(result, config)
         checks.append(name)
     checks.extend(qualify_extended_apis(Path(output).parent))
+    solver_backends = qualify_solver_backends()
     packages = {}
-    for name in ('emerge', 'emsutil', 'numpy', 'scipy', 'matplotlib', 'gmsh', 'packaging', 'emcad', 'ezdxf', 'optycal', 'msgpack', 'msgpack-numpy'):
+    for name in ('emerge', 'emsutil', 'numpy', 'scipy', 'matplotlib', 'gmsh', 'packaging', 'emcad', 'ezdxf', 'optycal', 'msgpack', 'msgpack-numpy', *ACCELERATED_SOLVERS.values()):
         try:
             packages[name] = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
@@ -153,7 +212,7 @@ def qualify(output):
     certificate = dict(schema=1, issuer=CERTIFICATE_ISSUER, version=version,
                        adapter_signature=initial_signature,
                        qualified_at=datetime.now(timezone.utc).isoformat(), checks=checks,
-                       packages=packages,
+                       packages=packages, solver_backends=solver_backends,
                        scope='API compatibility smoke solves; not numerical accuracy or convergence')
     backend.atomic_json(Path(output), certificate)
     return certificate

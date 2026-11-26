@@ -404,6 +404,27 @@ working SuperLU/PARDISO backends. New studies prefer verified PARDISO when
 available; loaded setups and explicit solver choices are preserved. KiCad-native saved-board extraction
 uses the installed KiCad Python bindings.
 
+### CORVID and SPARTA
+
+Choose the solver in **Setup → Solve** after configuring the managed runtime.
+**CORVID** uses the upstream iterative Maxwell solver on supported
+second-order, driven PEC studies with linear sweeps. It uses the upstream
+solver defaults. **SPARTA** uses the upstream sparse direct solver and
+offers CPU, GPU and Hybrid modes. Start with CPU. GPU and Hybrid require a
+compatible device and driver. The runtime compatibility check covers CPU.
+
+Quick EMerge verifies the requested solver for each solved frequency.
+An unsupported study, unavailable solver or unverified fallback produces a
+diagnostic. Save reviewed inputs and use **Run settings → setup/retry** to
+qualify an updated runtime. The setup preserves the previous working runtime
+for rollback.
+
+Upstream packages for this integration are [EMerge 3.0.10](https://pypi.org/project/emerge/3.0.10/),
+[emsutil 1.1.7](https://pypi.org/project/emsutil/1.1.7/),
+[CORVID 0.5.3](https://pypi.org/project/corvid-solver/0.5.3/) and
+[SPARTA 0.3.9](https://pypi.org/project/sparta-solver/0.3.9/).
+The optional solver wheels are installed separately from KiCad and the PCM ZIP.
+
 ```powershell
 python -m quick_emerge_plugin --board C:/Projects/Example/board.kicad_pcb
 ```
@@ -436,15 +457,10 @@ take several minutes; its timeout is 20 minutes. Existing working environments
 are never upgraded in place. Failed updates retain the working version; a first
 installation can fall back to the EMerge 3.0.4 / emsutil 1.1.6 baseline.
 
-These source-update dependencies were checked against official PyPI metadata
-on 2026-11-11: [EMerge 3.0.4](https://pypi.org/project/emerge/3.0.4/) and
-[emsutil 1.1.6](https://pypi.org/project/emsutil/1.1.6/).
-Use **Run settings > setup/retry** to request a fresh update check. Both package
-versions are recorded in compatibility evidence; changing installed emsutil
-invalidates a managed runtime's package identity. Updates remain staged and
-must pass the real-solve gate before activation. The manual fallback pins are
-in [requirements-solver.txt](requirements-solver.txt). These changes ship in
-4.8.0; the older v4.7.0 binaries do not contain them.
+Use **Run settings → setup/retry** to request a fresh update check. The
+runtime records the installed solver and dependency versions. A candidate
+must pass the real-solve gate before activation. The manual fallback pins
+are in [requirements-solver.txt](requirements-solver.txt).
 
 Update checks occur at most daily. The Run settings offer setup/retry and
 restore-previous-runtime controls. Stale adapter certificates trigger

@@ -258,23 +258,64 @@ def verify_step(a):
 
 
 def solver_selection(em, name):
-    """Use the stable 3.0 public classes; retain qualified beta compatibility."""
-    if hasattr(em,'solvers'):
-        names={'SUPERLU':'SuperLU','PARDISO':'Pardiso','UMFPACK':'UMFPACK',
-               'AASDS':'AASDS','CUDSS':'CuDSS','SPARTA':'Sparta'}
-        return getattr(em.solvers,names[name])
-    return em.EMSolver[name]
+    """Use the public classes while retaining the qualified beta enum."""
+    names = {'SUPERLU': 'SuperLU', 'PARDISO': 'Pardiso', 'UMFPACK': 'UMFPACK',
+             'AASDS': 'AASDS', 'CUDSS': 'CuDSS', 'SPARTA': 'Sparta', 'CORVID': 'Corvid'}
+    if hasattr(em, 'solvers'):
+        selected = getattr(em.solvers, names[name], None)
+        if selected is not None and getattr(selected, 'available', True):
+            return selected
+    elif name != 'CORVID':
+        return em.EMSolver[name]
+    raise RuntimeError(f'{name} is unavailable in this EMerge runtime. Prepare a compatible runtime with its optional dependency or select SUPERLU.')
 
 
 def configure_solver(em, model, c):
-    a = c.get('advanced', ADVANCED_DEFAULTS)
+    options = c.get('advanced', ADVANCED_DEFAULTS)
+    name = c['solver']
+    selected = solver_selection(em, name)
     try:
-        solver = model.set_solver(solver_selection(em,c['solver']))
-        solver.set_nthreads(a['solver_threads'])
-        if c['solver'] == 'SPARTA':
-            solver.set_options(mode=a['sparta_mode'])
-    except (ImportError, ModuleNotFoundError, OSError) as exc:
-        raise RuntimeError(f"Selected {c['solver']} backend is unavailable: {exc}. Install its official optional dependencies or select SUPERLU.") from exc
+        solver = model.set_solver(selected)
+        solver.set_nthreads(options['solver_threads'])
+        if name == 'SPARTA':
+            mode = options['sparta_mode']
+            if mode != 'CPU' and not getattr(selected, 'gpu', False):
+                raise RuntimeError(f'SPARTA {mode} needs a GPU supported by the installed EMerge and SPARTA runtime. Choose CPU or change runtimes.')
+            # EMerge 3.0.10 picks SPARTA's mode from the simulation device.
+            # Apply the older per-solver API to preserve qualified runtimes.
+            if hasattr(model, 'set_device'):
+                model.set_device(mode)
+            else:
+                solver.set_options(mode=mode)
+    except (ImportError, OSError) as exc:
+        raise RuntimeError(f'Selected {name} backend is unavailable: {exc}. Install its official optional dependency or select SUPERLU.') from exc
+
+
+def record_solver_evidence(result, data, config):
+    """Record executed microwave backends and refuse implicit accelerated-solver fallback."""
+    requested = config['solver']
+    report_names = {'CORVID': 'SolverCorvid', 'SPARTA': 'SolverSparta', 'SUPERLU': 'SolverSuperLU'}
+    if requested not in report_names:
+        return
+    sim = getattr(data, 'sim', None)
+    reports = [report for entry in sim.iterate() for report in entry.reports] if sim is not None else []
+    required_count = config['points'] if config['sweep'] == 'linear' else 1
+    if len(reports) < required_count:
+        if requested == 'SUPERLU':
+            return
+        raise RuntimeError(f'EMerge did not provide complete {requested} solve reports.')
+    for report in reports:
+        if report.solver != report_names[requested] or report.exit_code != 0:
+            if requested == 'SUPERLU':
+                return
+            raise RuntimeError(
+                f'{requested} did not complete the requested solve. '
+                f'EMerge reported {report.solver} with exit code {report.exit_code}.')
+    result['backend'] = dict(result['backend'], solver=requested)
+    result['solver_evidence'] = {
+        'solver': requested, 'reports': len(reports),
+        'requested_device': config['advanced']['sparta_mode'] if requested == 'SPARTA' else 'CPU',
+    }
 
 
 def dielectric(em, c):

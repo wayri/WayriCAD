@@ -111,6 +111,18 @@ class SolverProbeTests(unittest.TestCase):
         self.assertFalse(result['diagnostics']['PARDISO']['available'])
         self.assertIn('missing MKL',result['diagnostics']['PARDISO']['message'])
 
+    def test_probe_advertises_only_cpu_qualified_accelerators(self):
+        evidence = {'status':'passed', 'mode':'CPU', 'version':'0.5.3'}
+        certificate = {'ACCELERATED_SOLVERS':{'CORVID':'corvid-solver', 'SPARTA':'sparta-solver'},
+                       'solver_certificate':lambda name: evidence if name == 'CORVID' else None}
+        with patch.object(probe.importlib.metadata, 'version', return_value='3.0.10'), \
+                patch.object(probe, '_local_mkl_path', side_effect=ImportError('missing MKL')), \
+                patch.object(probe.runpy, 'run_path', return_value=certificate):
+            result = probe.probe_runtime()
+        self.assertEqual(result['available'], ['SUPERLU','CORVID'])
+        self.assertEqual(result['diagnostics']['CORVID']['mode'], 'CPU')
+        self.assertIn('sparta-solver', result['diagnostics']['SPARTA']['message'])
+
     def test_false_pardiso_availability_is_not_accepted(self):
         def bad_native(np,matrix,rhs,expected):
             return probe._checked_solution(np,matrix,rhs,expected,np.zeros(2))

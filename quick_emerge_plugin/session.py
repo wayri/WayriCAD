@@ -50,7 +50,7 @@ class StudySession:
         self.log = (self.run_dir/'solver.log').open('wb')
         try:
             self.process = subprocess.Popen(
-                [str(executable), '-I', str(Path(__file__).with_name('__main__.py')),
+                [str(executable), '-I', '-X', 'utf8', str(Path(__file__).with_name('__main__.py')),
                  '--worker', str(self.run_dir/'request.json')],
                 cwd=self.run_dir, stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
                 env={**os.environ, **(solver_environment or {})},

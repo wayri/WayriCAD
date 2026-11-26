@@ -5,7 +5,7 @@ import wx
 import wx.lib.scrolledpanel
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
-from .model import DEFAULT_CONFIG
+from .model import DEFAULT_CONFIG, SOLVERS
 from .viewport import PlotViewport
 
 
@@ -210,8 +210,8 @@ def build(frame, board):
     frame.dense_sampling_button.SetToolTip('Set 81 linear FEM frequencies and an 81 × 81 field grid. Longer solve time; mesh settings stay unchanged.')
     rows.Add(frame.dense_sampling_button, 0, wx.ALL, 5)
     pane, content, rows = section(run, run_rows, 'Solver')
-    frame.solver = wx.Choice(content, choices=['SUPERLU','PARDISO','UMFPACK','AASDS','CUDSS','SPARTA'])
-    frame.solver.SetSelection(0); frame.solver.Bind(wx.EVT_CHOICE, frame.invalidate); rows.Add(frame.solver, 0, wx.EXPAND | wx.ALL, 5)
+    frame.solver = wx.Choice(content, choices=list(SOLVERS))
+    frame.solver.SetSelection(0); rows.Add(frame.solver, 0, wx.EXPAND | wx.ALL, 5)
     pane, content, rows = section(run, run_rows, 'Runtime and storage', collapsed=True)
     rows.Add(wx.StaticText(content, label='Solver Python'), 0, wx.ALL, 5)
     frame.python = wx.FilePickerCtrl(content, path=sys.executable, message='Solver Python')

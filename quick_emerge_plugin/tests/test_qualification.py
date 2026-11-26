@@ -45,6 +45,7 @@ class QualificationTests(unittest.TestCase):
     def test_templates_and_polygon_region_certificate(self):
         with patch.object(qualification.importlib.metadata, 'version', return_value='3.1.0'), \
                 patch.object(qualification.backend, 'solve', side_effect=fake_result) as solve, \
+                patch.object(qualification, 'qualify_solver_backends', return_value={}), \
                 patch.object(qualification, 'qualify_extended_apis', return_value=['extended-fixture-checks']) as extras:
             cert = qualification.qualify(self.output)
         self.assertEqual(len(solve.call_args_list), 16)
@@ -56,6 +57,43 @@ class QualificationTests(unittest.TestCase):
         self.assertEqual(solve.call_args_list[3].kwargs['region']['area']['id'], 'qualification-coupon')
         self.assertIn('polygon_region_linear', cert['checks'])
         self.assertEqual(compatibility.runtime_certificate(self.output.parent), cert)
+
+    def test_accelerated_full_wave_gate_rejects_substitution_and_records_numeric_parity(self):
+        versions = {'emerge': '3.0.10', 'corvid-solver': '0.5.3', 'sparta-solver': '0.3.9'}
+
+        def solve(config, **kwargs):
+            result = fake_result(config)
+            result['backend'] = {'solver': 'SUPERLU' if config['solver'] == 'SPARTA' else config['solver']}
+            if config['solver'] == 'CORVID':
+                result['s_parameters']['S11'][0][1] = 1e-7
+            return result
+
+        with patch.object(qualification.importlib.metadata, 'version', side_effect=versions.__getitem__), \
+                patch.object(qualification, 'solver_disabled', return_value=False), \
+                patch.object(qualification.backend, 'solve', side_effect=solve) as native:
+            evidence = qualification.qualify_solver_backends(required=('CORVID',))
+            self.assertEqual(evidence['CORVID']['status'], 'passed')
+            self.assertAlmostEqual(evidence['CORVID']['max_s_parameter_delta'], 1e-7)
+            self.assertEqual(evidence['SPARTA']['status'], 'failed')
+            self.assertIn('cannot confirm', evidence['SPARTA']['reason'])
+            self.assertEqual([request.args[0]['solver'] for request in native.call_args_list],
+                             ['SUPERLU', 'CORVID', 'SPARTA'])
+            with self.assertRaisesRegex(RuntimeError, 'SPARTA CPU qualification failed'):
+                qualification.qualify_solver_backends(required=('SPARTA',))
+
+    def test_accelerated_certificate_checks_current_solver_and_utility_packages(self):
+        versions = {'emerge': '3.0.10', 'emsutil': '1.1.7', 'corvid-solver': '0.5.3'}
+        record = dict(distribution='corvid-solver', version='0.5.3', status='passed', mode='CPU',
+                      max_s_parameter_delta=1e-7, tolerance=compatibility.SOLVER_PARITY_TOLERANCE)
+        cert = dict(schema=1, issuer=compatibility.CERTIFICATE_ISSUER,
+                    version='3.0.10', adapter_signature=compatibility.adapter_signature(),
+                    packages=dict(versions), solver_backends={'CORVID':record})
+        self.output.write_text(json.dumps(cert), encoding='utf-8')
+        with patch.object(compatibility.importlib.metadata, 'version', side_effect=versions.__getitem__), \
+                patch.object(compatibility, 'solver_disabled', return_value=False):
+            self.assertEqual(compatibility.solver_certificate('CORVID', self.output.parent), record)
+            versions['emsutil'] = '1.1.8'
+            self.assertIsNone(compatibility.solver_certificate('CORVID', self.output.parent))
 
     def test_old_version_does_not_solve_or_certify(self):
         with patch.object(qualification.importlib.metadata, 'version', return_value='2.99'), \
