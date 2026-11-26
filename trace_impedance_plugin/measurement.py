@@ -128,11 +128,44 @@ class PathMeasurement:
     blockers: List[Dict[str, Any]] = field(default_factory=list)
     route_topology: Dict[str, Any] = field(default_factory=dict)
 
+    def quantity_coverage(self) -> Dict[str, Any]:
+        """Describe modeled subtotals and complete totals without changing legacy values."""
+        quantities = ("resistance_ohm", "resistance_ac_ohm", "capacitance_pf",
+                      "inductance_nh", "propagation_delay_ns")
+        coverage = {}
+        for key in quantities:
+            values = [row[key] for row in self.segments if row.get(key) is not None
+                      and (key != "inductance_nh" or row.get("kind") != "via")]
+            subtotal = sum(values) if values else None
+            omitted = len(self.segments) - len(values)
+            coverage[key] = dict(modeled_subtotal=subtotal,
+                complete_total=subtotal if self.status == "ok" and not omitted else None,
+                modeled_section_count=len(values), omitted_section_count=omitted)
+        via_terms = [row["inductance_nh"] for row in self.segments
+                     if row.get("kind") == "via" and row.get("inductance_nh") is not None]
+        if via_terms:
+            coverage["inductance_nh"]["isolated_via_partial_subtotal_nh"] = sum(via_terms)
+        return coverage
+
+    @staticmethod
+    def quantity_text(coverage, key):
+        quantity = coverage[key]
+        full = quantity["complete_total"]
+        if full is not None:
+            return f"{full:.6g}"
+        subtotal = quantity["modeled_subtotal"]
+        text = "Unavailable" if subtotal is None else f"{subtotal:.6g} (modeled subtotal)"
+        if "isolated_via_partial_subtotal_nh" in quantity:
+            isolated = quantity["isolated_via_partial_subtotal_nh"]
+            text += f"; isolated via partial L {isolated:.6g} nH"
+        return text
+
     def as_report(self) -> Dict[str, Any]:
         """Numeric JSON report without live board object references."""
         result = {key: value for key, value in vars(self).items() if key != "board_items"}
         if not self.impedance_valid:
             result["impedance_ohm"] = None
+        result["quantity_coverage"] = self.quantity_coverage()
         result["totals_complete"] = self.status == "ok"
         result["totals_scope"] = "Modeled sections only; not a complete equivalent circuit" if self.status == "partial" else self.status
         if self.status == "disconnected":
@@ -141,22 +174,23 @@ class PathMeasurement:
         return result
 
     def as_dict(self) -> Dict[str, Any]:
+        coverage = self.quantity_coverage()
         rows = {
             "Net": self.net_name,
             "Start Pad": self.start_pad,
             "End Pad": self.end_pad,
             "Length (mm)": f"{self.length_mm:.3f}",
-            "R DC (ohm)": f"{self.resistance_ohm:.6g}",
-            "R AC @ est. freq (ohm)": f"{self.resistance_ac_ohm:.6g}" if self.resistance_ac_ohm else "-",
-            "C (pF)": f"{self.capacitance_pf:.6g}",
-            "L (nH)": f"{self.inductance_nh:.6g}",
+            "R DC (ohm)": self.quantity_text(coverage, "resistance_ohm"),
+            "R AC @ est. freq (ohm)": self.quantity_text(coverage, "resistance_ac_ohm"),
+            "C (pF)": self.quantity_text(coverage, "capacitance_pf"),
+            "L (nH)": self.quantity_text(coverage, "inductance_nh"),
             "Z0 estimate (ohm)": f"{self.impedance_ohm:.6g}" if self.impedance_valid else "Unknown / not a uniform transmission line",
             "Status": self.status,
             "Impedance Model": self.impedance_model or "Unresolved",
             "Avg trace width (mm)": f"{self.average_width_mm:.4g}" if self.average_width_mm else "-",
             "Width / height": f"{self.width_to_height:.4g}" if self.width_to_height else "-",
             "Effective Er": f"{self.effective_permittivity:.4g}" if self.effective_permittivity else "-",
-            "Propagation delay (ns)": f"{self.propagation_delay_ns:.4g}" if self.propagation_delay_ns else "-",
+            "Propagation delay (ns)": self.quantity_text(coverage, "propagation_delay_ns"),
             "Layer changes": str(self.layer_changes),
             "Vias": str(self.via_count),
             "Tracks": str(self.track_count),
@@ -635,11 +669,14 @@ class TraceMeasurementEngine:
                 model = _rlc.via_barrel(length, edge["drill_mm"],frequency_mhz=frequency)
                 section.update(drill_mm=edge['drill_mm'],plating_mm=model['plating_mm'],resistance_ac_ohm=model['resistance_ac_ohm'])
                 result.resistance_ac_ohm += model['resistance_ac_ohm']
-                section.update(resistance_ohm=model["resistance_ohm"],inductance_nh=model["inductance_nh"],
+                section.update(inductance_kind="isolated_partial",return_loop_inductance_nh=None,
+                               resistance_ohm=model["resistance_ohm"],inductance_nh=model["inductance_nh"],
                                model="Plated barrel: assumed 25 um plating; isolated partial inductance")
                 result.status = "partial"
                 self._block(result, "VIA_DISCONTINUITY_UNMODELED", "Via capacitance and return-loop inductance are unavailable.",
-                            "Provide antipad, reference-transition, and return-via geometry to a 3D or validated via model.", item_uuid=uid)
+                            "Provide antipad, reference-transition, and return-via geometry to a 3D or validated via model.",
+                            item_uuid=uid, start_layer=layer, end_layer=end_layer,
+                            missing_terms=["via_capacitance", "return_loop_inductance"])
             else:
                 (track_ids if kind == "track" else zone_ids).add(uid)
                 width = edge["width_mm"]

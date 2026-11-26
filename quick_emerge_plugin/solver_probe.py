@@ -16,6 +16,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import sys
 
 
@@ -144,6 +145,17 @@ def probe_runtime():
         result['available'].append('PARDISO')
     except Exception as error:
         result['diagnostics']['PARDISO'] = dict(available=False, message=_diagnostic(error))
+    # This script is invoked with -I. Load only the standard-library
+    # certificate helper by path so probing cannot import a source checkout.
+    compatibility = runpy.run_path(str(Path(__file__).with_name('compatibility.py')))
+    for solver, distribution in compatibility['ACCELERATED_SOLVERS'].items():
+        record = compatibility['solver_certificate'](solver)
+        if record:
+            result['available'].append(solver)
+            result['diagnostics'][solver] = dict(record, available=True, message='CPU full-wave qualification passed')
+        else:
+            result['diagnostics'][solver] = dict(
+                available=False, message=f'Qualify the selected solver runtime with the official {distribution} wheel.')
     result['preferred'] = 'PARDISO' if 'PARDISO' in result['available'] else ('SUPERLU' if 'SUPERLU' in result['available'] else None)
     return result
 

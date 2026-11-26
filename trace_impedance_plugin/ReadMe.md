@@ -16,7 +16,7 @@ boards newer than KiCad 10. The launching editor supplies its matching CLI;
 standalone runs can select it with `KICAD_CLI`. Unsupported conversion stops the
 run. The original PCB, project and rules stay unchanged; converted reports retain
 their source and converter provenance. This does not establish editing or DRC
-equivalence. Reopen and rerun after source, rules or converter changes.
+equivalence. The path workspace reloads saved PCB, project and rule changes. Reopen after a converter change and rerun the analysis.
 
 ## Capabilities
 
@@ -95,14 +95,14 @@ Plane/zone estimates use the stated geometry and return assumptions; this is not
 
 ## Workflow
 
-1. Save and refill the PCB in KiCad, then launch the plugin. The PCM action opens a saved-board snapshot; reopen it after saving further changes. Choose a net and two different pads. Native in-editor use can also synchronize from PCB selection.
+1. Save and refill the PCB in KiCad, then launch the plugin. The PCM action opens a saved-board snapshot; it refreshes when you save further PCB, project or rule changes. Choose a net and two different pads, or use the selection from the PCB Editor that launched the analyzer.
 2. Choose **Path** for existing trace/via/zone connections, or **Zone/plane** for a selected filled island and an assumed current-corridor width.
 3. Leave the reference at **Auto**, or choose a copper layer explicitly.
 4. Analyze, inspect the geometry and section status, then export the results.
 
 For a large saved board, a small WayriCAD loading window appears while KiCad reads the PCB and prepares the analyzer. Closing that window cancels opening the analyzer after the current read finishes; it does not change the board.
 
-In the native editor window, **More → Refresh stackup** rereads the saved stackup, retains the chosen reference layer when it still exists, and clears the previous result and AC sweep. Run Analyze again before exporting. The PCM saved-board window must be reopened after saving PCB changes.
+In the native editor window, **More → Refresh stackup** rereads the saved stackup, retains the chosen reference layer when it still exists, and clears the previous result and AC sweep. Run Analyze again before exporting. The PCM path workspace reloads automatically. Use **More → Reload saved PCB** to retry after a read error.
 
 Auto ground recognition uses names such as GND, AGND, DGND and VSS. A name alone does not establish a reference: the engine checks filled copper coverage on adjacent copper layers. Explicit reference selection still requires copper coverage. Unfilled zones must be filled in KiCad first.
 
@@ -130,11 +130,40 @@ Plane R/L depends on the selected terminals and assumed corridor width. It is no
 
 The stackup source, copper thickness, dielectric separation and permittivity are recorded. Automatic transmission-line estimates require saved dielectric thickness and Er; missing values remain structured blockers and are not replaced by generic FR-4 dimensions. A manufacturing document can disagree with embedded board data; resolve that discrepancy before using these estimates for design decisions. Models exclude copper roughness, etch shape, solder mask, dielectric loss, pad and thermal-spoke impedance, full return-current distribution, and connector/package effects. Critical high-speed work needs field simulation or measurement beyond this preliminary geometry analysis.
 
+The summary labels modeled subtotals when part of a route is outside the
+model. In JSON, `quantity_coverage` gives the subtotal, modeled and omitted
+section counts, and a nullable complete total for each quantity. Via barrel
+partial inductance is listed separately from return-loop inductance. Missing via
+capacitance stays unavailable. The frequency sweep retains conductor-loss
+estimates and leaves series reactance and magnitude unavailable if a via loop
+or another necessary inductance term is unresolved.
+
 ## Read-only CLI
+
+### Use the PCB Editor selection
+
+Select one or two pads on the same net in PCB Editor and click **Use PCB
+selection** in the analyzer. Two pads set both endpoints. One pad fills Start
+and leaves End for you to choose. Selected tracks, vias or zones identify the
+net while leaving endpoints for you to choose. Use **More → Select net on
+PCB** to locate the current net in the originating PCB Editor.
+
+The PCM path workspace follows saves in its originating project. It restores
+each unambiguous endpoint by pad UUID, including reference or pad-number
+renames. A deleted or ambiguous endpoint stays empty. Review the selected
+zone island, reference layer and differential mate after a refill or layer change,
+then run **Analyze**. Frequency and corridor width stay as entered.
+
+Enable **Follow PCB selection** to highlight selected tracks, vias, pads and zones
+in the current route preview. Double-click a section row to select and zoom to
+its exact copper item in the launching editor. Use **Use PCB selection** to
+change the analysis inputs. Save new copper before using it as an endpoint.
 
 ### Whole-board sections and net bundles
 
-In the native analyzer, choose **All nets / Bundles…**. Select all saved nets,
+In the native analyzer, choose **All nets / Bundles…**. **Use PCB selection**
+sets **Checked nets** to the distinct nets from selected pads, tracks, vias,
+and zones. You can also select all saved nets,
 check exact nets, or load/edit a named bundle definition. **Infer reference
 planes from filled copper** searches geometric reference candidates, including
 non-ground-named planes. Choose a section budget and **Extract sections**.

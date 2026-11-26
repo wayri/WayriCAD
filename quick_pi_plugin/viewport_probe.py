@@ -3,7 +3,7 @@ from bisect import bisect_left, bisect_right
 import math
 
 from .barrel import drill_dimensions, drill_wall_distance
-from .report import METRICS, cell_values
+from .report import METRICS, VOLTAGE_FIELDS, _nodal_values, cell_values
 from .view_scope import analyzed_nets, mesh_net_labels
 
 
@@ -32,7 +32,9 @@ def attach_viewport_probes(canvas, axes, bundle, layer, metric, visible_nets, cu
     mesh, result = bundle['mesh'], bundle['result']
     geometry = bundle.get('geometry') or mesh.get('geometry', {})
     labels = mesh_net_labels(bundle)
-    indices = np.flatnonzero([str(value) == str(layer) for value in mesh['triangle_layer']])
+    all_layers = layer == 'all'
+    indices = (np.arange(len(labels)) if all_layers else
+               np.flatnonzero([str(value) == str(layer) for value in mesh['triangle_layer']]))
     if visible_nets is not None:
         indices = indices[np.isin(labels[indices], visible_nets)]
     points = np.asarray(mesh['points_mm'])
@@ -46,16 +48,39 @@ def attach_viewport_probes(canvas, axes, bundle, layer, metric, visible_nets, cu
     single_net = analyzed_nets(bundle)
     single_net = single_net[0] if len(single_net) == 1 else None
     cached_result = None
-    via_values = {}
+    cache = {}
+
+    def value_at(sample, x, y):
+        nonlocal cached_result
+        live = current_result()
+        if live is not cached_result:
+            cache.clear()
+            cached_result = live
+        cell = int(sample[3][5:])
+        if metric in VOLTAGE_FIELDS:
+            if 'nodal' not in cache:
+                cache['nodal'] = _nodal_values(live,metric)
+            ids = triangles[cell]
+            a,b,c = points[ids,:2]
+            u,v,d = b-a,c-a,np.asarray([x,y])-a
+            det = u[0]*v[1]-u[1]*v[0]
+            if det:
+                wb=(d[0]*v[1]-d[1]*v[0])/det
+                wc=(u[0]*d[1]-u[1]*d[0])/det
+                return float(cache['nodal'][ids] @ [1-wb-wc,wb,wc])
+        if 'cells' not in cache:
+            cache['cells'] = values if live is result else cell_values(mesh,live,metric)
+        return cache['cells'][cell]
     barrels = []
     for barrel in mesh.get('vias', []):
         net = barrel.get('net') or single_net
         if visible_nets is not None and net not in visible_nets:
             continue
         span = [str(barrel.get(key)) for key in ('top_layer', 'bottom_layer')]
-        if str(layer) not in order or any(value not in order for value in span):
+        if any(value not in order for value in span):
             continue
-        if not min(order[value] for value in span) <= order[str(layer)] <= max(order[value] for value in span):
+        if not all_layers and (str(layer) not in order or
+                               not min(order[value] for value in span) <= order[str(layer)] <= max(order[value] for value in span)):
             continue
         if 'x_mm' not in barrel or 'y_mm' not in barrel:
             continue
@@ -67,13 +92,14 @@ def attach_viewport_probes(canvas, axes, bundle, layer, metric, visible_nets, cu
     scene = prepare_scene(bundle.get('board_scene', {}))
     terminals, groups = contact_labels(bundle)
     pad_scene = prepare_scene(dict(scene, primitives=[row for row in scene.get('primitives', [])
-        if row.get('role') == 'pad' and row.get('uuid') in terminals and str(row.get('layer')) == str(layer)]))
+        if row.get('role') == 'pad' and row.get('uuid') in terminals
+        and (all_layers or str(row.get('layer')) == str(layer))]))
 
     def number(value, units):
         return f'{value:.6g} {units}' if value is not None and math.isfinite(value) else 'Unavailable / floating'
 
     def hover(event, sample):
-        nonlocal cached_result, via_values
+        nonlocal cached_result
         if event.inaxes is not axes or event.xdata is None or event.ydata is None:
             return ''
         x, y = event.xdata, event.ydata
@@ -89,9 +115,11 @@ def attach_viewport_probes(canvas, axes, bundle, layer, metric, visible_nets, cu
             if distance <= barrel['plating_mm']+1e-10:
                 live = current_result()
                 if live is not cached_result:
-                    via_values = {str(row['id']): row for row in live.get('vias', [])}
                     cached_result = live
-                solved = via_values.get(str(barrel['id']), {})
+                    cache.clear()
+                if 'vias' not in cache:
+                    cache['vias'] = {str(row['id']): row for row in live.get('vias', [])}
+                solved = cache['vias'].get(str(barrel['id']), {})
                 text = (f'{net or "Net unavailable"} · {names.get(span[0], span[0])} → {names.get(span[1], span[1])}'
                         f'\n{position} · Barrel current {number(solved.get("current_A"), "A")}'
                         f'\nCurrent density {number(solved.get("current_density_A_mm2"), "A/mm²")}')
@@ -100,14 +128,16 @@ def attach_viewport_probes(canvas, axes, bundle, layer, metric, visible_nets, cu
             return max(candidates)[1]
         if sample is None:
             return ''
-        net = str(labels[int(sample[3][5:])])
+        cell = int(sample[3][5:])
+        net = str(labels[cell])
+        physical_layer = mesh['triangle_layer'][cell]
         contacts = []
         if net and pad_scene.get('primitives'):
-            for pad in hit_test(pad_scene, x, y, visible_layers=[layer], net=net):
+            for pad in hit_test(pad_scene, x, y, visible_layers=[physical_layer], net=net):
                 key = pad['uuid']
                 contacts.append(groups.get(key) or terminals[key].get('label', key))
-        text = (f'{net or "Net unavailable"} · {names.get(str(layer), layer)}\n{position} · '
-                f'{number(sample[2], METRICS[metric][1])}')
+        text = (f'{net or "Net unavailable"} · {names.get(str(physical_layer), physical_layer)}\n{position} · '
+                f'{number(value_at(sample,x,y), METRICS[metric][1])}')
         if contacts:
             text += '\nPads ' + ' | '.join(dict.fromkeys(contacts))
         return text

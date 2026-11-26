@@ -13,6 +13,9 @@ class WorkspaceLegend(ColorLegend):
         if scale:
             low,high=scale['limits']
             text=f"{scale['label']} · {low:.5g} → {high:.5g} {scale['unit']}"
+            if scale.get('relative_limits') is not None:
+                first,last=scale['relative_limits']
+                text+=f' ({first:.4g} → {last:.4g}%)'
         else:text='Setup → choose net and pads · Run → inspect copper'
         self.summary.SetLabel(text)
         self.summary.SetToolTip(text+' · Details shows the calibrated colour legend and probes.')

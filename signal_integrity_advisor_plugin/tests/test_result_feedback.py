@@ -13,6 +13,11 @@ class FeedbackTests(unittest.TestCase):
         self.assertNotIn('DRAFT',text);self.assertIn('0.1235 ns',text)
         self.assertIn('Saved PCB snapshot',tip)
 
+    def test_legacy_zero_unknown_findings_still_show_unresolved_transition(self):
+        report={'return_path':{'unknown_count':0,'transitions':[{'status':'UNKNOWN'},
+                                                               {'status':'GEOMETRIC_CANDIDATE'}]}}
+        self.assertIn('1 unresolved return transition',summary_text({}, report)[0])
+
     def test_unavailable_reason_remains_readable_in_tooltip(self):
         reason='Via return-loop inductance is missing. '+('Long channel evidence. '*20)
         text,tip=summary_text(dict(net='DATA'),dict(eye=dict(status='UNAVAILABLE',reason=reason)))

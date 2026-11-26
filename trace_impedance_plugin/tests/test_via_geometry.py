@@ -113,6 +113,33 @@ class ViaGeometryTests(unittest.TestCase):
         self.assertEqual(frequency['status'],'PARTIAL')
         self.assertTrue(all(row['series_magnitude_ohm'] is None for row in frequency['rows']))
 
+    def test_full_span_via_has_partial_inductance_but_no_loop_totals(self):
+        g=geometry()
+        edge=dict(item=Via(),kind='via',layer=0,end_layer=6,length_mm=g.engine.via_span_mm(0,6),
+                  drill_mm=.3,a=(0,0),b=(0,0))
+        g.engine._screening_section=lambda *args: {}
+        result=PathMeasurement('N','A','B')
+        g.engine._measure_edges(result,[edge],100,'Auto')
+        path=result.as_report()
+        inductance=path['quantity_coverage']['inductance_nh']
+        self.assertGreater(path['inductance_nh'],0)
+        self.assertEqual(inductance['isolated_via_partial_subtotal_nh'],path['inductance_nh'])
+        self.assertIsNone(inductance['complete_total'])
+        self.assertIsNone(path['quantity_coverage']['capacitance_pf']['modeled_subtotal'])
+        self.assertEqual(result.as_dict()['C (pF)'],'Unavailable')
+        self.assertIsNone(path['segments'][0]['return_loop_inductance_nh'])
+        self.assertEqual(sweep(path,points=2)['status'],'PARTIAL')
+
+    def test_sweep_withholds_reactance_when_modeled_tracks_have_an_unresolved_transition(self):
+        tracks=[dict(kind='track',width_mm=.2,copper_thickness_mm=.035,length_mm=1,
+                     resistance_ohm=.01,inductance_nh=1) for _ in range(2)]
+        for path in (dict(status='partial',segments=tracks),
+                     dict(segments=tracks,quantity_coverage={'inductance_nh':{'complete_total':None}})):
+            result=sweep(path,points=2)
+            self.assertEqual(result['status'],'PARTIAL')
+            self.assertTrue(all(row['series_reactance_ohm'] is None for row in result['rows']))
+            self.assertTrue(all(row['resistance_one_face_ohm'] > 0 for row in result['rows']))
+
     def test_branch_sweep_does_not_invent_series_channel_impedance(self):
         path={'route_topology':{'branched':True},'segments':[dict(kind='track',width_mm=.2,
             copper_thickness_mm=.035,length_mm=1,resistance_ohm=.01,inductance_nh=1)]}

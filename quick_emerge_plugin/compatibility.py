@@ -1,11 +1,18 @@
 """Standard-library-only identity and qualification certificate checks."""
 import hashlib
+import importlib.metadata
 import json
+import math
+import os
 from pathlib import Path
+import sys
 
 
 CERTIFICATE_NAME = 'quick-emerge-qualified.json'
 CERTIFICATE_ISSUER = 'quick-emerge-runtime-qualifier'
+ACCELERATED_SOLVERS = {'CORVID': 'corvid-solver', 'SPARTA': 'sparta-solver'}
+SOLVER_PARITY_TOLERANCE = 1e-4
+ACCELERATED_EMERGE_VERSION = '3.0.10'
 
 
 def adapter_signature():
@@ -32,6 +39,7 @@ def read_certificate(path, *, allow_stale=False):
                 or value['schema'] != 1 or value.get('issuer') != CERTIFICATE_ISSUER
                 or not isinstance(value.get('version'), str) or not value['version'].strip()
                 or ('packages' in value and not isinstance(value['packages'],dict))
+                or ('solver_backends' in value and not isinstance(value['solver_backends'],dict))
                 or not isinstance(value.get('adapter_signature'), str)
                 or (not allow_stale and value['adapter_signature'] != adapter_signature())):
             return None
@@ -42,3 +50,39 @@ def read_certificate(path, *, allow_stale=False):
 
 def runtime_certificate(prefix):
     return read_certificate(Path(prefix) / CERTIFICATE_NAME)
+
+
+def solver_disabled(solver):
+    return os.environ.get(f'EMERGE_DISABLE_{solver}') == '1'
+
+
+def solver_certificate(solver, prefix=None):
+    certificate = runtime_certificate(prefix if prefix is not None else sys.prefix) or {}
+    return matching_solver_record(certificate, solver, importlib.metadata.version)
+
+
+def matching_solver_record(certificate, solver, read_version):
+    # A passed CPU smoke test belongs to the exact adapter and solver packages.
+    distribution = ACCELERATED_SOLVERS.get(solver)
+    if not distribution or solver_disabled(solver):
+        return None
+    record = certificate.get('solver_backends', {}).get(solver)
+    if not isinstance(record, dict) or record.get('status') != 'passed' or record.get('mode') != 'CPU':
+        return None
+    delta = record.get('max_s_parameter_delta')
+    if (record.get('distribution') != distribution
+            or record.get('tolerance') != SOLVER_PARITY_TOLERANCE
+            or type(delta) not in (float, int) or not math.isfinite(delta)
+            or not 0 <= delta <= SOLVER_PARITY_TOLERANCE):
+        return None
+    packages = certificate.get('packages', {})
+    if packages.get(distribution) != record.get('version'):
+        return None
+    try:
+        expected = {'emerge': certificate['version'], 'emsutil': packages['emsutil'],
+                    distribution: packages[distribution]}
+        if not all(version and read_version(name) == version for name, version in expected.items()):
+            return None
+    except (KeyError, importlib.metadata.PackageNotFoundError):
+        return None
+    return record

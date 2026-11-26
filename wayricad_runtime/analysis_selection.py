@@ -1,6 +1,5 @@
 """Verified result navigation; saved hashes cannot certify unsaved live geometry."""
 from __future__ import annotations
-import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -22,19 +21,86 @@ def _selection_ids(items):
     return set(values)
 
 
-def _origin(board_or_path, expected_sha256):
-    from .context import connect, saved_board
+def _origin(board_or_path, expected_sha256, *, launch_context=None):
+    from .context import connect
+    from .saved_board import _sha
     name = board_or_path.GetFileName() if hasattr(board_or_path, 'GetFileName') else board_or_path
     if not name:
         raise ValueError('Save the analysed PCB before navigating results.')
     path = Path(name).resolve()
-    if expected_sha256 and hashlib.sha256(path.read_bytes()).hexdigest() != expected_sha256:
+    if expected_sha256 and _sha(path) != expected_sha256:
         raise ValueError('The saved PCB changed after analysis. Reload and rerun before cross-selection.')
-    client = connect()
+    client = connect() if launch_context is None else connect(launch_context=launch_context)
+    return client, _board_for_origin(client, path)
+
+
+def _board_for_origin(client, path):
+    from .context import saved_board
     board = client.get_board()
     if saved_board(SimpleNamespace(get_board=lambda: board)) != path:
         raise ValueError('The originating PCB Editor changed boards. Reopen the tool from this board.')
-    return client, board
+    return board
+
+
+class SavedSelectionChanged(ValueError):
+    """Selection following must wait for the refreshed saved inputs."""
+
+
+class SavedSelectionReader:
+    """Watch one saved revision through the authenticated launching editor."""
+
+    def __init__(self, board_path, *, expected_sha256, expected_fingerprints=None,
+                 launch_context=None, timeout_ms=1000):
+        from .context import LaunchContext
+        self.path = Path(board_path).resolve()
+        self.origin = launch_context if launch_context is not None else LaunchContext.capture()
+        self.expected_sha256 = expected_sha256
+        self.expected_fingerprints = {str(self.path): expected_sha256}
+        allowed = {str(self.path.with_suffix(suffix)) for suffix in ('.kicad_pro', '.kicad_dru')}
+        for name, digest in (expected_fingerprints or {}).items():
+            if name in allowed:
+                self.expected_fingerprints[name] = digest
+        self.timeout_ms = timeout_ms
+        self._verified_stamp = None
+
+    @property
+    def available(self):
+        return bool(self.origin.socket and self.origin.token and self.expected_sha256)
+
+    def _check_stamp(self):
+        from .editor_refresh import source_stamp
+        stamp = source_stamp(self.path)
+        if self._verified_stamp is None:
+            from .saved_board import _sha
+            try:
+                for name, expected in self.expected_fingerprints.items():
+                    candidate = Path(name)
+                    actual = _sha(candidate) if candidate.is_file() else None
+                    if actual != expected:
+                        raise SavedSelectionChanged('Saved sources changed. Wait for the board to refresh before following selection.')
+            except OSError as error:
+                raise SavedSelectionChanged('Save the originating PCB and refresh before following selection.') from error
+            if source_stamp(self.path) != stamp:
+                raise SavedSelectionChanged('Saved sources changed while validating PCB selection.')
+            self._verified_stamp = stamp
+        elif stamp != self._verified_stamp:
+            raise SavedSelectionChanged('Saved sources changed. Wait for the board to refresh before following selection.')
+        return stamp
+
+    def read(self, resolve=_selection_ids):
+        from .context import connect
+        from .editor_refresh import source_stamp
+        if not self.available:
+            raise ValueError('Open this tool from the originating PCB Editor and save the PCB to follow selection.')
+        stamp = self._check_stamp()
+        client = connect(launch_context=self.origin, timeout_ms=self.timeout_ms)
+        board = _board_for_origin(client, self.path)
+        if not callable(getattr(board, 'get_selection', None)):
+            raise ValueError('The originating KiCad editor does not expose PCB selection.')
+        values = resolve(board.get_selection())
+        if source_stamp(self.path) != stamp:
+            raise SavedSelectionChanged('Saved sources changed while reading PCB selection.')
+        return sorted(values)
 
 
 def _items(board):
@@ -96,9 +162,11 @@ def _resolve(board, wanted, nets, footprints_only=False):
 
 
 def select_origin(board_or_path, identifiers=(), net=None, *, nets=(), expected_sha256=None,
-                  focus=False, additive=False, footprints_only=False, return_details=False):
+                  focus=False, additive=False, footprints_only=False, return_details=False,
+                  launch_context=None):
     """Resolve every UUID before changing selection, then confirm or restore it."""
-    client, board = _origin(board_or_path, expected_sha256)
+    options = {} if launch_context is None else {'launch_context': launch_context}
+    client, board = _origin(board_or_path, expected_sha256, **options)
     wanted = {str(value).casefold() for value in identifiers if value}
     net_names = {str(value) for value in nets if value}
     if net:
@@ -157,7 +225,8 @@ def select_origin(board_or_path, identifiers=(), net=None, *, nets=(), expected_
     return len(selected)
 
 
-def selected_origin_ids(board_or_path, *, expected_sha256=None):
+def selected_origin_ids(board_or_path, *, expected_sha256=None, launch_context=None):
     """Read only the launching editor's selection for explicit reverse sync."""
-    _, board = _origin(board_or_path, expected_sha256)
+    options = {} if launch_context is None else {'launch_context': launch_context}
+    _, board = _origin(board_or_path, expected_sha256, **options)
     return sorted(_selection_ids(board.get_selection()))

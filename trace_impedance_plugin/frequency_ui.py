@@ -7,7 +7,8 @@ from .frequency_analysis import sweep
 
 
 class FrequencyPanel(wx.Panel):
-    def __init__(self,parent,board_path=None):
+    def __init__(self,parent,board_path=None,check_source=None):
+        self.check_source=check_source
         super().__init__(parent);self.board_path=Path(board_path).resolve() if board_path else None;self.path=None;self.result=None;self.hover=None
         s=wx.BoxSizer(wx.VERTICAL);controls=wx.BoxSizer(wx.HORIZONTAL)
         self.lo=wx.TextCtrl(self,value='0.001',size=(90,-1));self.hi=wx.TextCtrl(self,value='1000',size=(90,-1))
@@ -32,6 +33,7 @@ class FrequencyPanel(wx.Panel):
     def run(self,event=None):
         self.invalidate()
         try:
+            if self.check_source:self.check_source()
             if not self.path:raise ValueError('Analyze a connected path first.')
             self.result=sweep(self.path,float(self.lo.GetValue()),float(self.hi.GetValue()))
             self.notes.SetValue('\n'.join(self.result['notes']));self.export.Enable();self.canvas.Refresh()
@@ -80,6 +82,8 @@ class FrequencyPanel(wx.Panel):
             target=Path(dialog.GetPath())
             if target.suffix.lower()!='.csv':wx.MessageBox('Choose a separate .csv report.','Export',parent=self);return
             try:
+                if self.check_source:self.check_source()
+                if self.result is None:raise ValueError('The result was cleared. Run a new sweep before exporting.')
                 with target.open('w',encoding='utf-8-sig',newline='') as stream:
                     writer=csv.DictWriter(stream,fieldnames=list(self.result['rows'][0]));writer.writeheader();writer.writerows(self.result['rows'])
-            except OSError as exc:wx.MessageBox(str(exc),'Export failed',parent=self)
+            except (OSError, ValueError) as exc:wx.MessageBox(str(exc),'Export failed',parent=self)

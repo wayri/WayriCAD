@@ -62,6 +62,16 @@ file. Its row diagram describes pin order, not physical pad pitch; dimensions
 are shown only when KiCad supplies the footprint's board bounding box. Changing
 the scope or filters invalidates the previous export until it is previewed again.
 
+An open pin preview follows unsaved edits to its reviewed footprints. It checks
+up to 24 footprints per interval and refreshes the pin table when their data
+changes. A saved board, project or rules change refreshes the full preview scope.
+Use **Preview Extraction** to include new unsaved footprints matching a reference
+pattern immediately. The selection basket follows footprint UUIDs across edits.
+
+PCB selection is supported in the PCB Editor. An isolated KiCad 10.0.6 Schematic
+Editor opened the test schematic with IPC enabled and exposed no schematic IPC
+endpoint. Pin Extractor reads saved schematic connectivity for project analysis.
+
 ## Features
 
 ### Data Extraction
@@ -194,8 +204,7 @@ Pin tokens match either physical pad numbers or schematic pin functions. Active
 rules are ignored until conditional paths are enabled. Do not use a broad `U*`
 rule unless every matched IC and pin pair has been reviewed.
 
-Double-click an extracted pin, signal-flow route, or IC-chart row to highlight its
-net in PCB Editor. **Select Copper** selects matching tracks, vias, and zones for
+Double-click an extracted pin to select that exact physical pad in the originating PCB Editor. Use **Highlight Net** for the whole net. Double-clicking a signal-flow route or IC-chart row highlights its net. **Select Copper** selects matching tracks, vias, and zones for
 native KiCad operations. The **Help** button opens the bundled guide inside a
 native KiCad window and provides an external-browser fallback.
 

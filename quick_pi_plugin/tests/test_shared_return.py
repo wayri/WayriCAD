@@ -105,6 +105,9 @@ class SharedReturnTests(unittest.TestCase):
         result=self.run_study(runner=failed)
         self.assertEqual([r['net'] for r in self.calls],['B'])
         self.assertTrue(all(row['status']=='FAILED' for row in result['cases']))
+        self.assertEqual(result['cases'][0]['error'],'Disconnected source')
+        self.assertIn('participating supply solve failed',result['cases'][1]['error'])
+        self.assertIn('participating supply solve failed',result['shared_returns'][0]['error'])
 
     def test_invalid_mappings_and_unsupported_modes_rejected(self):
         mutations=[

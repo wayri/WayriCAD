@@ -51,6 +51,21 @@ class UITests(unittest.TestCase):
         self.assertIsNone(self.frame.preview);self.assertFalse(self.frame.add_button.IsEnabled())
         self.assertFalse(self.messages)
 
+    def test_saved_refresh_replays_same_settings_and_locates_generated_counter(self):
+        self.frame.fields['pitch'].ChangeValue('6')
+        self.frame.make_preview()
+        settings=self.frame.settings()
+        self.frame._invalidate_saved()
+        self.assertFalse(self.frame.add_button.IsEnabled())
+        self.frame._refresh_saved()
+        self.assertEqual(self.frame.preview.settings,settings)
+        self.assertTrue(self.frame.add_button.IsEnabled())
+        with patch.object(api,'GetBoard',return_value=self.board),patch.object(api,'Refresh'),patch.object(api,'FocusOnItem') as focus:
+            self.frame.add()
+            self.frame.locate_counter()
+            focus.assert_called_once()
+            self.assertEqual(core._uid(focus.call_args.args[0]),self.frame._counter_uuid)
+
     def test_originating_board_guard_and_stale_insert(self):
         before=core.fingerprint(self.board,api)
         self.frame.board_guard=lambda:False

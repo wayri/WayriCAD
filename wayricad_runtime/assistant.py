@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
+from functools import lru_cache
 import hashlib
 from html import escape
 import json
@@ -29,7 +30,7 @@ from .jobs import load_json, terminate
 from .tool_cli import command
 
 SCHEMA = "wayricad.assistant-plan/v1"
-ENGINE = "Local token/character fuzzy intent matcher 0.1"
+ENGINE = "Local token/character fuzzy intent matcher 0.2"
 MAX_SOURCE_BYTES = 512 * 1024 * 1024
 MAX_LOG_BYTES = 8 * 1024 * 1024
 _CATALOGUE = "assistant.catalogue"
@@ -48,7 +49,7 @@ _SPECS = dict(
     },
 )
 _ALIASES = {
-    "quick-pi": ["quick pi", "power integrity", "voltage drop", "ir drop", "dc rail"],
+    "quick-pi": ["quick pi", "pi", "power integrity", "voltage drop", "ir drop", "dc rail", "supply current"],
     "quick-therm": ["quick therm", "quicktherm", "thermal", "temperature"],
     "signal-integrity": ["quick si", "signal integrity", "crosstalk", "route delay"],
     "trace-impedance": ["rlc", "impedance", "microstrip", "stripline", "coplanar"],
@@ -89,13 +90,15 @@ def _seal(plan):
     return plan
 
 
+@lru_cache(maxsize=1024)
 def _words(value):
     value = unicodedata.normalize("NFKC", value).casefold()
     value = re.sub(r"\b(?:analyse|analyze|analysing|analyzing)\b", "analysis", value)
     value = re.sub(r"\b(?:simulate|simulation|simulating)\b", "analysis", value)
-    return [word for word in re.findall(r"[a-z0-9]+", value) if word not in _STOP]
+    return tuple(word for word in re.findall(r"[a-z0-9]+", value) if word not in _STOP)
 
 
+@lru_cache(maxsize=1024)
 def _grams(value):
     text = " ".join(_words(value))
     return {text[i : i + 3] for i in range(max(0, len(text) - 2))}
@@ -112,10 +115,11 @@ def _similarity(query, phrase):
     return 0.65 * coverage + 0.15 * precision + 0.2 * fuzzy
 
 
+@lru_cache(maxsize=128)
 def _rank(query):
     normalized = " ".join(_words(query))
     help_requested = bool(
-        re.search(r"\b(help|usage|commands|instructions)\b", query, re.I)
+        re.search(r"\b(help|usage|commands|instructions)\b|\b(?:which|what)\s+(?:plugin|tool)\b", query, re.I)
     )
     explicit = {
         tool
@@ -124,6 +128,7 @@ def _rank(query):
             re.search(r"\b" + re.escape(alias) + r"\b", normalized) for alias in aliases
         )
     }
+    mode = None if help_requested else _analysis_mode(query, explicit)
     rows = []
     for identifier, spec in _SPECS.items():
         if spec["effect"] == "help" and not help_requested:
@@ -161,6 +166,11 @@ def _rank(query):
             r"\b(microstrip|stripline|coplanar|cpw)\b", query, re.I
         ):
             score -= 0.3
+        if mode:
+            if identifier == mode:
+                score = max(score, .98)
+            elif spec['effect'] in ('analysis', 'inspect'):
+                score = min(score, .84)
         if score > 0:
             rows.append(
                 dict(
@@ -170,6 +180,45 @@ def _rank(query):
                 )
             )
     return sorted(rows, key=lambda row: (-row["score"], row["action"]))
+
+
+def _analysis_mode(query, tools):
+    """Choose explicit analysis families before comparing fuzzy synonyms."""
+    def has(pattern):
+        return re.search(pattern, query, re.I) is not None
+
+    if has(r'\b(help|usage|commands|verify|benchmarks|profiles|list)\b'):
+        return None
+    if 'signal-integrity' in tools or has(r'\b(cross\s*talk|skew|eye diagram|signal delay|propagation delay)\b'):
+        if has(r'\b(cross\s*talk|multi[- ]?net|eye diagram|skew|diff(?:erential)? pair)\b'):
+            return 'signal-integrity.study'
+        return 'signal-integrity.screen'
+    if 'quick-therm' in tools or ('quick-pi' not in tools and has(r'\b(hotspots?|heat map|hot does|heating|thermals?)\b')):
+        if has(r'\b(transient|over time|warm[- ]?up|cool[- ]?down)\b'):
+            return 'quick-therm.transient'
+        if has(r'\b(3d|solid)\b'):
+            return 'quick-therm.solid'
+        if has(r'\b(heat map|hotspots?|board|spatial|\d\s*W\b)'):
+            return 'quick-therm.board-heat'
+    if 'quick-pi' in tools or has(r'\b(voltage sag|rail drop|load current|supply droop|PDN)\b'):
+        if has(r'\b(series|power tree)\b'):
+            return None
+        if has(r'\b(AC|PDN|impedance sweep|frequency sweep|two[- ]port)\b'):
+            return 'quick-pi.ac-ports'
+        study_file = has(r'\b(?:study|config|settings|file)\b|\.json\b')
+        rail_batch = (has(r'\b(batch|multi[- ]?net|several (?:rails|nets)|multiple (?:rails|nets)|rail bundle|DC bundle)\b')
+                      or len(re.findall(r'\b(?:net|rail)\s+(?:"[^"]+"|[^\s,]+)\s+from\b', query, re.I)) > 1)
+        if has(r'\b(electrothermal|joule heating)\b'):
+            return 'quick-pi.electrothermal'
+        if has(r'\b(transient|load[- ]step|over time)\b'):
+            from .assistant_pi_inputs import transient_slots
+            if not (study_file or rail_batch) and (transient_slots(query) or has(r'\b(?:set up|configure)\b')):
+                return 'quick-pi.load-step'
+            return 'quick-pi.transient'
+        if rail_batch:
+            return 'quick-pi.batch' if study_file else 'quick-pi.batch-cases'
+        return 'quick-pi.solve'
+    return None
 
 
 def _numeric(query, pattern, scale=1.0):
@@ -183,14 +232,14 @@ def _slots(query):
     if component:
         values['value'] = component[1].strip()
         values['kind'] = {'c':'C','r':'R','i':'L'}[component[2][0].lower()]
-    powers = re.findall(r'\b([A-Za-z]+\d+)\s*=\s*(\d+(?:\.\d+)?|\.\d+)\s*W\b', query, re.I)
+    powers = re.findall(r'\b([A-Za-z]+\d+)\s*(?:=|at|dissipates)\s*(\d+(?:\.\d+)?|\.\d+)\s*W\b', query, re.I)
     if powers:
         values['powers'] = [f'{ref}={watts}' for ref, watts in powers]
     # Exact names are kept verbatim, including hierarchical net separators.
     match = re.search(r'\bnet\s+(?:["\']([^"\']+)["\']|([^\s,;]+))', query, re.I)
     if match:
         values["net"] = (match.group(1) or match.group(2)).rstrip(".")
-    pair = re.search(r"\bfrom\s+([\w-]+\.[\w-]+)\s+to\s+([\w-]+\.[\w-]+)", query, re.I)
+    pair = re.search(r"\bfrom\s+([A-Za-z]+\d+(?:\.[\w-]+)?)\s+to\s+([A-Za-z]+\d+(?:\.[\w-]+)?)", query, re.I)
     if pair:
         values.update(
             source=pair.group(1),
@@ -198,6 +247,9 @@ def _slots(query):
             sink=pair.group(2),
             end=pair.group(2),
         )
+    return_net = re.search(r'\b(?:return|reference)\s+(?:net\s+)?(?:"([^"]+)"|([^\s,;]+))', query, re.I)
+    if return_net and (return_net[1] or return_net[2]).casefold() not in {'path', 'plane', 'analysis', 'check'}:
+        values['return_nets'] = [(return_net[1] or return_net[2]).rstrip('.')]
     for key in ("source", "sink", "start", "end", "anchor"):
         match = re.search(r"\b" + key + r"\s+([A-Za-z][\w.-]*)", query, re.I)
         if match:
@@ -206,10 +258,11 @@ def _slots(query):
     if refs:
         values["refs"] = list(dict.fromkeys(refs))
     numeric = {
-        "voltage": (r"\b(?:voltage|at)\s*(\d+(?:\.\d+)?)\s*(?:v\b|volts?\b)", 1),
+        "voltage": (r"\b(?:voltage|at|supply(?:ing)?)\s*[:=]?\s*(\d+(?:\.\d+)?|\.\d+)\s*(?:v\b|volts?\b)", 1),
         "current": (r"(\d+(?:\.\d+)?)\s*mA\b", 0.001),
         "frequency_mhz": (r"(\d+(?:\.\d+)?)\s*MHz\b", 1),
         "rise_ns": (r"(?:rise(?:\s*time)?\s*=?\s*)(\d+(?:\.\d+)?)\s*ns\b", 1),
+        "mesh_edge": (r"\b(?:mesh\s*(?:edge|size))\s*=?\s*(\d+(?:\.\d+)?|\.\d+)\s*mm\b", 1),
         "width_mm": (r"\bwidth\s*=?\s*(\d+(?:\.\d+)?)\s*mm\b", 1),
         "height_mm": (r"\b(?:height|separation)\s*=?\s*(\d+(?:\.\d+)?)\s*mm\b", 1),
         "copper_mm": (r"\bcopper\s*=?\s*(\d+(?:\.\d+)?)\s*(?:um|microns?)\b", 0.001),
@@ -227,8 +280,18 @@ def _slots(query):
         value = _numeric(query, pattern, scale)
         if value is not None:
             values[key] = value
+    builder = re.search(r'\b(?:mesh(?:\s+backend)?|using)\s+(vtk|gmsh)\b', query, re.I)
+    if builder:
+        values['mesh_backend'] = builder[1].lower()
+    if 'rise_ns' not in values:
+        rise = _numeric(query, r'\brise(?:\s*time)?\s*=?\s*(\d+(?:\.\d+)?)\s*ps\b', .001)
+        if rise is not None:
+            values['rise_ns'] = rise
+    load = _numeric(query, r'\b(?:load|receiver)\s*(?:resistance)?\s*(\d+(?:\.\d+)?)\s*(?:ohms?|\u03a9)')
+    if load is not None:
+        values['load_ohm'] = load
     if "current" not in values:
-        value = _numeric(query, r"(\d+(?:\.\d+)?)\s*(?:A\b|amps?\b)")
+        value = _numeric(query, r"(?<![\w.])(\d+(?:\.\d+)?|\.\d+)\s*(?:A\b|amps?\b)")
         if value is not None:
             values["current"] = value
     if "frequency_mhz" not in values:
@@ -245,6 +308,9 @@ def _slots(query):
         if re.search(r"\b" + topology + r"\b", query, re.I):
             values["topology"] = topology
             break
+    settings = re.search(r'\b(?:study|config|settings)(?:\s+file)?\s+(?:"([^"]+\.json)"|([^\s,;]+\.json))', query, re.I)
+    if settings:
+        values['study'] = settings[1] or settings[2]
     for key in ("power_field", "theta_ja_field"):
         match = re.search(
             r"\b" + key.replace("_", r"[_\s]") + r"\s*[=:]?\s*([\w.-]+)", query, re.I
@@ -257,6 +323,16 @@ def _slots(query):
             value=(match.group(1) or match.group(2)).rstrip('.')
             values[key]=[value] if key=='signal_nets' else value
     return values
+
+
+def _pi_slots(identifier, clause):
+    if identifier == 'quick-pi.batch-cases':
+        rails = re.search(r'\b(?:net|rail)\s+(?:"[^"]+"|[^\s,]+)\s+from\b', clause, re.I)
+        return {'rails': clause[rails.start():]} if rails else {}
+    if identifier == 'quick-pi.load-step':
+        from .assistant_pi_inputs import transient_slots
+        return transient_slots(clause)
+    return {}
 
 
 def _safe_context(context):
@@ -451,7 +527,115 @@ def _compile(step, context, output_dir):
     return compile_action(step["action"], step["params"], context, output_dir)
 
 
-def propose(query, context=None, answers=None, *, tasks=None):
+def _circuit_choices(inventory, key, params):
+    if key in {'net', 'return_nets'}:
+        return list(inventory.nets[:40])
+    if key in {'start', 'end', 'source', 'sink'}:
+        net = params.get('net')
+        return [pad for pad, nets in inventory.pads.items() if net is None or net in nets]
+    if key == 'refs':
+        return list(inventory.parts)
+    return []
+
+
+def _resolve_circuit(params, spec, clause, inventory, assumptions):
+    """Only exact or unique saved identities can become typed solver inputs."""
+    errors = {}
+    if 'net' in spec['fields']:
+        explicit = params.get('net')
+        if explicit:
+            matches = inventory.net_matches(explicit)
+            if len(matches) == 1:
+                params['net'] = matches[0]
+            else:
+                params.pop('net')
+                prefix = 'Several saved nets match ' if matches else 'No saved net matches '
+                errors['net'] = (matches[:40], prefix + explicit + '. Choose the exact net.')
+        else:
+            endpoint_keys = ('source', 'sink') if 'source' in spec['fields'] else ('start', 'end')
+            named = {
+                match for token in re.findall(r'"[^"]+"|[^\s,;]+', clause)
+                for match in inventory.net_matches(token.strip('".?!()'))
+                if not re.fullmatch(r'[a-z]+', token, re.I) or re.search(r'\b(?:on|rail|signal)\s+'+re.escape(token)+r'\b', clause, re.I)
+            }
+            from_pads = inventory.infer_net(tuple(params.get(key) for key in endpoint_keys))
+            if len(named) == 1:
+                params['net'] = next(iter(named))
+            elif from_pads and not named:
+                params['net'] = from_pads
+                assumptions.append('Saved endpoint pads share ' + from_pads + '.')
+            elif len(named) > 1:
+                errors['net'] = (sorted(named)[:40], 'Several saved nets are named. Choose the signal or supply net.')
+    for key in ('source', 'sink', 'start', 'end'):
+        endpoint = params.get(key)
+        if not endpoint:
+            continue
+        exact = inventory.pad_aliases.get(endpoint.casefold())
+        part = inventory.ref_aliases.get(endpoint.casefold())
+        net = params.get('net')
+        # A component reference can be resolved only if one of its pads matches.
+        choices = [pad for pad, nets in inventory.pads.items()
+                   if part and pad.startswith(part+'.') and (net is None or net in nets)] if not exact else [exact]
+        if len(choices) == 1 and (net is None or net in inventory.pads[choices[0]]):
+            params[key] = choices[0]
+        else:
+            params.pop(key)
+            errors[key] = ((_circuit_choices(inventory, key, params) if not part else choices)[:40],
+                           f'Choose an exact saved pad for {endpoint}' + (f' on {net}.' if net else '.'))
+    if 'return_nets' in params:
+        matches = [inventory.net_matches(value) for value in params['return_nets']]
+        if all(len(items)==1 for items in matches):
+            params['return_nets'] = [items[0] for items in matches]
+        else:
+            params.pop('return_nets')
+            errors['return_nets'] = ([], 'Choose exact saved return-net names.')
+    if 'powers' in params:
+        refs = [value.split('=', 1)[0].upper() for value in params['powers']]
+        if any(ref.casefold() not in inventory.ref_aliases for ref in refs):
+            params.pop('powers')
+            errors['powers'] = ([], 'Use exact saved component references with explicit watts.')
+    return errors
+
+
+def reply_answers(plan, text):
+    """Extract only values that answer the pending typed questions."""
+    questions = plan.get('questions', [])
+    slots = _slots(text)
+    result = {}
+    for question in questions:
+        index, field = question['key'].split('.', 1)
+        steps = plan.get('steps', [])
+        step = steps[int(index)] if index.isdigit() and int(index) < len(steps) else {}
+        recognized = _pi_slots(step.get('action'), text)
+        if field in recognized:
+            result[question['key']] = recognized[field]
+        elif field in slots:
+            result[question['key']] = slots[field]
+    units = Counter(q.get('unit') for q in questions if q.get('kind') == 'number')
+    for question in questions:
+        unit = question.get('unit')
+        if question['key'] in result or not unit or units[unit] != 1:
+            continue
+        matches = re.findall(r'(?<![\w.])([-+]?(?:\d+(?:\.\d+)?|\.\d+))\s*'+re.escape(unit)+r'\b', text, re.I)
+        if len(matches) == 1:
+            result[question['key']] = float(matches[0])
+    if len(questions) == 1 and not result:
+        question = questions[0]
+        value = text.strip().strip('"')
+        choices = question.get('choices', [])
+        if value.casefold() in {str(choice).casefold() for choice in choices}:
+            result[question['key']] = value
+        elif question.get('kind') == 'number':
+            unit = re.escape(question.get('unit', ''))
+            match = re.fullmatch(r'([-+]?(?:\d+(?:\.\d+)?|\.\d+))\s*(?:'+unit+r')?', value, re.I)
+            if match:
+                result[question['key']] = float(match[1])
+        elif question.get('kind') == 'path' and value.lower().endswith('.json'):
+            result[question['key']] = value
+    return result
+
+
+def propose(query, context=None, answers=None, *, inventory=None):
     """Convert bounded English requests to a sealed, typed plan or questions.
 
     Answers use question keys such as ``0.net``; a single-step plan also accepts
@@ -480,42 +664,35 @@ def propose(query, context=None, answers=None, *, tasks=None):
         assumptions=[],
         sources={},
     )
-    if tasks is not None:
-        from .assistant_ollama import validate_tasks
-        tasks = validate_tasks(tasks)
     clauses = [
         part.strip(" ,.")
         for part in re.split(r"\b(?:and then|then|also)\b|[;\n]", query, flags=re.I)
         if part.strip(" ,. ")
     ]
-    if tasks is not None:
-        clauses = [query] * len(tasks)
     if not 1 <= len(clauses) <= 8:
         raise ValueError("Choose 1–8 tasks per request.")
-    all_slots = _slots(query) if tasks is None else {}
     for index, clause in enumerate(clauses):
         ranked = _rank(clause)
         choice = answers.get(
             f"{index}.action", answers.get("action") if len(clauses) == 1 else None
         )
-        if tasks is not None:
-            choice = tasks[index]['action']
         if choice is not None:
             if choice not in _SPECS:
                 raise ValueError("Choose a listed Assistant action.")
             identifier = choice
         elif not ranked or ranked[0]["score"] < 0.47:
             plan["status"] = "unsupported"
-            plan["alternatives"] = ranked[:4]
+            plan["alternatives"].extend(dict(row, key=f"{index}.action") for row in ranked[:4])
             continue
         elif len(ranked) > 1 and ranked[0]["score"] - ranked[1]["score"] < 0.055:
             plan["status"] = "ambiguous"
-            plan["alternatives"] = ranked[:4]
+            plan["alternatives"].extend(dict(row, key=f"{index}.action") for row in ranked[:4])
             continue
         else:
             identifier = ranked[0]["action"]
         spec = _SPECS[identifier]
-        slots = dict(all_slots, **_slots(clause)) if tasks is None else dict(tasks[index]['params'])
+        slots = _slots(clause)
+        slots.update(_pi_slots(identifier, clause))
         if identifier=='via-stitching.guard' and context.get('selected_nets') and 'signal_nets' not in slots:
             slots['signal_nets']=context['selected_nets']
         params = {}
@@ -527,7 +704,7 @@ def propose(query, context=None, answers=None, *, tasks=None):
             slots["net"] = context["selected_nets"][0]
         if context.get("selected_refs") and "refs" not in slots:
             slots["refs"] = context["selected_refs"]
-        if tasks is None and "pattern" in spec["fields"] and spec["fields"]["pattern"].get("choices"):
+        if "pattern" in spec["fields"] and spec["fields"]["pattern"].get("choices"):
             matches = [
                 value
                 for value in spec["fields"]["pattern"]["choices"]
@@ -536,10 +713,6 @@ def propose(query, context=None, answers=None, *, tasks=None):
             if matches:
                 slots["pattern"] = max(matches, key=len)
         for key, field in spec["fields"].items():
-            if tasks is not None and (f'{index}.{key}' in answers or (len(tasks) == 1 and key in answers)):
-                explicit = answers.get(f'{index}.{key}', answers.get(key))
-                if explicit is None:
-                    continue
             value = answers.get(
                 f"{index}.{key}", answers.get(key) if len(clauses) == 1 else None
             )
@@ -568,7 +741,18 @@ def propose(query, context=None, answers=None, *, tasks=None):
                 plan["questions"].append(
                     dict(field, key=f"{index}.{key}", error=str(exc))
                 )
+        circuit = {}
+        if inventory is not None:
+            circuit = _resolve_circuit(params, spec, clause, inventory, plan["assumptions"])
+        if 'rails' in params:
+            from .assistant_pi_inputs import resolved_rail_cases
+            try:
+                params['rails'] = resolved_rail_cases(params['rails'], inventory)
+            except ValueError as exc:
+                params.pop('rails')
+                circuit['rails'] = ([], str(exc))
         missing = [key for key in spec["required"] if key not in params]
+        missing.extend(circuit)
         if (
             identifier == "trace-impedance.cross-section"
             and params.get("topology")
@@ -593,8 +777,14 @@ def propose(query, context=None, answers=None, *, tasks=None):
                 params.pop("net")
         for key in dict.fromkeys(missing):
             question = dict(spec["fields"][key], key=f"{index}.{key}")
-            if key == "net" and context.get("nets"):
-                question["choices"] = context["nets"]
+            if key in circuit:
+                question["choices"], question["error"] = circuit[key]
+            elif inventory is not None:
+                options = _circuit_choices(inventory, key, params)
+                if options:
+                    question["choices"] = options[:40]
+            elif key == "net" and context.get("nets"):
+                question["choices"] = context["nets"][:40]
             plan["questions"].append(question)
         plan["steps"].append(
             dict(
@@ -616,8 +806,11 @@ def propose(query, context=None, answers=None, *, tasks=None):
                 for i, step in enumerate(plan["steps"])
             ]
             plan["sources"] = _input_hashes(_source_paths(context, compiled))
+            board = context.get('board')
+            if inventory is not None and inventory.sha256 and board in plan['sources'] and plan['sources'][board] != inventory.sha256:
+                raise ValueError('The saved PCB changed since its circuit names were read. Refresh the board context.')
             plan["assumptions"] = list(
-                dict.fromkeys(a for step in compiled for a in step["assumptions"])
+                dict.fromkeys([*plan["assumptions"], *(note for step in compiled for note in step["assumptions"])])
             )
         except (ValueError, OSError) as exc:
             plan["status"] = "needs_input"
@@ -639,7 +832,6 @@ def validate_plan(plan):
         "sources",
         "plan_hash",
         "error",
-        "interpretation",
     }
     if (
         not isinstance(plan, dict)
@@ -687,12 +879,10 @@ def capabilities():
         model_download_required=False,
         shell_execution=False,
         board_mutation=False,
-        providers=[dict(id='local', requires_model=False),
-                   dict(id='ollama', requires_model=True, loopback_only=True,
-                        requires_explicit_run=True, result_interpretation=True)],
+        providers=[dict(id='local', requires_model=False)],
         actions=[dict(id=key, **value) for key, value in _SPECS.items()],
         limits=[
-            "Local fuzzy matching by default; optional loopback Ollama proposes reviewed typed plans.",
+            "Local lookup and fuzzy matching use the registered tool catalogue.",
             "Missing physics inputs and ambiguous actions require clarification.",
             "Design changes are previews; Apply remains in the originating tool.",
             "Only saved files are analyzed; save editor changes before running.",
@@ -772,7 +962,7 @@ def _read_log(path, limit):
 
 
 def run_plan(
-    plan, output_root, python=None, cancel=None, progress=None, timeout_seconds=600
+    plan, output_root, python=None, cancel=None, progress=None, timeout_seconds=600, *, emerge_python=None
 ):
     """Run a sealed read-only plan in owned, cancellable subprocesses.
 
@@ -822,8 +1012,11 @@ def run_plan(
                 _write_new(_relative(directory, name), document)
             request = dict(plan=plan, index=i, output_dir=str(directory))
             _write_new(directory / "worker.json", request)
+            interpreter = emerge_python if emerge_python and step["action"] in {
+                "quick-emerge.runtime", "quick-emerge.run-example"
+            } else python
             argv = [
-                str(python or sys.executable),
+                str(interpreter or sys.executable),
                 "-I",
                 "-X",
                 "utf8",
@@ -835,7 +1028,7 @@ def run_plan(
                 action=step["action"],
                 tool=compiled["tool"],
                 title=step["title"],
-                command=command(compiled["tool"], compiled["arguments"], python),
+                command=command(compiled["tool"], compiled["arguments"], interpreter),
                 status="running",
             )
             started = time.monotonic()
@@ -983,29 +1176,43 @@ def run_plan(
     return result
 
 
+def uses_circuit_context(query, answers=None):
+    fields = {'net', 'refs', 'start', 'source', 'sink', 'powers', 'return_nets', 'rails'}
+    clauses = [part for part in re.split(r'\b(?:and then|then|also)\b|[;\n]', query, flags=re.I) if part.strip()]
+    for index, clause in enumerate(clauses):
+        choice = (answers or {}).get(f'{index}.action', (answers or {}).get('action'))
+        ranked = _rank(clause)
+        if choice in _SPECS and _SPECS[choice]['fields'].keys() & fields:
+            return True
+        if ranked and ranked[0]['score'] >= .47 and _SPECS[ranked[0]['action']]['fields'].keys() & fields:
+            return True
+    return False
+
+
+def _cli_inventory(board, query, answers):
+    if board is None or not uses_circuit_context(query, answers):
+        return None
+    from .assistant_context import load_inventory
+    try:
+        return load_inventory(board)
+    except ImportError:
+        return None  # Explicit typed inputs remain usable in portable Python.
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="operation", required=True)
     caps = sub.add_parser(
-        "capabilities", help="Show supported typed actions and model limits."
+        "capabilities", help="Show supported typed actions and their limits."
     )
     caps.add_argument("--output", type=Path)
     plan = sub.add_parser("plan", help="Interpret English without running tools.")
     plan.add_argument("query")
     plan.add_argument("--board", type=Path)
     plan.add_argument("--project", type=Path)
+    plan.add_argument("--schematic", type=Path)
     plan.add_argument("--answers", type=Path)
     plan.add_argument("--output", type=Path)
-    plan.add_argument("--provider", choices=['local', 'ollama'], default='local')
-    plan.add_argument("--model", help='Installed Ollama model; no model is downloaded.')
-    plan.add_argument("--ollama-url", default='http://127.0.0.1:11434')
-    explain = sub.add_parser('explain', help='Interpret hash-verified run JSON with local Ollama; never runs tools.')
-    explain.add_argument('result', type=Path)
-    explain.add_argument('--model', required=True)
-    explain.add_argument('--ollama-url', default='http://127.0.0.1:11434')
-    explain.add_argument('--output', type=Path)
-    inventory = sub.add_parser('models', help='List already installed local Ollama models.')
-    inventory.add_argument('--ollama-url', default='http://127.0.0.1:11434')
     run = sub.add_parser(
         "run", help="Execute a previously interpreted, unchanged read-only plan."
     )
@@ -1018,28 +1225,17 @@ def main(argv=None):
         if args.operation == "capabilities":
             result = capabilities()
         elif args.operation == "plan":
-            planner = propose
-            options = {}
-            if args.provider == 'ollama':
-                from .assistant_ollama import propose as planner
-                options = dict(model=args.model, url=args.ollama_url)
-            result = planner(
+            answers = load_json(args.answers) if args.answers else {}
+            result = propose(
                 args.query,
                 {
                     key: str(value)
-                    for key in ("board", "project")
+                    for key in ("board", "project", "schematic")
                     if (value := getattr(args, key))
                 },
-                load_json(args.answers) if args.answers else {},
-                **options,
+                answers,
+                inventory=_cli_inventory(args.board, args.query, answers),
             )
-        elif args.operation == 'models':
-            from .assistant_ollama import models
-            result = dict(models=models(args.ollama_url))
-        elif args.operation == 'explain':
-            from .assistant_ollama import explain
-            record = load_json(args.result)
-            result = explain(record, args.result.parent, model=args.model, url=args.ollama_url)
         else:
             result = run_plan(
                 load_json(args.plan),

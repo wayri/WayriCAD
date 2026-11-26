@@ -144,6 +144,14 @@ class ComponentInputPanel(wx.Panel):
                                           selected_references, limit_field_map)
         self._refresh_rows()
 
+    def include_references(self, references):
+        """Apply exact cross-selected part scope without changing entered values."""
+        self.commit_pending_edits()
+        for reference in self.model.references:
+            self.model.set_included(reference, reference in references)
+        self._refresh_rows()
+        self._notify()
+
     def set_mappings(self, field_map, limit_field_map=None):
         self.commit_pending_edits(validate=False)
         self.model.set_mappings(field_map, limit_field_map)

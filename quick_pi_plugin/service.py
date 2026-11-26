@@ -137,9 +137,12 @@ def run_job(request, cancelled=None, timeout=300):
         requirements={}
     elif request.get('model_dimension')=='3d':
         requirements={name:spec for name,spec in requirements.items() if not name.startswith('vtk')}
-    elif action=='ac':
-        # Explicit cross-sections need no native board IO, VTK or mesher imports.
-        requirements={name:spec for name,spec in requirements.items() if name in ('numpy','scipy')}
+    elif action in ('ac','transient'):
+        # Explicit cross-sections and lumped circuits do not use a copper mesher.
+        numerical={'numpy','scipy'}
+        if request.get('html_output'):
+            numerical.add('matplotlib')
+        requirements={name:spec for name,spec in requirements.items() if name in numerical}
     if action not in ('inspect','geometry','detect_returns') and _requires_gmsh(request):
         requirements['gmsh']='gmsh>=4.11,<5'
     python=ensure_runtime(requirements)
@@ -150,9 +153,14 @@ def run_job(request, cancelled=None, timeout=300):
             from wayricad_runtime.analysis_process import worker_options, stop_worker
             environment=child_environment()
             environment['WAYRICAD_ANALYSIS_SCRATCH']=str(root)
+            # Leave CPU capacity for the foreground PCB Editor.
+            for variable in ('OPENBLAS_NUM_THREADS', 'OMP_NUM_THREADS', 'MKL_NUM_THREADS'):
+                environment.setdefault(variable, '2')
+            options=worker_options()
+            options['creationflags'] |= getattr(subprocess, 'BELOW_NORMAL_PRIORITY_CLASS', 0)
             command=[str(python),'-I',str(Path(__file__).with_name('quickmain.py')),'--worker',str(source),str(target)]
             process=subprocess.Popen(command,env=environment,stdin=subprocess.DEVNULL,
-                stdout=log,stderr=log,**worker_options())
+                stdout=log,stderr=log,**options)
             started=time.monotonic()
             try:
                 while process.poll() is None:
@@ -184,7 +192,16 @@ def execute(request,*,_boards=None):
     version=producer_version(module_file=__file__,package=__package__)
     from wayricad_runtime.saved_board import assert_current, provenance
     boards={} if _boards is None else _boards
+    tolerance_enabled=request.get('voltage_tolerance_pct') is not None
+    if tolerance_enabled:
+        from .voltage_tolerance import annotate, request_limits
+        request_limits(request)
     output=_execute(request,_boards=boards)
+    if tolerance_enabled and output.get('result'):
+        annotate(output['result'],request)
+        if output.get('mesh') and output['result'].get('sinks'):
+            from .width_guidance import recommend_trace_widths
+            output['result']['trace_width_guidance']=recommend_trace_widths(output['mesh'],output['result'])
     for board in boards.values():
         assert_current(board)
         record=provenance(board)
@@ -253,7 +270,7 @@ def _execute(request,*,_boards=None):
     sweep_mode=requested_action=='sweep'
     if (voltage_mode or sweep_mode) and 'sinks' in request:
         raise ValueError('Voltage-driven load and current sweep require one legacy sink; multisink demands use constant-current mode.')
-    if sweep_mode and any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage')):
+    if sweep_mode and any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage','voltage_tolerance_pct')):
         raise ValueError('Current sweeps do not evaluate source budgets or sink voltage bounds. Use a single solved operating point to check those limits.')
     if sweep_mode or voltage_mode:
         if requested_action not in ('solve','sweep'):
@@ -330,7 +347,7 @@ def _execute(request,*,_boards=None):
     if request.get('model_dimension','2.5d') not in ('2.5d','3d'):
         raise ValueError('Choose model_dimension 2.5d or 3d.')
     if full3d and (request.get('series') or voltage_mode or sweep_mode or request.get('html_output') or 'sinks' in request or
-                   any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage'))):
+                   any(request.get(key) is not None for key in ('source_current_limit','sink_min_voltage','sink_max_voltage','voltage_tolerance_pct'))):
         raise ValueError('Full 3D currently supports one net with prescribed current and JSON output; series, load/sweep and HTML views require 2.5D.')
     if full3d and request.get('mesh_backend')=='vtk':
         raise ValueError('Full 3D requires Gmsh; VTK is only a 2.5D meshing backend.')
@@ -398,6 +415,9 @@ def _execute(request,*,_boards=None):
                     unit['load_mode']=row['load_mode']
                     if 'power_W' in spec:unit['power_W']=spec['power_W']
     output=_operating_result(output,request,original_request,voltage_mode,sweep_mode)
+    if output.get('result'):
+        from .series_path_diagram import saved_path_geometry
+        output['path_geometry'] = saved_path_geometry(board, net=request['net'])
     if hashlib.sha256(path.read_bytes()).hexdigest()!=before:raise ValueError('The board changed during analysis. Reload and run again.')
     return _display_output(output,request,board,path,before)
 
@@ -474,6 +494,8 @@ def sink_requests(request):
     if not isinstance(specs,(list,tuple)) or not 1<=len(specs)<=1024:
         raise ValueError('Specify 1 to 1,024 sinks.')
     from .terminals import pad_names
+    from .voltage_tolerance import intersect, request_limits
+    tolerance=request_limits(request)
     shared=request.get('_shared_return_contacts',False)
     if not isinstance(shared,bool) or shared and request.get('source_voltage')!=0:
         raise ValueError('Shared return contacts require a zero-volt ground reference.')
@@ -498,6 +520,7 @@ def sink_requests(request):
         if maximum is not None:
             maximum=number(maximum,'Sink maximum voltage')
             if maximum<minimum: raise ValueError('Sink maximum voltage must be at least its minimum voltage.')
+        minimum,maximum=intersect(minimum,maximum,tolerance)
         result.append({**spec,load_key:demand,'min_voltage_V':minimum,'max_voltage_V':maximum})
     try: total=math.fsum(row.get('current_A',0.) for row in result)
     except OverflowError as exc: raise ValueError('Total sink current must be finite.') from exc

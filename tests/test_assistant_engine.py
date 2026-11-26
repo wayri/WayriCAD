@@ -16,6 +16,79 @@ QUERY = "Calculate microstrip impedance width 0.2 mm height 0.1 mm er 4.2"
 
 
 class AssistantEngineTests(unittest.TestCase):
+    def test_circuit_context_resolves_unique_shared_net_and_case(self):
+        from wayricad_runtime.assistant_context import CircuitInventory
+        from wayricad_runtime.assistant import propose
+        inventory = CircuitInventory(['/Power/VDD', 'GND'], {'J1': 'Input', 'U1': 'Regulator'},
+                                     {'J1.1': {'/Power/VDD'}, 'U1.2': {'/Power/VDD'}})
+        plan = propose('Quick PI voltage drop at 3.3 V from j1.1 to u1.2 with 250 mA',
+                       inventory=inventory)
+        params = plan['steps'][0]['params']
+        self.assertEqual(plan['steps'][0]['action'], 'quick-pi.solve')
+        self.assertEqual((params['source'], params['sink'], params['net'], params['current']),
+                         ('J1.1', 'U1.2', '/Power/VDD', .25))
+        self.assertIn('Saved endpoint pads share /Power/VDD.', plan['assumptions'])
+
+    def test_unqualified_net_and_multiple_endpoint_pads_require_choices(self):
+        from wayricad_runtime.assistant_context import CircuitInventory
+        from wayricad_runtime.assistant import propose
+        inventory = CircuitInventory(['/A/VDD', '/B/VDD'], {'J1': 'Input', 'U1': 'Load'},
+                                     {'J1.1': {'/A/VDD'}, 'J1.2': {'/A/VDD'}, 'U1.1': {'/A/VDD'}})
+        plan = propose('voltage drop net VDD from J1 to U1 at 3.3 V with .2 A', inventory=inventory)
+        self.assertEqual(plan['status'], 'needs_input')
+        fields = {row['key']: row for row in plan['questions']}
+        self.assertEqual(fields['0.net']['choices'], ['/A/VDD', '/B/VDD'])
+        self.assertEqual(fields['0.source']['choices'], ['J1.1', 'J1.2'])
+        self.assertNotIn('net', plan['steps'][0]['params'])
+
+    def test_distinct_analysis_modes_and_conversational_units(self):
+        from wayricad_runtime.assistant import capabilities, propose, reply_answers
+        cases = {'PI voltage drop on net VDD': 'quick-pi.solve',
+                 'Quick PI AC impedance sweep': 'quick-pi.ac-ports',
+                 'Quick PI transient load step': 'quick-pi.transient',
+                 'Quick PI with Joule heating': 'quick-pi.electrothermal',
+                 'Quick SI crosstalk between nets': 'signal-integrity.study',
+                 'Thermal transient over time': 'quick-therm.transient',
+                 'Thermal board heat map with U1 at .5 W and ambient 25 C': 'quick-therm.board-heat'}
+        for request, action in cases.items():
+            with self.subTest(request=request):
+                self.assertEqual(propose(request)['steps'][0]['action'], action)
+        plan = {'questions': [{'key': '0.current', 'kind': 'number', 'unit': 'A'}]}
+        self.assertEqual(reply_answers(plan, 'Use 250 mA'), {'0.current': .25})
+        self.assertEqual([provider['id'] for provider in capabilities()['providers']], ['local'])
+
+    def test_pi_batch_resolves_each_rail_against_saved_pad_nets(self):
+        from wayricad_runtime.assistant_context import CircuitInventory
+        inventory = CircuitInventory(['/A/3V3', '/B/1V8'], {},
+                                     {'J1.1': {'/A/3V3'}, 'U1.1': {'/A/3V3'},
+                                      'J1.2': {'/B/1V8'}, 'U1.2': {'/B/1V8'}})
+        query = ('Quick PI batch net 3V3 from j1.1 to u1.1 at 3.3 V with 250 mA, '
+                 'net 1V8 from J1.2 to U1.2 at 1.8 V with 100 mA')
+        plan = engine.propose(query, inventory=inventory)
+        self.assertEqual(plan['steps'][0]['action'], 'quick-pi.batch-cases')
+        self.assertIn('net "/A/3V3" from J1.1 to U1.1', plan['steps'][0]['params']['rails'])
+        wrong = engine.propose(query.replace('to U1.2', 'to U1.1'), inventory=inventory)
+        self.assertIn('does not match', next(row['error'] for row in wrong['questions'] if row['key']=='0.rails'))
+        self.assertEqual(engine.propose('Quick PI batch study rails.json')['steps'][0]['action'], 'quick-pi.batch')
+        prompt = engine.propose('Quick PI batch')
+        self.assertIn('0.rails', engine.reply_answers(prompt, query))
+
+    def test_pi_transient_requests_missing_physics_and_normalizes_units(self):
+        query = ('PI transient source voltage 3.3 V, source resistance 50 mOhm, source inductance 100 nH, '
+                 'initial current 200 mA, step current 1 A, step time 1 ms, path resistance 20 mOhm, '
+                 'path inductance 10 nH, capacitance 100 \u00b5F, ESR 10 mOhm, duration 2 ms')
+        partial = engine.propose(query)
+        self.assertEqual(partial['steps'][0]['action'], 'quick-pi.load-step')
+        self.assertEqual([row['key'] for row in partial['questions']], ['0.step_us'])
+        values = engine.reply_answers(partial, 'Time step 1000 ns')
+        self.assertAlmostEqual(values['0.step_us'], 1)
+        plan = engine.propose(query, answers=values)
+        self.assertEqual(plan['status'], 'ready')
+        self.assertAlmostEqual(plan['steps'][0]['params']['initial_a'], .2)
+        self.assertAlmostEqual(plan['steps'][0]['params']['cap_uf'], 100.)
+        self.assertEqual(engine.propose('Quick PI transient study example.json')['steps'][0]['action'],
+                         'quick-pi.transient')
+
     def test_analytics_and_board_heat_intents(self):
         for query, action, params in (
             ('Give me the number of 10u capacitors','bom-studio.count-value',{'kind':'C','value':'10u'}),

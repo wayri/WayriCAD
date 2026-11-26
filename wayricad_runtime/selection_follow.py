@@ -8,14 +8,14 @@ class SelectionState:
         self.epoch = 0
         self.closed = False
 
-    def changed(self, values, epoch):
+    def changed(self, values, epoch, *, include_empty=False):
         if self.closed or epoch != self.epoch:
             return False
         value = tuple(sorted({str(item).casefold() for item in values}))
         if value == self.last:
             return False
         self.last = value
-        return bool(value)
+        return bool(value) or include_empty
 
     def reset(self):
         self.epoch += 1
@@ -23,17 +23,18 @@ class SelectionState:
 
 
 class SelectionFollower:
-    def __init__(self, owner, toggle, read, apply, ready, failed):
+    def __init__(self, owner, toggle, read, apply, ready, failed, *, include_empty=False, interval_ms=1200):
         import wx
         self.wx = wx
         self.owner, self.toggle = owner, toggle
         self.read, self.apply, self.ready, self.failed = read, apply, ready, failed
         self.state = SelectionState()
+        self.include_empty=include_empty
         self.running = False
         self.timer = wx.Timer(owner)
         owner.Bind(wx.EVT_TIMER, self.poll, self.timer)
         toggle.Bind(wx.EVT_CHECKBOX, self.changed)
-        self.timer.Start(1200)
+        self.timer.Start(interval_ms)
 
     def changed(self, event=None):
         self.state.reset()
@@ -75,7 +76,7 @@ class SelectionFollower:
             self.toggle.SetValue(False)
             self.state.reset()
             self.failed(error)
-        elif self.state.changed(values, epoch):
+        elif self.state.changed(values, epoch, include_empty=self.include_empty):
             try:
                 self.apply(values)
             except Exception as caught:

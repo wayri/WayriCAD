@@ -73,6 +73,11 @@ The counter includes one multilayer zone-only keepout spanning the whole counter
 
 This is a layout aid, with no certified-standard compliance claim. It does not infer real core/prepreg materials or change the stackup.
 
+**Locate counter** focuses the latest group added in this session in the
+originating PCB Editor. Saving changes refreshes an existing preview with its
+current style and dimensions. If the physical copper stack changes, check the
+included layers and core pairs before previewing again.
+
 ## Implemented methods and research basis
 
 The complete planner and transaction are in [core.py](core.py), with native UI

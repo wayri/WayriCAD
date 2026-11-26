@@ -17,6 +17,12 @@ from .help_utils import open_help
 from .selection_utils import select_items
 from .geometry_preview import GeometryPreview
 try:
+    from .wayricad_runtime.editor_refresh import SavedBoardRefresh
+    from .wayricad_runtime.context import LaunchContext
+except ImportError:
+    from wayricad_runtime.editor_refresh import SavedBoardRefresh
+    from wayricad_runtime.context import LaunchContext
+try:
     from .wayricad_runtime.routing_ui import build_fanout, choose_review_destination
 except ImportError:
     from wayricad_runtime.routing_ui import build_fanout, choose_review_destination
@@ -69,6 +75,7 @@ class FanoutFrame(wx.Frame):
         super().__init__(parent, title="WayriCAD Fanout Generator", size=(1180, 780), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((960, 680))
         self.board = board
+        self._launch_context = LaunchContext.capture() if hasattr(board,'raw') else None
         self.preview_plan: List[FanoutPlan] = []
         self.preview_items: List[Any] = []
         self.undo_stack: List[Any] = []
@@ -92,6 +99,8 @@ class FanoutFrame(wx.Frame):
         self.undo_stack = self._persistent_groups()
         self.undo_button.Enable(bool(self.undo_stack))
         self._sync_selection(force=True)
+        self.saved_refresh=SavedBoardRefresh(self,board.GetFileName(),self._saved_source_changed,
+                                             self._schedule_live_preview,lambda:not self._closing)
         self.selection_timer.Start(500)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
@@ -521,6 +530,12 @@ class FanoutFrame(wx.Frame):
         self._update_style_preview()
         self._schedule_live_preview()
 
+    def _saved_source_changed(self):
+        self.clear_preview(None)
+        self._snapshot_cache=None
+        self._context_file_stamp=None
+        self.status.SetLabel('Saved PCB or rules changed. Previous fanout candidates are unavailable.')
+
     def on_selection_timer(self, _event: Any) -> None:
         if self._preview_busy or not self.IsShownOnScreen() or not self.IsActive():return
         try:
@@ -535,11 +550,30 @@ class FanoutFrame(wx.Frame):
 
     def on_preview_row_activated(self, event: Any) -> None:
         index = event.GetIndex()
-        if 0 <= index < len(self.preview_plan):
-            select_items(self.board, [self.preview_plan[index].pad])
-            self.status.SetLabel(
-                f"Selected {self.preview_plan[index].footprint.GetReference()}.{self.preview_plan[index].pad.GetNumber()} on PCB."
-            )
+        if not 0 <= index < len(self.preview_plan):
+            return
+        try:
+            ipc=hasattr(self.board,'raw')
+            if not ipc:
+                editor=pcbnew.GetBoard()
+                if editor is None or editor.this!=self.board.this:
+                    raise ValueError('Open Fanout Generator from this PCB Editor to locate launch pads.')
+            self._assert_preview_current()
+            plan=self.preview_plan[index]
+            label=f"{plan.footprint.GetReference()}.{plan.pad.GetNumber()}"
+            if ipc:
+                try:
+                    from .wayricad_runtime.analysis_selection import select_origin
+                except ImportError:
+                    from wayricad_runtime.analysis_selection import select_origin
+                select_origin(self.board.GetFileName(),[plan.pad.m_Uuid.AsString()],
+                              focus=True,launch_context=self._launch_context)
+                self.status.SetLabel(f'Selected {label} in the originating PCB Editor.')
+            else:
+                pcbnew.FocusOnItem(plan.pad)
+                self.status.SetLabel(f'Located {label} in the originating PCB Editor.')
+        except Exception as error:
+            self.status.SetLabel(str(error))
 
     def _cancel_live_preview(self):
         if self._live_call is not None:

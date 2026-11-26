@@ -75,6 +75,17 @@ class ReturnSetupPanel(wx.Panel):
         self.use_suggestion.Bind(wx.EVT_BUTTON, self._use_suggested)
         self.more.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda event: self._on_layout())
 
+    def set_inventory(self, nets, terminals, layers, signal, source='', receiver=''):
+        """Rebind return choices to the refreshed saved PCB."""
+        previous=self.reference.GetValue()
+        self._names=list(nets)
+        self._terminals=list(terminals)
+        choices=['Auto']+list(layers)
+        self.reference.Set(choices)
+        self.reference.SetValue(previous if previous in choices else 'Auto')
+        self._signal=None  # Force a full rebind; prior endpoint UUIDs require review.
+        self.set_context(signal,source,receiver)
+
     def selected_nets(self):
         return [self.nets.GetString(i) for i in self.nets.GetCheckedItems()]
 

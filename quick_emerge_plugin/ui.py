@@ -72,6 +72,8 @@ class QuickEMergeFrame(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.poll, self.timer)
         self.Bind(wx.EVT_CLOSE, self.close)
         self.Bind(wx.EVT_CHAR_HOOK, self._shortcut)
+        from .board_sync import BoardSync
+        self.board_sync = BoardSync(self)
         if auto_setup:
             self.mode.SetSelection(2)
             self.invalidate()
@@ -415,7 +417,7 @@ class QuickEMergeFrame(wx.Frame):
                 import subprocess
                 try:
                     with (folder/'worker.log').open('wb') as log:
-                        process=subprocess.Popen([self.python.GetPath(),'-I',str(Path(__file__).with_name('network_worker.py')),str(folder/'request.json')],
+                        process=subprocess.Popen([self.python.GetPath(),'-I','-X','utf8',str(Path(__file__).with_name('network_worker.py')),str(folder/'request.json')],
                             stdin=subprocess.DEVNULL,stdout=log,stderr=subprocess.STDOUT,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
                         self.network_process=process
                         try:status=process.wait(timeout=180)
@@ -474,6 +476,10 @@ class QuickEMergeFrame(wx.Frame):
                 ('Numerical status', 'Mesh not convergence-qualified', ''),
                 ('Port count', result.get('port_count', 0), ''),
                 ('Frequency samples', len(result.get('frequencies_hz', [])), '')]
+        solver = result.get('solver_evidence')
+        if isinstance(solver, dict) and solver.get('solver') and isinstance(solver.get('reports'), int):
+            rows.append(('Verified linear solver', str(solver['solver']),
+                         f"{solver['reports']} matching solve reports"))
         if result.get('s_parameters'):
             from .network import from_result
             analysis = from_result(result).analyze()
@@ -669,35 +675,42 @@ class QuickEMergeFrame(wx.Frame):
     def toggle_setup(self, event=None, *, show=None):
         if self.focus_button.GetValue():
             self.focus_button.SetValue(False);self.focus_view()
-        current=self.workspace_splitter.IsSplit()
-        show=not current if show is None else show
-        if show and not current:
-            self.settings.Show()
-            maximum=max(self.FromDIP(270),self.workspace_splitter.GetClientSize().width-self.FromDIP(540))
-            self.workspace_splitter.SplitVertically(self.settings,self.workspace,min(self.setup_width,maximum))
-        elif current and not show:
-            self.setup_width=self.workspace_splitter.GetSashPosition()
-            self.workspace_splitter.Unsplit(self.settings)
-        self.setup_button.SetValue(show)
+        if show is None:
+            show = not self.workspace_splitter.IsSplit()
+        self._show_setup(show)
         self.Layout()
         wx.CallAfter(self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())].refresh_canvas)
 
+    def setup_sash_limit(self):
+        split = self.workspace_splitter
+        available = split.GetClientSize().width - split.GetSashSize()
+        return max(self.FromDIP(270), available - self.FromDIP(540))
+
+    def _show_setup(self, show):
+        current = self.workspace_splitter.IsSplit()
+        if show and not current:
+            self.settings.Show()
+            width = min(self.setup_width, self.setup_sash_limit())
+            self.workspace_splitter.SplitVertically(self.settings, self.workspace, width)
+        elif current and not show:
+            self.setup_width = self.workspace_splitter.GetSashPosition()
+            self.workspace_splitter.Unsplit(self.settings)
+        self.setup_button.SetValue(show)
+
     def focus_view(self, event=None):
         if self.focus_button.GetValue():
-            self.saved_sashes = (self.workspace_splitter.GetSashPosition(), self.visual_splitter.GetSashPosition(), self.visual_splitter.IsSplit(),self.workspace_splitter.IsSplit())
-            if self.workspace_splitter.IsSplit():self.workspace_splitter.Unsplit(self.settings)
-            self.setup_button.SetValue(False)
-            if self.visual_splitter.IsSplit(): self.toggle_inspector(show=False)
+            self.focus_panels = (self.workspace_splitter.IsSplit(), self.visual_splitter.IsSplit())
+            self._show_setup(False)
+            self.toggle_inspector(show=False)
             self.focus_button.SetLabel('Restore panels')
         else:
-            if self.saved_sashes[3]:
-                self.settings.Show()
-                self.workspace_splitter.SplitVertically(self.settings, self.workspace, self.saved_sashes[0])
-            self.setup_button.SetValue(self.saved_sashes[3])
-            if self.saved_sashes[2]: self.toggle_inspector(show=True)
+            setup_shown, inspector_shown = self.focus_panels
+            self._show_setup(setup_shown)
+            self.toggle_inspector(show=inspector_shown)
             self.focus_button.SetLabel('Focus view')
         from wayricad_runtime.visual_feedback import decorate_button
-        decorate_button(self.focus_button,role='focus')
+        decorate_button(self.focus_button, role='focus')
+        self.focus_button.GetParent().Layout()
         self.Layout()
         wx.CallAfter(self.viewports[self.tabs.GetPageText(self.tabs.GetSelection())].refresh_canvas)
 
@@ -1047,6 +1060,8 @@ class QuickEMergeFrame(wx.Frame):
             self.SetStatusText('Finish the current operation before extracting a rule area.')
             return
         from .region_service import extract_region
+        from wayricad_runtime.editor_refresh import source_stamp
+        stamp = source_stamp(self.session.board)
         self.region_busy = True
         self.region_cancel.clear()
         self.running_state(False)
@@ -1061,15 +1076,21 @@ class QuickEMergeFrame(wx.Frame):
                     from .region_ports import plan_region
                     check_complexity(result)
                     result['prepared_plan'] = plan_region(result, config['signal_net'], config['reference_net'])
-                wx.CallAfter(self._region_done, result, config, None)
+                wx.CallAfter(self._region_done, result, config, None, stamp)
             except Exception as exc:
-                wx.CallAfter(self._region_done, None, config, str(exc))
+                wx.CallAfter(self._region_done, None, config, str(exc), stamp)
         threading.Thread(target=work, name='QuickEMergeNativeRegion').start()
 
-    def _region_done(self, data, config, error):
+    def _region_done(self, data, config, error, stamp=None):
         if self.closed:
             return
         self.region_busy = False
+        if stamp is not None:
+            from wayricad_runtime.editor_refresh import source_stamp
+            if source_stamp(self.session.board) != stamp:
+                self.board_sync.watcher.poll()
+                self.running_state(False)
+                return
         loading_setup = bool(getattr(self, '_pending_region_file', None))
         try:
             if error:
@@ -1096,13 +1117,7 @@ class QuickEMergeFrame(wx.Frame):
                     self.signal_net.SetStringSelection('SIGNAL')
                 if 'GND' in nets:
                     self.reference_net.SetStringSelection('GND')
-                pending = getattr(self, '_pending_region_setup', None)
-                if pending:
-                    wanted = next((i for i, area in enumerate(data['areas']) if area['id'] == pending['rule_area_id']), wx.NOT_FOUND)
-                    self.rule_area.SetSelection(wanted)
-                    self.signal_net.SetStringSelection(pending['signal_net'])
-                    self.reference_net.SetStringSelection(pending['reference_net'])
-                    self._pending_region_setup = None
+                missing_choices = self.board_sync.restore_choices(data)
                 self.mode.SetSelection(2)
                 if pending_file:
                     self._apply_setup_config(pending_file[0], pending_file[1])
@@ -1113,8 +1128,10 @@ class QuickEMergeFrame(wx.Frame):
                 self.SetStatusText('Rule areas loaded from the saved PCB; unsaved editor changes are excluded.')
                 self.log.ChangeValue(self.region_notice.GetLabel())
                 from . import region_view
-                self.viewports['PCB enclosure'].render(region_view.board_context, data, reset=True, options=self.display_options)
-                self.select_view('PCB enclosure')
+                self.board_sync.highlight()
+                if missing_choices:
+                    self.region_notice.SetLabel('An enclosure or net selection needs review. Choose the missing input, then Preview.')
+                    self.SetStatusText(self.region_notice.GetLabel())
                 if not data['areas']:
                     self.region_notice.SetLabel('No saved rule areas. Draw an enclosure in KiCad, or choose an antenna/line template.')
                 return
@@ -1344,7 +1361,7 @@ class QuickEMergeFrame(wx.Frame):
                     view.render(plots.geometry, config, reset=True, options=self.display_options)
                 elif name == 'PCB enclosure':
                     view.render(plots.plan_geometry, config, reset=True, options=self.display_options)
-            self.run_button.Enable()
+            self.running_state(self.running)
             self.results_button.SetValue(False); self.results_button.Disable()
             self.select_view('3D setup')
             self.probe_label.SetLabel('Geometry preview · drag to inspect · wheel to zoom · Show results after a simulation')
@@ -1364,9 +1381,14 @@ class QuickEMergeFrame(wx.Frame):
         self.preview_button.Enable(not (running or self.region_busy or getattr(self,'network_busy',False)))
         can_run = not busy and not self.solver_probe_busy and self.session.review is not None
         verified = getattr(self, 'solver_probe_available', None)
+        run_help = 'Run the reviewed study'
         if verified is not None and self.solver_probe_python == self.python.GetPath():
             selected = self.solver.GetStringSelection()
-            can_run = can_run and bool(verified) and (selected in verified or selected not in ('SUPERLU', 'PARDISO'))
+            unsupported = selected not in verified and selected in ('SUPERLU', 'PARDISO', 'SPARTA', 'CORVID')
+            if unsupported:
+                run_help = f'{selected} has not passed the runtime check. Open Dependencies or choose a verified solver.'
+            can_run = can_run and bool(verified) and not unsupported
+        self.run_button.SetToolTip(run_help)
         self.run_button.Enable(can_run)
         self.cancel_button.Enable(busy)
         self.cancel_button.SetLabel('Cancel')
@@ -1396,10 +1418,16 @@ class QuickEMergeFrame(wx.Frame):
 
     def poll(self, event):
         try:
+            self.board_sync.watcher.poll()
             self.log.ChangeValue(self.session.log_tail())
             if self.session.process.poll() is None:
                 return
             self.timer.Stop()
+            if self.board_sync.discard_run:
+                self.session.cancel()
+                self.board_sync.discard_run = False
+                self.SetStatusText('Saved inputs changed during simulation. Preview the refreshed board and rerun.')
+                return
             result = self.session.collect()
             self.install_result(result)
             if self.radiation_overview_button.IsEnabled() and (result.get('array') or result.get('array_factor')):
@@ -1432,6 +1460,7 @@ class QuickEMergeFrame(wx.Frame):
         self.phase_timer.Stop()
         self.session.cancel()
         self.running_state(False)
+        self.board_sync.discard_run = False
         self.SetStatusText('Run cancelled • request and diagnostic log retained')
 
     def probe(self, name, event):
@@ -1570,6 +1599,7 @@ class QuickEMergeFrame(wx.Frame):
         self._result_file_actions().task(lambda:load_solver_json(path),show)
 
     def close(self, event):
+        self.board_sync.watcher.stop()
         self._solver_probe_generation += 1
         probe = getattr(self, 'solver_probe_process', None)
         if probe is not None and probe.poll() is None: probe.terminate()

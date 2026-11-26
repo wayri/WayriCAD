@@ -4,7 +4,11 @@ from copy import deepcopy
 from .options_ui import OptionsDialog
 import pcbnew
 import wx
-from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id, _net_ownership, _state
+from .placement import DEFAULTS, plan, apply, text_geometry, polygons, item_id, _net_ownership, _state, _texts, fingerprint, board_identity
+try:
+    from .wayricad_runtime.editor_refresh import SavedBoardRefresh, source_stamp
+except ImportError:
+    from wayricad_runtime.editor_refresh import SavedBoardRefresh, source_stamp
 
 
 class LabelPreview(wx.Panel):
@@ -116,6 +120,7 @@ class SilkscreenFrame(wx.Frame):
         self.board_guard=board_guard or (lambda:True)
         super().__init__(parent,title='WayriCAD Silkscreen Label Placer',size=(1100,760))
         self.SetMinSize((850,600));self.board=board;self.settings=deepcopy(DEFAULTS);self.preview=None;self.transactions=[];self.redos=[]
+        self.busy=False;self._detail_ids={};self._editor_selection=None
         # Preserve existing net-label presentation when reopening the tool.
         # Only infer exact owned references; do not guess the previous scope.
         try:owned=_net_ownership(board,pcbnew)
@@ -152,6 +157,7 @@ class SilkscreenFrame(wx.Frame):
         self.list.Hide();self.details.GetPane().SetSizer(wx.BoxSizer(wx.VERTICAL));root.Add(self.details,0,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
         self.details.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED,self.toggle_details)
         self.list.Bind(wx.EVT_MOTION,self.detail_tooltip)
+        self.list.Bind(wx.EVT_LIST_ITEM_ACTIVATED,self.locate_label)
         buttons=wx.BoxSizer(wx.HORIZONTAL);help_button=wx.Button(panel,label='Help');buttons.Add(help_button,0)
         self.generated_button=wx.Button(panel,label='Generated objects…');buttons.Add(self.generated_button,0,wx.LEFT,8)
         self.undo_button=wx.Button(panel,label='Undo');self.redo_button=wx.Button(panel,label='Redo');buttons.Add(self.undo_button,0,wx.LEFT,8);buttons.Add(self.redo_button,0,wx.LEFT,8)
@@ -169,6 +175,62 @@ class SilkscreenFrame(wx.Frame):
         area=wx.Display(self).GetClientArea()
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
         self.CentreOnScreen()
+        self.saved_refresh=SavedBoardRefresh(self,board.GetFileName(),self._invalidate_saved,
+                                             self._refresh_saved,lambda:not self.busy)
+        self.Bind(wx.EVT_ACTIVATE,self._check_live_board)
+
+    def _editor_board(self):
+        if not self.board_guard():
+            return None
+        current=pcbnew.GetBoard()
+        return current if current is not None and board_identity(current)==board_identity(self.board) else None
+
+    def locate_label(self,event):
+        try:
+            current=self._editor_board()
+            if current is None:
+                raise ValueError('Open Silkscreen Label Placer from the originating PCB Editor.')
+            identifier=self._detail_ids.get(event.GetIndex())
+            targets=[(shape,fp) for shape,fp,_ in _texts(current,pcbnew) if item_id(shape)==identifier]
+            if len(targets)!=1:
+                raise ValueError('This row has no exact label identity in the current PCB.')
+            shape,footprint=targets[0]
+            pcbnew.FocusOnItem(footprint if footprint is not None else shape)
+            self.status.SetLabel('Located the reviewed label in the originating PCB Editor.')
+        except Exception as error:
+            self.status.SetLabel(str(error))
+
+    def _invalidate_saved(self):
+        self.invalidate()
+        self.status.SetLabel('Saved PCB or rules changed. Previous label placement is unavailable.')
+
+    def _refresh_saved(self):
+        if self.board_guard():
+            self.canvas.Refresh()
+            self.status.SetLabel('PCB context refreshed. Preview with the current label settings.')
+
+    def _check_live_board(self,event):
+        event.Skip()
+        if not event.GetActive() or self.busy or self._editor_board() is None:
+            return
+        selected=frozenset(item_id(item) for item in pcbnew.GetCurrentSelection())
+        changed_selection=self._editor_selection is not None and selected!=self._editor_selection
+        self._editor_selection=selected
+        if self.preview is not None and (fingerprint(self.board,pcbnew)!=self.preview.source_fingerprint
+                                         or changed_selection and self.scope.GetSelection()==2):
+            self._invalidate_saved()
+            self._refresh_saved()
+        if not self._detail_ids or not selected:
+            return
+        owners={item_id(fp) for fp in self.board.GetFootprints()
+                if item_id(fp) in selected or any(item_id(pad) in selected for pad in fp.Pads())}
+        text_ids={item_id(shape) for shape,fp,_ in _texts(self.board,pcbnew)
+                  if item_id(shape) in selected or (fp is not None and item_id(fp) in owners)}
+        rows=[row for row,identifier in self._detail_ids.items() if identifier in text_ids]
+        if len(rows)==1:
+            self.list.Select(rows[0])
+            self.list.EnsureVisible(rows[0])
+
     def toggle_details(self,event):
         if self.details.IsExpanded():
             if not self.review_splitter.IsSplit():
@@ -190,7 +252,9 @@ class SilkscreenFrame(wx.Frame):
             settings.update(references=True,values=False,board_text=False)
         return settings
     def invalidate(self,event=None):
-        self.preview=None;self.canvas.preview=None;self.apply_button.Disable();self.canvas.Refresh();self.status.SetLabel('Settings changed. Preview again before applying.')
+        self.preview=None;self.canvas.preview=None;self.apply_button.Disable();self.canvas.Refresh()
+        self._detail_ids.clear();self.list.DeleteAllItems()
+        self.status.SetLabel('Settings changed. Preview again before applying.')
     def options(self,event):
         dialog=OptionsDialog(self,self.settings)
         try:
@@ -203,27 +267,36 @@ class SilkscreenFrame(wx.Frame):
                 except ValueError as exc:wx.MessageBox(str(exc),'Label options',wx.OK|wx.ICON_ERROR,parent=dialog)
         finally:dialog.Destroy()
     def on_preview(self,event=None):
-        self.invalidate();self.list.DeleteAllItems()
+        self.invalidate();self.busy=True
         try:
             self.require_board()
             self.status.SetLabel('Checking text, pads, holes and guide lines…');self.status.Update()
-            progress=wx.ProgressDialog('Arrange silkscreen labels','Preparing geometry…',maximum=100,parent=self,style=wx.PD_AUTO_HIDE|wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
+            progress=wx.GenericProgressDialog('Arrange silkscreen labels','Preparing geometry…',maximum=100,parent=self,style=wx.PD_AUTO_HIDE|wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
             def advance(done,total,label):
                 if not self.board_guard():return False
                 keep_going,_=progress.Update(min(99,round(100*done/max(1,total))),str(label))
                 return keep_going
             try:
-                with wx.BusyCursor():self.preview=plan(self.board,pcbnew,self.current_settings(),progress=advance)
+                stamp=source_stamp(self.board.GetFileName())
+                with wx.BusyCursor():candidate=plan(self.board,pcbnew,self.current_settings(),progress=advance)
+                self.require_board()
+                if source_stamp(self.board.GetFileName())!=stamp:
+                    raise ValueError('Saved PCB or rules changed during preview. Preview again.')
+                self.preview=candidate
+                if self._editor_board() is not None:
+                    self._editor_selection=frozenset(item_id(item) for item in pcbnew.GetCurrentSelection())
             finally:progress.Destroy()
             self.canvas.preview=self.preview
             gaps={row['id']:row.get('courtyard_gap_mm') for row in getattr(self.preview,'outcomes',[])}
             for change in self.preview.changes:
                 row=self.list.InsertItem(self.list.GetItemCount(),change.label);styles=', '.join(name for name,on in zip(('bold','italic','knockout'),change.after[7:10]) if on)
+                self._detail_ids[row]=item_id(change.item)
                 gap=gaps.get(item_id(change.item))
                 self.list.SetItem(row,1,f'{pcbnew.ToMM(change.after[4]):.2f} mm · {change.after[2]:g}°'+(' · '+styles if styles else '')+(' · guide line' if change.leader else '')+(f' · courtyard gap {gap:.2f} mm' if gap is not None else ''))
             for outcome in getattr(self.preview,'outcomes',[]):
                 if outcome['status']=='UNCHANGED':
                     row=self.list.InsertItem(self.list.GetItemCount(),outcome['label'])
+                    self._detail_ids[row]=outcome['id']
                     self.list.SetItem(row,1,'Checked; existing placement retained.')
             for label in self.preview.rejected:
                 row=self.list.InsertItem(self.list.GetItemCount(),'Unresolved');self.list.SetItem(row,0,str(label[0]));self.list.SetItem(row,1,str(label[1]))
@@ -234,6 +307,7 @@ class SilkscreenFrame(wx.Frame):
             self.status.SetLabel(f"{self.preview.stats.get('placed',len(self.preview.changes))}/{self.preview.stats.get('eligible',len(self.preview.changes)+len(self.preview.rejected))} labels placed · {len(self.preview.changes)} changes · {self.preview.stats.get('guides',leaders)} guides · {len(self.preview.rejected)} unresolved. Review, then Apply."+guide_note)
             self.apply_button.Enable(bool(self.preview.changes));self.canvas.Refresh()
         except Exception as exc:self.status.SetLabel(str(exc))
+        finally:self.busy=False
     def on_apply(self,event=None):
         try:
             self.require_board()

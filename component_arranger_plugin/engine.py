@@ -47,6 +47,7 @@ class Footprint:
 class Obstacle:
     polygon: Polygon
     sides: tuple[str, ...] = ("top", "bottom")
+    label: str = "placement obstacle"
 
 
 @dataclass(frozen=True)
@@ -190,26 +191,32 @@ def legal(footprint: Footprint, others: tuple[Footprint, ...], settings: Setting
           obstacles: tuple[Obstacle, ...] = (), board_outline: Polygon | None = None,
           board_holes: tuple[Polygon, ...] = ()) -> bool:
     """Check actual polygon envelopes, routing margins, board and hole boundaries."""
+    return placement_conflict(footprint, others, settings, obstacles, board_outline, board_holes) is None
+
+
+def placement_conflict(footprint, others, settings, obstacles, board_outline, board_holes):
     xmin, ymin, xmax, ymax = settings.area
     for poly in world_courtyards(footprint):
         margin = footprint.routing_margin
         x0, y0, x1, y1 = _bounds(poly)
         if x0-margin < xmin-EPS or y0-margin < ymin-EPS or x1+margin > xmax+EPS or y1+margin > ymax+EPS:
-            return False
+            return "placement boundary", "courtyard plus routing margin"
         if board_outline and not _contained(poly, board_outline, margin):
-            return False
-        if any(polygons_conflict(poly, hole, margin) for hole in board_holes):
-            return False
-        if any((footprint.through_hole or footprint.side in obstacle.sides) and
-               polygons_conflict(poly, obstacle.polygon, margin) for obstacle in obstacles):
-            return False
+            return "Edge.Cuts outline", "courtyard plus routing margin"
+        for number, hole in enumerate(board_holes, 1):
+            if polygons_conflict(poly, hole, margin):
+                return f"board cutout {number}", "courtyard plus routing margin"
+        for obstacle in obstacles:
+            if ((footprint.through_hole or footprint.side in obstacle.sides) and
+                    polygons_conflict(poly, obstacle.polygon, margin)):
+                return obstacle.label, "courtyard plus routing margin"
         for other in others:
             if other.key == footprint.key or not _share_side(footprint, other):
                 continue
             if any(polygons_conflict(poly, op, margin + other.routing_margin)
                    for op in world_courtyards(other)):
-                return False
-    return True
+                return f"{other.reference} ({other.key})", "courtyard separation plus routing margins"
+    return None
 
 
 def _capacitance_values(value: str, *, allow_code: bool = False) -> list[float]:
@@ -510,9 +517,16 @@ def arrange(footprints: tuple[Footprint, ...], settings: Settings, *,
         -_reserved_area(fp),fp.reference,fp.key))
     def is_legal(fp,others):
         return legal(fp,tuple(others),settings,obstacles,board_outline,board_holes)
-    if not all(is_legal(fp,fixed) for fp in fixed):
+    conflicts = []
+    for fp in fixed:
+        conflict = placement_conflict(fp, fixed, settings, obstacles, board_outline, board_holes)
+        if conflict:
+            obstacle, rule = conflict
+            role = "Anchor" if fp.key == settings.anchor else "Fixed footprint"
+            conflicts.append(f"{role} {fp.reference} ({fp.key}) conflicts with {obstacle}: {rule}.")
+    if conflicts:
         return Result(footprints,before,before,_density(footprints,settings),settings.density,False,
-                      tuple(warnings+["Anchor/locked footprints conflict with the area, obstacles or each other"]),0)
+                      tuple(warnings + conflicts),0)
     original_legal = all(is_legal(fp,footprints) for fp in footprints)
     original_allowed = all(fp.side in settings.allowed_sides and any(abs((fp.angle-a+180)%360-180)<EPS for a in settings.allowed_angles)
                            for fp in movable)
@@ -589,6 +603,10 @@ def arrange(footprints: tuple[Footprint, ...], settings: Settings, *,
             if winner is None:
                 failed = True
                 warnings.append(f"No legal sampled pose found for {fp.reference} within area/budget")
+                conflict = placement_conflict(current_fp, placed, settings, obstacles, board_outline, board_holes)
+                if conflict:
+                    obstacle, rule = conflict
+                    warnings.append(f"{fp.reference} current pose conflicts with {obstacle}: {rule}.")
                 break
             current = placed+[winner]
         if not failed:

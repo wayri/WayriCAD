@@ -54,6 +54,41 @@ class ReturnPathTests(unittest.TestCase):
         codes = [f["code"] for f in audit_return_path(data)["findings"]]
         self.assertNotIn("NO_NEARBY_RETURN_VIA", codes)
 
+    def test_warning_only_transition_retains_unknown_geometry_and_section_evidence(self):
+        from wayricad_runtime.return_path import summary_text, html_details
+        tracks=[dict(line("F.Cu",(0,0),(5,0)),id='top'),dict(line("B.Cu",(5,0),(10,0)),id='bottom')]
+        data=evidence(segments=tracks,signal_vias=[{'position':[5,0],'id':'signal-via','layers':LAYERS}],
+                      reference_regions=[plane('In1.Cu'),plane('In2.Cu')],return_vias=[
+                          {'net':'GND','position':[5.5,0],'layers':['F.Cu','In1.Cu']}])
+        result=audit_return_path(data)
+        row=result['transitions'][0]
+        self.assertEqual((result['unknown_count'],result['unresolved_transition_count'],result['status']),
+                         (0,1,'INCOMPLETE'))
+        self.assertEqual(row['signal_via_id'],'signal-via')
+        self.assertEqual([s['id'] for s in row['sections']],['top','bottom'])
+        self.assertEqual(row['nearest_return_via_in_radius_mm'],.5)
+        self.assertFalse(row['nearby_candidates'][0]['spans_reference_layers'])
+        self.assertEqual([e['code'] for e in row['missing_evidence']],['NO_NEARBY_RETURN_VIA'])
+        self.assertIn('Unresolved via transitions: 1 of 1',summary_text(result))
+        self.assertIn('No selected return-net via spanning',html_details(result))
+        data['return_vias'][0]['layers']=LAYERS
+        result=audit_return_path(data)
+        self.assertEqual(result['transitions'][0]['status'],'GEOMETRIC_CANDIDATE')
+        self.assertEqual(result['unresolved_transition_count'],0)
+        self.assertEqual(result['transitions'][0]['missing_evidence'],[])
+
+    def test_candidate_on_one_side_cannot_resolve_both_sides(self):
+        layers=['Top','R1','S2','R3','S4','Bottom']
+        data=evidence(layer_order=layers,segments=[line('S2',(0,0),(5,0)),line('Bottom',(5,0),(10,0))],
+                      signal_vias=[{'position':[5,0],'layers':layers}],
+                      reference_regions=[plane('R1'),plane('R3')],
+                      return_vias=[{'net':'GND','position':[5.5,0],'layers':layers}])
+        result=audit_return_path(data)
+        row=result['transitions'][0]
+        self.assertEqual(row['nearest_return_via_in_radius_mm'],.5)
+        self.assertEqual(row['status'],'UNKNOWN')
+        self.assertIn('Bottom',row['missing_evidence'][0]['detail'])
+
     def test_unused_through_via_layers_do_not_create_fake_transition(self):
         via = {"net": "VCC", "position": [5, 0], "layers": LAYERS}
         result = audit_return_path(evidence(signal_vias=[via]))

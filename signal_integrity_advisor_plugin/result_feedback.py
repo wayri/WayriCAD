@@ -32,6 +32,12 @@ def summary_text(values, report=None, *, saved_board=False):
     caption, _ = eye_feedback(eye)
     if caption:
         message += ' · '+caption
+    returns = report.get('return_path') or {}
+    if returns:
+        from wayricad_runtime.return_path import unresolved_transition_count
+        count = unresolved_transition_count(returns)
+        if count:
+            message += f' · {count} unresolved return transition' + ('s' if count != 1 else '')
     if saved_board:
         message += ' · Saved PCB snapshot'
     tooltip = message

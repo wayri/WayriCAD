@@ -494,7 +494,8 @@ def board_groups(board, scope='selection'):
     scopes = []
     warnings = []
     if scope == 'selection':
-        selected = {identity(fp) for fp in footprints if fp.IsSelected()}
+        selected = {identity(fp) for fp in footprints if fp.IsSelected()
+                    or any(pad.IsSelected() for pad in getattr(fp,'Pads',lambda:())())}
         if hasattr(board, 'Groups'):
             seen_groups = set()
             def collect(group):

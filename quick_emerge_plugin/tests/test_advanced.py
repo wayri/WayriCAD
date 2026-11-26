@@ -24,6 +24,57 @@ class AdvancedContractTests(unittest.TestCase):
         model.set_solver.assert_called_once_with(selected)
         model.set_solver.return_value.set_nthreads.assert_called_once_with(1)
 
+    def test_accelerated_solver_selection_and_device_check(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from quick_emerge_plugin.advanced import configure_solver
+        corvid = type('SolverCorvid', (), {'available': True})
+        sparta = type('SolverSparta', (), {'available': True, 'gpu': False})
+        em = SimpleNamespace(solvers=SimpleNamespace(Corvid=corvid, Sparta=sparta))
+        model = Mock()
+        configure_solver(em, model, validate_config({'solver': 'CORVID', 'advanced': {'solver_threads': 3}}))
+        model.set_solver.assert_called_once_with(corvid)
+        model.set_solver.return_value.set_nthreads.assert_called_once_with(3)
+        model.set_device.assert_not_called()
+        corvid.available = False
+        with self.assertRaisesRegex(RuntimeError, 'CORVID is unavailable'):
+            configure_solver(em, model, validate_config({'solver': 'CORVID'}))
+        model.reset_mock()
+        configure_solver(em, model, validate_config({'solver': 'SPARTA'}))
+        model.set_solver.assert_called_once_with(sparta)
+        model.set_device.assert_called_once_with('CPU')
+        scenarios = [validate_config({'solver': 'SPARTA', 'advanced': {'sparta_mode': mode}})
+                     for mode in ('GPU', 'HYBRID')]
+        for config in scenarios:
+            with self.assertRaisesRegex(RuntimeError, 'needs a GPU'):
+                configure_solver(em, model, config)
+        sparta.gpu = True
+        legacy = SimpleNamespace(set_solver=Mock())
+        configure_solver(em, legacy, scenarios[1])
+        legacy.set_solver.return_value.set_options.assert_called_once_with(mode='HYBRID')
+        model.reset_mock()
+        configure_solver(em, model, scenarios[0])
+        model.set_device.assert_called_once_with('GPU')
+
+    def test_solver_evidence_rejects_missing_incomplete_and_fallback_reports(self):
+        from types import SimpleNamespace
+        from quick_emerge_plugin.advanced import record_solver_evidence
+        config = validate_config({'solver': 'CORVID', 'points': 2})
+        successful = SimpleNamespace(solver='SolverCorvid', exit_code=0)
+        def data(*reports):
+            return SimpleNamespace(sim=SimpleNamespace(iterate=lambda: [
+                SimpleNamespace(reports=[report]) for report in reports]))
+        result = {'backend': {'version': '3.0.10'}}
+        record_solver_evidence(result, data(successful, successful), config)
+        self.assertEqual(result['backend'], {'version': '3.0.10', 'solver': 'CORVID'})
+        self.assertEqual(result['solver_evidence'], {'solver': 'CORVID', 'reports': 2, 'requested_device': 'CPU'})
+        with self.assertRaisesRegex(RuntimeError, 'complete CORVID solve reports'):
+            record_solver_evidence({'backend': {}}, data(successful), config)
+        for bad in (SimpleNamespace(solver='SolverSparta', exit_code=0),
+                    SimpleNamespace(solver='SolverCorvid', exit_code=1)):
+            with self.subTest(bad=bad), self.assertRaisesRegex(RuntimeError, 'did not complete'):
+                record_solver_evidence({'backend': {}}, data(successful, bad), config)
+
     def test_normalized_defaults_and_digest(self):
         c = validate_config({})
         self.assertEqual(c['advanced']['study'], 'driven')

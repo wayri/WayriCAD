@@ -66,7 +66,7 @@ class SessionTests(unittest.TestCase):
             self.session.start({}, sys.executable, self.root)
         args, kwargs = popen.call_args
         self.assertEqual(args[0][0], str(Path(sys.executable).resolve()))
-        self.assertEqual(args[0][1], '-I')
+        self.assertEqual(args[0][1:4], ['-I', '-X', 'utf8'])
         self.assertEqual(args[0][-2], '--worker')
         self.assertEqual(Path(args[0][-1]), self.session.run_dir / 'request.json')
         self.assertEqual(kwargs['cwd'], self.session.run_dir)

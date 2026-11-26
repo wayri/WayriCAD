@@ -63,6 +63,9 @@ class LiveCurrentControls:
         solved=base.get('result',{}).get('total_sink_current_A',base.get('result',{}).get('sink_current_A'))
         if isinstance(solved,(int,float)) and math.isfinite(solved) and solved>0:
             self.live_current.SetRange(1e-9,max(1e9,solved));self.live_current.SetValue(solved)
+        if base.get('live_pcb_snapshot'):
+            self._set_live_enabled(False,'Run again to capture the latest editor geometry and currents.')
+            return
         supported,reason=live_current_eligibility(base)
         if self.joule_feedback.GetValue():supported=False;reason='Temperature feedback requires a new electrothermal solve; live tuning is fixed-temperature only.'
         if not supported:self._set_live_enabled(False,reason);return
@@ -257,14 +260,20 @@ class LiveCurrentControls:
         if self._live_pending is None:self._buttons()
 
     def _show_live_current(self,bundle,elapsed_ms):
-        from .report import update_current_view,inspection_record,METRICS
+        from .report import update_current_view,inspection_record,METRICS,presentation_metric
+        from .voltage_tolerance import annotate,show_exact,voltage_text
         previous=self.bundle;bundle['view_settings']=dict(previous.get('view_settings',{}))
         bundle['board_scene']=self._board_scene;self.bundle=bundle
         self._complete_current_preview(bundle)
-        request=bundle['request'];sinks=request.get('sinks') or []
+        request=bundle['request']
+        annotate(bundle['result'],request)
+        bundle['result'].pop('trace_width_guidance',None)
+        sinks=request.get('sinks') or []
         primary=request.get('sink_current',sinks[0].get('current_A') if sinks else None)
         if primary is not None:self.current.ChangeValue(f'{primary:.9g}')
-        if sinks:self._extra_sinks=[dict(row) for row in sinks[1:]]
+        if len(sinks)==len(self._extra_sinks)+1:
+            self._extra_sinks=[dict(original,current_A=updated['current_A'])
+                               for original,updated in zip(self._extra_sinks,sinks[1:])]
         if self._inspection:
             row=self._inspection
             if row['kind']!='object':
@@ -299,6 +308,7 @@ class LiveCurrentControls:
         same=None
         if ax:
             metric=list(METRICS)[max(0,self.metric.GetSelection())]
+            metric=presentation_metric(bundle,metric)
             manual=self._scale_limits(metric) if self.scale_mode.GetSelection()==2 else None
             same=update_current_view(ax,bundle,manual)
             if same is not None:self.color_legend.set_scale(ax._wayricad_color_scale)
@@ -306,15 +316,18 @@ class LiveCurrentControls:
         if controller:
             old=previous['result'];new=bundle['result'];ratio=new['sink_current_A']/old['sink_current_A']
             metric=list(METRICS)[max(0,self.metric.GetSelection())]
+            metric=presentation_metric(bundle,metric)
             factor=ratio**2 if metric in ('loss','risk','melt') else 1. if metric=='resistance' else ratio
-            offset=new['source_voltage_V']*(1-ratio) if metric=='voltage' else 0.
+            reference=100. if metric=='voltage_pct' else new['source_voltage_V'] if metric=='voltage' else 0.
+            offset=reference*(1-ratio)
             for row in controller['rows']:row[2]=row[2]*factor+offset
             if same and not controller['probes']:ax.stale=False;figure.stale=False
             controller['refresh_values'](keep_background=bool(same))
             if controller['probes']:same=False
         self._update_inspector(True,check_source=False)
         result=bundle['result'];state=result['feasibility']['status']
-        self.summary.SetLabel(f"{state} · {result['sink_current_A']:.6g} A · ΔV {result['voltage_drop_V']*1000:.5g} mV · Loss {result['total_power_W']:.6g} W")
+        drop=voltage_text(result,result.get('voltage_drop_V'),exact=show_exact(bundle),drop=True)
+        self.summary.SetLabel(f"{state} · {result['sink_current_A']:.6g} A · ΔV {drop} · Loss {result['total_power_W']:.6g} W")
         self.live_note.SetLabel(f'Live · {elapsed_ms:.1f} ms calculation · no remesh')
         self.status.SetLabel('Live fixed-temperature DC · all sink currents scale proportionally · '+state)
         if same is None and self.book.GetSelection()==2:self._draw(preserve=True)

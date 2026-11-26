@@ -7,7 +7,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.collections import TriMesh
 from matplotlib.figure import Figure
 
-from quick_pi_plugin.report import draw_view, probe_result, result_scale
+from quick_pi_plugin.report import _report_snapshot, draw_view, probe_result, result_scale
 from quick_pi_plugin.tests.test_report import bundle
 
 
@@ -146,6 +146,49 @@ class NativeBoardViewTests(unittest.TestCase):
                 self.assertFalse(any(str(item.get_gid()).startswith('board-context:') for item in axes.patches))
                 axes=draw_view(figure,data,layer=copper)
                 self.assertFalse(any(str(item.get_gid()).startswith('board-context:') for item in axes.patches))
+
+    def test_board_body_keeps_saved_internal_cutouts_open(self):
+        data=bundle()
+        data['board_scene']={'primitives':[{
+            'kind':'polygon','role':'outline','layer':44,
+            'points':[[0,-2],[10,-2],[10,3],[0,3]],
+            'holes':[[[2,1.6],[3,1.6],[3,2.6],[2,2.6]]],
+        }]}
+        figure=Figure(figsize=(8,4));canvas=FigureCanvasAgg(figure)
+        axes=draw_view(figure,data,board_view=True,net_scope='Full board')
+        canvas.draw()
+        pixels=np.asarray(canvas.buffer_rgba())
+        def rgb(coordinates):
+            x,y=axes.transData.transform(coordinates).astype(int)
+            return tuple(pixels[len(pixels)-y-1,x,:3])
+        self.assertEqual(rgb((2.5,2.1)),rgb((-0.1,2.1)))
+        self.assertNotEqual(rgb((4,2.1)),rgb((2.5,2.1)))
+        self.assertTrue(any(item.get_gid()=='pi-board-body' for item in axes.collections))
+
+    def test_report_map_has_separate_tick_legend_and_sharp_png(self):
+        import base64
+        import re
+        import struct
+        from unittest.mock import patch
+
+        from wayricad_runtime.report_images import figure_png
+
+        stats={}
+        def inspect(figure,**options):
+            board,legend=figure.axes
+            stats.update(board_scientific=board.axison, ticks=len(legend.get_xticks()),
+                         legend_label=legend.get_xlabel(), heading=figure.texts[0].get_text())
+            return figure_png(figure,**options)
+        with patch('wayricad_runtime.report_images.figure_png',side_effect=inspect):
+            document=_report_snapshot(bundle(),0,'density','smooth')
+        self.assertEqual(stats['ticks'],5)
+        self.assertFalse(stats['board_scientific'])
+        self.assertIn('A/mm²',stats['legend_label'])
+        self.assertTrue(stats['heading'])
+        image=base64.b64decode(re.search(r'base64,([^"]+)',document).group(1))
+        width,height=struct.unpack('>II',image[16:24])
+        self.assertGreaterEqual(width,1600)
+        self.assertGreaterEqual(height,1000)
 
     def test_kicad_10_layer_names_and_back_copper_id_show_matching_contours(self):
         scene={'layers':{0:'F.Cu',2:'B.Cu',7:'F.Silkscreen',9:'B.Silkscreen',

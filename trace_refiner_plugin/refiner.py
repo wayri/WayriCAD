@@ -407,9 +407,52 @@ def materialize(board,api,changes):
     board.BuildConnectivity()
 
 
-def findings(report):
-    def key(v):return v.get('type'),tuple(sorted(i.get('uuid','') for i in v.get('items',[]))),v.get('severity')
-    return {key(v) for category in ('violations','unconnected_items') for v in report.get(category,[])}
+_FINDING_CATEGORIES = ('violations','unconnected_items')
+
+
+def finding_positions(finding):
+    return tuple(sorted(json.dumps(item.get('pos'),sort_keys=True) for item in finding.get('items',[])))
+
+
+def finding_key(category, finding, aliases=None):
+    aliases = aliases or {}
+    items = finding.get('items',[])
+    ids = tuple(sorted(aliases.get(item.get('uuid') or '',item.get('uuid') or '') for item in items))
+    # Without a distinct item identity, preserve the marker's saved position.
+    positions = ()
+    if not ids or '' in ids or len(ids)!=len(set(ids)):
+        positions = finding_positions(finding)
+    return category,finding.get('type'),ids,finding.get('severity'),positions
+
+
+def findings(report, aliases=None):
+    return Counter(finding_key(category,row,aliases) for category in _FINDING_CATEGORIES
+                   for row in report.get(category,[]))
+
+
+def new_native_findings(baseline, candidate, aliases, proposal_by_item):
+    unseen = findings(candidate, aliases) - findings(baseline)
+    baseline_markers = Counter((finding_key(category,row),finding_positions(row))
+                               for category in _FINDING_CATEGORIES for row in baseline.get(category,[]))
+    delta = []
+    for category in _FINDING_CATEGORIES:
+        for row in candidate.get(category,[]):
+            key = finding_key(category,row,aliases)
+            if unseen[key]<=0:
+                continue
+            marker = key,finding_positions(row)
+            if baseline_markers[marker]>0:
+                baseline_markers[marker]-=1
+                continue
+            unseen[key]-=1
+            identifiers = sorted({item['uuid'] for item in row.get('items',[]) if item.get('uuid')})
+            proposals = sorted({proposal_by_item[identifier] for identifier in identifiers
+                                if identifier in proposal_by_item})
+            delta.append(dict(category=category, rule=row.get('type'), severity=row.get('severity'),
+                              reason=row.get('description') or row.get('type') or category,
+                              item_uuids=identifiers, proposal_indices=proposals,
+                              item_positions=[item['pos'] for item in row.get('items',[]) if 'pos' in item]))
+    return delta
 
 
 def require_comparable_baseline(report):
@@ -455,7 +498,9 @@ def validate_detached(board,api,preview,progress=None,evidence_dir=None):
             process.communicate();raise
         if not result.is_file():raise RuntimeError('Native validation worker did not complete. Apply remains blocked. '+(stderr or stdout)[-300:])
         response=json.loads(result.read_text(encoding='utf-8'))
-        if process.returncode or not response.get('validated'):raise ValueError(response.get('error','Native validation failed; Apply remains blocked.'))
+        if process.returncode or not response.get('validated'):
+            preview.evidence=response.get('evidence') or {}
+            raise ValueError(response.get('error','Native validation failed; Apply remains blocked.'))
         if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed during validation. Preview again.')
         if proposal_digest(preview)!=requested:raise ValueError('Proposal changed during validation; validate again.')
         preview.evidence=response['evidence'];preview.validated=True;preview.validation_digest=requested
@@ -481,7 +526,12 @@ def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
         by_id={uid(t):t for t in candidate.GetTracks()}
         changes=[Change([by_id[uid(t)] for t in c.originals],c.before,c.after,c.net,c.layer,c.width) for c in preview.changes]
         before_partition=connectivity(baseline,api);materialize(candidate,api,changes)
-        if connectivity(candidate,api)!=before_partition:raise ValueError('Candidate changes native pad/via/zone connectivity; Apply is blocked.')
+        after_partition=connectivity(candidate,api)
+        if after_partition!=before_partition:
+            preview.evidence=dict(connectivity='changed',
+                removed_partitions=sorted(set(before_partition)-set(after_partition)),
+                added_partitions=sorted(set(after_partition)-set(before_partition)))
+            raise ValueError('Candidate changes native pad/via/zone connectivity; Apply is blocked.')
         reports={}
         evidence_dir=Path(evidence_dir) if evidence_dir else None
         if evidence_dir:evidence_dir.mkdir(parents=True,exist_ok=False)
@@ -509,11 +559,13 @@ def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
         # Candidate uses source first-track UUIDs; map added replacement UUIDs back
         # before comparing existing findings. New findings still block acceptance.
         mapping={uid(t):uid(c.originals[0]) for c in changes for t in c.added}
-        for category in ('violations','unconnected_items'):
-            for finding in reports['candidate'].get(category,[]):
-                for item in finding.get('items',[]):item['uuid']=mapping.get(item.get('uuid'),item.get('uuid'))
+        proposals={uid(track):index for index,change in enumerate(changes)
+                   for track in [*change.originals,*change.added]}
         repaired_via_centers=0
-        candidate_findings=findings(reports['candidate'])
+        candidate_findings=findings(reports['candidate'],mapping)
+        delta=new_native_findings(reports['baseline'],reports['candidate'],mapping,proposals)
+        preview.evidence=dict(baseline=findings(reports['baseline']).total(),candidate=candidate_findings.total(),
+                              new_findings=len(delta),finding_delta=delta,connectivity='unchanged')
         for category in ('violations','unconnected_items'):
             for finding in reports['baseline'].get(category,[]):
                 if not any(i.get('uuid') in affected for i in finding.get('items',[])):continue
@@ -524,9 +576,10 @@ def validate(board,api,preview,cli=None,progress=None,evidence_dir=None):
                 if not permitted:
                     raise ValueError('A proposed chain already has native DRC findings. Restrict the scope to clean routing before refining.')
                 repaired_via_centers+=1
-        new=findings(reports['candidate'])-findings(reports['baseline'])
-        if new:raise ValueError(f'Candidate has {len(new)} new native DRC/connectivity findings; Apply is blocked. Reduce scope or displacement.')
-        preview.evidence=dict(baseline=len(findings(reports['baseline'])),candidate=len(findings(reports['candidate'])),new_findings=0,connectivity='unchanged',repaired_via_centers=repaired_via_centers)
+        if delta:
+            first=delta[0]
+            raise ValueError(f"Candidate has {len(delta)} new native findings. First: {first['reason']}. Apply is blocked.")
+        preview.evidence['repaired_via_centers']=repaired_via_centers
     if snapshot(board,api)!=preview.fingerprint or rule_hash(board)!=preview.rules:raise ValueError('Board or rules changed during validation. Preview again.')
     if proposal_digest(preview)!=requested:raise ValueError('Proposal changed during validation; validate again.')
     preview.validated=True;preview.validation_digest=requested

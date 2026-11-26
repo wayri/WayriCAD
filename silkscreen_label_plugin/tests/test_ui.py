@@ -89,6 +89,26 @@ class UITests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'closed or replaced'):
             self.frame.cleanup_verified_leaders(None,confirmed=True)
 
+    def test_locate_and_saved_refresh_keep_label_scope(self):
+        self.frame.Show()
+        wx.Yield()
+        self.frame.on_preview()
+        settings=self.frame.current_settings()
+        row=next(iter(self.frame._detail_ids))
+        event=wx.ListEvent(wx.wxEVT_LIST_ITEM_ACTIVATED)
+        event.SetIndex(row)
+        with patch.object(api,'GetBoard',return_value=self.fixture.board),patch.object(api,'FocusOnItem') as focus:
+            self.frame.locate_label(event)
+            focus.assert_called_once()
+            self.assertEqual(focus.call_args.args[0].m_Uuid.AsString(),self.fixture.fp.m_Uuid.AsString())
+        self.frame._invalidate_saved()
+        self.frame._refresh_saved()
+        self.assertFalse(self.frame.apply_button.IsEnabled())
+        self.assertEqual(self.frame.list.GetItemCount(),0)
+        self.assertEqual(self.frame.current_settings(),settings)
+        self.frame.on_preview()
+        self.assertEqual(self.frame.preview.settings,settings)
+
     def test_replaced_board_blocks_apply_and_preview(self):
         self.frame.on_preview();self.open=False
         with patch.object(wx,'MessageBox') as warning:self.frame.on_apply()

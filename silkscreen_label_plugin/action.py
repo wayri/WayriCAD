@@ -14,6 +14,7 @@ class SilkscreenAction(pcbnew.ActionPlugin):
     def Run(self):
         import wx
         from .ui import SilkscreenFrame
+        from .placement import board_identity
         try:
             board=pcbnew.GetBoard()
             if board is None:raise ValueError('Open a PCB in PCB Editor first.')
@@ -21,10 +22,10 @@ class SilkscreenAction(pcbnew.ActionPlugin):
             if existing is not None and existing:
                 if existing.board_guard():existing.Show();existing.Raise();return
                 existing.Destroy()
-            identity=int(board.this)
+            identity=board_identity(board)
             def current_board():
                 current=pcbnew.GetBoard()
-                return current is not None and int(current.this)==identity
+                return current is not None and board_identity(current)==identity
             self._frame=SilkscreenFrame(wx.GetActiveWindow(),board,board_guard=current_board)
             self._frame.Show();self._frame.Raise()
         except Exception as exc:

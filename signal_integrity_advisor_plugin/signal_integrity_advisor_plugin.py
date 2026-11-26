@@ -25,9 +25,22 @@ class RoutePreview(PanZoomCanvas):
         super().__init__(parent, empty_text="Analyze a routed path to review its layer sequence, vias, and endpoints.")
         self.result: Optional[ImpedanceResult] = None
         self.tracks = []
+        self._editor_overlay=()
+
+    def set_editor_selection(self, identifiers):
+        wanted=set(identifiers)
+        path=getattr(self.result,'primary',None)
+        lines=tuple((tuple(section['start_mm']),tuple(section['end_mm']))
+                    for section in getattr(path,'segments',())
+                    if str(section.get('item_uuid','')).casefold() in wanted
+                    and 'start_mm' in section and 'end_mm' in section)
+        if lines!=self._editor_overlay:
+            self._editor_overlay=lines
+            self.Refresh()
 
     def show_result(self, result: ImpedanceResult) -> None:
         self.result = result
+        self._editor_overlay=()
         self.route_endpoints = None
         self.tracks = []
         paths = [result.primary] + ([result.mate] if result.mate else [])
@@ -94,6 +107,11 @@ class RoutePreview(PanZoomCanvas):
             if _item is not None and 'VIA' in str(getattr(_item,'GetClass',lambda:'')()):
                 sx,sy=project((x1,y1));diameter=max(6,float(_item.GetWidth(_item.TopLayer()))/1e6*self.scale)
                 gc.SetBrush(wx.Brush(wx.Colour('#f8fafc')));gc.DrawEllipse(sx-diameter/2,sy-diameter/2,diameter,diameter);gc.SetBrush(wx.TRANSPARENT_BRUSH)
+        gc.SetPen(wx.Pen(wx.Colour('#13c7ef'),2))
+        for a,b in self._editor_overlay:
+            start,end=project(a),project(b)
+            if start==end:gc.DrawEllipse(start[0]-7,start[1]-7,14,14)
+            else:gc.StrokeLine(*start,*end)
         gc.SetFont(wx.Font(8, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_NORMAL), TEXT_COLOUR)
         endpoints = getattr(self,"route_endpoints",None) or ((self.tracks[0][0], self.tracks[0][1]), (self.tracks[-1][2], self.tracks[-1][3]))
         path=getattr(self.result,'primary',None)

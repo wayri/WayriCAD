@@ -158,6 +158,12 @@ class SearchTests(unittest.TestCase):
         bad=e.arrange((a,replace(b,x=0)),settings)
         self.assertFalse(bad.complete)
         self.assertEqual(bad.footprints,(a,replace(b,x=0)))
+        self.assertTrue(any('Anchor U1' in message and 'R1' in message and 'courtyard separation' in message
+                            for message in bad.warnings))
+        keepout=e.Obstacle(rectangle(),label='fixture keepout')
+        blocked=e.arrange((a,b),settings,obstacles=(keepout,))
+        self.assertFalse(blocked.complete)
+        self.assertTrue(any('Anchor U1' in message and 'fixture keepout' in message for message in blocked.warnings))
 
     def test_bottom_is_used_if_only_legal_option(self):
         a=part('U1',w=2,h=2)

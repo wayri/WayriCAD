@@ -1,6 +1,7 @@
 """Layer and local-loss summaries from the actual solved sheet/barrel model."""
 import heapq
-import math
+
+_CELL_BLOCK_SIZE = 65536
 
 
 def thickness_label(row):
@@ -9,6 +10,8 @@ def thickness_label(row):
 
 
 def summarize(mesh, result):
+    import numpy as np
+
     geometry=mesh.get('geometry',{})
     names={str(layer['id']):layer.get('name',str(layer['id'])) for layer in geometry.get('layers',[])}
     layers={};density_heap=[];heating_heap=[];serial=0
@@ -21,37 +24,85 @@ def summarize(mesh, result):
             item=(value,serial,row)
             if len(heap)<12:heapq.heappush(heap,item)
             elif value>heap[0][0]:heapq.heapreplace(heap,item)
-    for i,(triangle,thickness,layer) in enumerate(zip(mesh['triangles'],mesh['triangle_thickness_mm'],result['cell_layer'])):
-        a,b,c=(mesh['points_mm'][index] for index in triangle)
-        area=abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/2
-        volume=area*thickness;power=result['cell_power_W'][i];vector=result['cell_J_A_mm2'][i]
-        key=str(layer)
-        row=layers.get(key)
-        if row is None:
-            row={'layer':layer,'name':names.get(key,key),'area_mm2':0.,'volume_mm3':0.,
-                'connected_area_mm2':0.,'connected_volume_mm3':0.,'planar_power_W':0.,
-                'thickness_min_mm':float(thickness),'thickness_max_mm':float(thickness),
-                'peak_current_density_A_mm2':None,'peak_location_mm':None,'triangle_count':0,'floating_triangles':0}
-            layers[key]=row
-        row['area_mm2']+=area;row['volume_mm3']+=volume;row['triangle_count']+=1
-        row['thickness_min_mm']=min(row['thickness_min_mm'],float(thickness))
-        row['thickness_max_mm']=max(row['thickness_max_mm'],float(thickness))
-        if power is None or vector is None:
-            row['floating_triangles']+=1;continue
-        row['connected_area_mm2']+=area;row['connected_volume_mm3']+=volume;row['planar_power_W']+=power
-        density=math.sqrt(sum(value*value for value in vector));location=result['cell_centroid_mm'][i]
-        if row['peak_current_density_A_mm2'] is None or density>row['peak_current_density_A_mm2']:
-            row['peak_current_density_A_mm2']=density;row['peak_location_mm']=location
-        heating=power/volume
-        # Only the twelve highest entries survive each heap. Most cells cannot
-        # enter either list; avoid allocating their discarded report dictionaries.
-        if (len(density_heap)<12 or density>density_heap[0][0] or
-                len(heating_heap)<12 or heating>heating_heap[0][0]):
-            hotspot({'kind':'sheet','id':i,'layer':layer,'layer_name':row['name'],'location_mm':location,
-                     'thickness_mm':float(thickness),'current_density_A_mm2':density,'power_W':power,
-                     'power_density_W_mm3':heating,'thermal':result['cell_thermal'][i]})
-        else:
-            serial+=1
+
+    # Evaluate the same XY determinant as the scalar loop in bounded blocks.
+    # Keep mesh-sized gather temporaries out of large-board post-processing.
+    triangles=np.asarray(mesh['triangles'],dtype=np.intp).reshape(-1,3)
+    points=np.asarray(mesh['points_mm'],dtype=float)[:,:2]
+    area=np.empty(len(triangles),dtype=float)
+    for start in range(0,len(triangles),_CELL_BLOCK_SIZE):
+        stop=min(start+_CELL_BLOCK_SIZE,len(triangles))
+        a,b,c=points[triangles[start:stop].T]
+        ab=b-a;ac=c-a
+        area[start:stop]=np.abs(ab[:,0]*ac[:,1]-ab[:,1]*ac[:,0])/2
+    thickness=np.asarray(mesh['triangle_thickness_mm'],dtype=float)
+    volume=area*thickness
+
+    labels=result['cell_layer']
+    source_layers={}
+    layer_index={}
+    def layer_number(label):
+        key=str(label)
+        if key not in layer_index:
+            layer_index[key]=len(layer_index)
+            source_layers[key]=label
+        return layer_index[key]
+    owner=np.fromiter((layer_number(label) for label in labels),dtype=np.intp,count=len(triangles))
+    count=len(layer_index)
+    powers=result['cell_power_W']
+    vectors=result['cell_J_A_mm2']
+    active=np.fromiter((i for i,(power,vector) in enumerate(zip(powers,vectors))
+                        if power is not None and vector is not None),dtype=np.intp)
+    connected_owner=owner[active]
+    connected_power=np.asarray([powers[i] for i in active],dtype=float)
+    connected_vectors=np.asarray([vectors[i] for i in active],dtype=float).reshape(-1,2)
+    density=np.sqrt(np.sum(connected_vectors*connected_vectors,axis=1))
+    heating=connected_power/volume[active]
+
+    total_area=np.bincount(owner,weights=area,minlength=count)
+    total_volume=np.bincount(owner,weights=volume,minlength=count)
+    connected_area=np.bincount(connected_owner,weights=area[active],minlength=count)
+    connected_volume=np.bincount(connected_owner,weights=volume[active],minlength=count)
+    planar_loss=np.bincount(connected_owner,weights=connected_power,minlength=count)
+    total_cells=np.bincount(owner,minlength=count)
+    connected_cells=np.bincount(connected_owner,minlength=count)
+    min_thickness=np.full(count,np.inf)
+    max_thickness=np.full(count,-np.inf)
+    np.minimum.at(min_thickness,owner,thickness)
+    np.maximum.at(max_thickness,owner,thickness)
+    peaks=np.full(count,-np.inf)
+    np.maximum.at(peaks,connected_owner,density)
+    peak_cells=np.full(count,len(triangles),dtype=np.intp)
+    tied=density==peaks[connected_owner]
+    np.minimum.at(peak_cells,connected_owner[tied],active[tied])
+
+    locations=result['cell_centroid_mm']
+    for key,j in layer_index.items():
+        connected=bool(connected_cells[j])
+        layers[key]={'layer':source_layers[key],'name':names.get(key,key),
+                'area_mm2':float(total_area[j]),'volume_mm3':float(total_volume[j]),
+                'connected_area_mm2':float(connected_area[j]),'connected_volume_mm3':float(connected_volume[j]),
+                'planar_power_W':float(planar_loss[j]),'thickness_min_mm':float(min_thickness[j]),
+                'thickness_max_mm':float(max_thickness[j]),
+                'peak_current_density_A_mm2':float(peaks[j]) if connected else None,
+                'peak_location_mm':locations[peak_cells[j]] if connected else None,
+                'triangle_count':int(total_cells[j]),'floating_triangles':int(total_cells[j]-connected_cells[j])}
+    # Retain the existing equal-value ordering, including later via contenders.
+    # Materialize Python scalars in blocks and allocate rows only for contenders.
+    for start in range(0,len(active),_CELL_BLOCK_SIZE):
+        stop=min(start+_CELL_BLOCK_SIZE,len(active))
+        candidates=zip(active[start:stop].tolist(),density[start:stop].tolist(),heating[start:stop].tolist())
+        for cell_index,current_density,power_density in candidates:
+            if (len(density_heap)<12 or current_density>density_heap[0][0] or
+                    len(heating_heap)<12 or power_density>heating_heap[0][0]):
+                layer=labels[cell_index]
+                key=str(layer)
+                hotspot({'kind':'sheet','id':cell_index,'layer':layer,'layer_name':names.get(key,key),
+                         'location_mm':locations[cell_index],'thickness_mm':float(thickness[cell_index]),
+                         'current_density_A_mm2':current_density,'power_W':float(powers[cell_index]),
+                         'power_density_W_mm3':power_density,'thermal':result['cell_thermal'][cell_index]})
+            else:
+                serial+=1
     via_metadata={str(v['id']):v for v in mesh.get('vias',[])}
     for via in result.get('vias',[]):
         if via.get('power_W') is None:continue

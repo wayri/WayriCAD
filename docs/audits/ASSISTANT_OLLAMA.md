@@ -1,5 +1,7 @@
 # Local Ollama Assistant integration
 
+This audit records the historical 4.8.9 model integration. See the [current Assistant workflow](../../suite_assistant_plugin/README.md) for the local fuzzy planner.
+
 Source validation date: 2026-11-20. This is a source feature, not a claim that
 published 4.8.8 binaries contain it.
 

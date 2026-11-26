@@ -218,6 +218,11 @@ Choose a BGA/grid style for array pads; center exposed pads need a separate via-
 
 ## Workflow
 
+After a PCB or rules save, previous candidates become unavailable. Live preview
+refreshes the current supported scope with the existing style and dimensions.
+Whole-board and manual live-snapshot modes continue to use Refresh preview.
+Activate an accepted row to locate its launch pad in the originating PCB Editor.
+
 1. Select parts or pads and choose a style. The live preview follows selected components.
 2. Inspect the main canvas and small component preview; expand candidate details for rejection reasons. Use **Refresh preview** for broad scopes or after board geometry edits. Preview creates no PCB copper.
 3. Inspect the result, then **Apply to board**. A named WayriCAD group contains the committed geometry. Run KiCad DRC before saving or manufacturing.
@@ -292,7 +297,10 @@ the local quadrant diagonal.
 
 The example uses six plated pins, nearest-edge exits, no added vias and a 0.5 mm
 edge margin. For dense connectors, select only the intended pins/nets and inspect
-rejections. A reduced local clearance is an explicit review-project export, not
+rejections. Copper collisions list the blocking item's net and UUID when
+available and the clearance used in the check. A conflict with another planned
+escape identifies that escape by its launch pad. A reduced local clearance is
+an explicit review-project export, not
 a silent rule change in the working board. See [connector-edge breakout](#connector-edge-breakout).
 
 ### General and custom directions

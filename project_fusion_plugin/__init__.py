@@ -1,5 +1,5 @@
 """Wayri Project Fusion: saved-file project merger for KiCad 10."""
-__version__ = '4.9.0'
+__version__ = '5.0.0'
 # A CLI/test import does not require KiCad or wxPython.
 try:
     import pcbnew

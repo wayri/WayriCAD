@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import platform
 import shutil
 import subprocess
 import sys
@@ -16,7 +17,9 @@ import uuid
 from packaging.version import InvalidVersion, Version
 
 from .backend import atomic_json, SUPPORTED_VERSION, SUPPORTED_EMSUTIL_VERSION
-from .compatibility import CERTIFICATE_NAME, adapter_signature, read_certificate, runtime_certificate
+from .compatibility import (ACCELERATED_EMERGE_VERSION, ACCELERATED_SOLVERS, CERTIFICATE_NAME,
+                            adapter_signature, matching_solver_record, read_certificate, runtime_certificate,
+                            solver_disabled)
 
 
 CHECK_INTERVAL = 24 * 60 * 60
@@ -26,6 +29,30 @@ MIN_FREE_BYTES = 3 * 1024**3
 QUALIFICATION_TIMEOUT = 1200
 SOLVER_EXTRAS = (f'emsutil>={SUPPORTED_EMSUTIL_VERSION},<1.2', 'ezdxf>=1.4,<2', 'msgpack>=1.1,<2', 'msgpack-numpy>=0.4.8,<0.5')
 ENTRY = Path(__file__).with_name('__main__.py')
+_PACKAGE_PROBE = '''
+import importlib.metadata as metadata
+import json
+packages = {}
+for name in ('emerge', 'emsutil', 'corvid-solver', 'sparta-solver'):
+    try:
+        packages[name] = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        pass
+print(json.dumps(packages))
+'''
+
+
+def expected_accelerators(version):
+    # CORVID and SPARTA publish the same platform wheel set as of EMerge 3.0.10.
+    if Version(version) < Version(ACCELERATED_EMERGE_VERSION):
+        return ()
+    machine = platform.machine().casefold()
+    amd64 = machine in ('amd64', 'x86_64')
+    arm64 = machine in ('arm64', 'aarch64')
+    if ((sys.platform == 'win32' and amd64)
+            or (sys.platform in ('linux', 'darwin') and (amd64 or arm64))):
+        return tuple(solver for solver in ACCELERATED_SOLVERS if not solver_disabled(solver))
+    return ()
 
 
 class SetupCancelled(RuntimeError):
@@ -187,9 +214,9 @@ def discover_python():
                               if (p := shutil.which(f'python3.{minor}')))
     for command in candidates:
         try:
-            probe = subprocess.run([*command, '-I', '-c',
+            probe = subprocess.run([*command, '-I', '-X', 'utf8', '-c',
                                     'import sys; print(sys.executable if (3,10)<=sys.version_info[:2]<(3,14) else "")'],
-                                   capture_output=True, text=True, timeout=10,
+                                   capture_output=True, text=True, encoding='utf-8', timeout=10,
                                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
             executable = probe.stdout.strip()
             if probe.returncode == 0 and executable and Path(executable).is_file():
@@ -220,21 +247,24 @@ class DependencyManager:
         python = environment_python(folder)
         if cert and python.is_file():
             try:
-                probe = subprocess.run([str(python), '-I', '-c',
-                                        'import importlib.metadata as m; print(m.version("emerge"))'],
-                                       capture_output=True, text=True, timeout=10,
+                probe = subprocess.run([str(python), '-I', '-X', 'utf8', '-c', _PACKAGE_PROBE],
+                                       capture_output=True, text=True, encoding='utf-8', timeout=10,
                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-                if probe.returncode == 0 and probe.stdout.strip() == cert['version']:
-                    utility=subprocess.run([str(python),'-I','-c',
-                        'import importlib.metadata as m; print(m.version("emsutil"))'],
-                        capture_output=True,text=True,timeout=10,
-                        creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
-                    expected=cert.get('packages',{}).get('emsutil')
-                    if utility.returncode or not expected or utility.stdout.strip()!=expected:
-                        return None
-                    return {'python': str(python), 'version': cert['version'],
-                            'emsutil_version':expected,'environment': name}
-            except (OSError, subprocess.TimeoutExpired):
+                expected = cert.get('packages', {}).get('emsutil')
+                if probe.returncode or not expected:
+                    return None
+                installed = json.loads(probe.stdout)
+                if (not isinstance(installed, dict) or installed.get('emerge') != cert['version']
+                        or installed.get('emsutil') != expected):
+                    return None
+                backends = {}
+                for solver in ACCELERATED_SOLVERS:
+                    record = matching_solver_record(cert, solver, installed.get)
+                    if record:
+                        backends[solver] = record
+                return {'python': str(python), 'version': cert['version'], 'emsutil_version': expected,
+                        'environment': name, 'solver_backends': backends}
+            except (OSError, ValueError, subprocess.TimeoutExpired):
                 pass
         return None
 
@@ -260,9 +290,9 @@ class DependencyManager:
         python = environment_python(folder)
         if not python.is_file():
             return None
-        probe = subprocess.run([str(python), '-I', '-c',
+        probe = subprocess.run([str(python), '-I', '-X', 'utf8', '-c',
                                 'import importlib.metadata as m; print(m.version("emerge"))'],
-                               capture_output=True, text=True, timeout=10,
+                               capture_output=True, text=True, encoding='utf-8', timeout=10,
                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         if probe.returncode or probe.stdout.strip() != certificate['version']:
             return None
@@ -272,9 +302,9 @@ class DependencyManager:
             if cancel.is_set():
                 raise SetupCancelled('Runtime requalification cancelled.')
             progress('Requalifying the existing managed runtime for this adapter; packages stay unchanged…')
-            run_command([python, '-I', '-m', 'pip', '--isolated', 'check'], log=log,
+            run_command([python, '-I', '-X', 'utf8', '-m', 'pip', '--isolated', 'check'], log=log,
                         cancel=cancel, timeout=60, progress=progress)
-            run_command([python, '-I', ENTRY, '--qualify-runtime', pending], log=log,
+            run_command([python, '-I', '-X', 'utf8', ENTRY, '--qualify-runtime', pending], log=log,
                         cancel=cancel, timeout=QUALIFICATION_TIMEOUT, progress=progress)
             refreshed = read_certificate(pending)
             if not refreshed or refreshed['version'] != certificate['version']:
@@ -302,13 +332,17 @@ class DependencyManager:
                     progress('Existing runtime requalification failed; its previous certificate was retained. '+str(exc))
             checked = state.get('checked_at', 0)
             checked = checked if isinstance(checked, (int, float)) and not isinstance(checked, bool) else 0
-            if active and not force and 0 <= time.time()-checked < CHECK_INTERVAL:
+            needs_accelerators = active and any(
+                name not in active['solver_backends'] for name in expected_accelerators(active['version'])
+            )
+            if active and not needs_accelerators and not force and 0 <= time.time()-checked < CHECK_INTERVAL:
                 return {**active, 'message': 'Compatible managed runtime ready.'}
             try:
                 progress('Checking the latest stable EMerge and compatible emsutil releases…')
                 version = latest_release()
                 emsutil_version=latest_emsutil_release()
-                if active and Version(version) <= Version(active['version']) and Version(emsutil_version)<=Version(active['emsutil_version']):
+                if (active and not needs_accelerators and Version(version) <= Version(active['version'])
+                        and Version(emsutil_version) <= Version(active['emsutil_version'])):
                     state['checked_at'] = time.time()
                     atomic_json(self.home/'active.json', state)
                     return {**active, 'message': 'Managed runtime is up to date.'}
@@ -365,20 +399,32 @@ class DependencyManager:
         try:
             base = discover_python()
             progress(f'Creating an isolated Python environment for EMerge {version}…')
-            run_command([base, '-I', '-m', 'venv', folder], log=log, cancel=cancel, timeout=120, progress=progress)
+            run_command([base, '-I', '-X', 'utf8', '-m', 'venv', folder], log=log, cancel=cancel, timeout=120, progress=progress)
             python = environment_python(folder)
+            expected_solvers = expected_accelerators(version)
+            extras = 'cad,corvid' if 'CORVID' in expected_solvers else 'cad'
             progress(f'Installing EMerge {version} and its dependencies…')
-            run_command([python, '-I', '-m', 'pip', '--isolated', 'install', '--disable-pip-version-check',
+            run_command([python, '-I', '-X', 'utf8', '-m', 'pip', '--isolated', 'install', '--disable-pip-version-check',
                          '--no-cache-dir', '--only-binary=:all:', '--index-url', 'https://pypi.org/simple',
-                         f'emerge[cad]=={version}', *SOLVER_EXTRAS], log=log, cancel=cancel, progress=progress)
-            run_command([python, '-I', '-m', 'pip', '--isolated', 'check'], log=log, cancel=cancel,
+                         f'emerge[{extras}]=={version}', *SOLVER_EXTRAS], log=log, cancel=cancel, progress=progress)
+            run_command([python, '-I', '-X', 'utf8', '-m', 'pip', '--isolated', 'check'], log=log, cancel=cancel,
                         timeout=60, progress=progress)
             progress('Qualifying geometry, solves, fields, radiation and adaptive APIs…')
-            run_command([python, '-I', ENTRY, '--qualify-runtime', folder/'quick-emerge-qualified.json'],
+            run_command([python, '-I', '-X', 'utf8', ENTRY, '--qualify-runtime', folder/'quick-emerge-qualified.json'],
                         log=log, cancel=cancel, timeout=QUALIFICATION_TIMEOUT, progress=progress)
             candidate = self._runtime(identifier)
             if candidate is None or candidate['version'] != version:
                 raise RuntimeError('Candidate did not produce a matching compatibility certificate.')
+            missing = [name for name in expected_solvers if name not in candidate['solver_backends']]
+            if missing:
+                certificate = read_certificate(folder/CERTIFICATE_NAME) or {}
+                records = certificate.get('solver_backends', {})
+                details = []
+                for name in missing:
+                    record = records.get(name)
+                    reason = record.get('reason') if isinstance(record, dict) else None
+                    details.append(f'{name} ({reason})' if reason else name)
+                raise RuntimeError('Candidate did not pass CPU qualification for '+', '.join(details)+'. See '+str(log))
             if cancel.is_set():
                 raise SetupCancelled('Dependency setup cancelled before activation.')
             return candidate

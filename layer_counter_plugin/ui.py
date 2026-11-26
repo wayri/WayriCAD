@@ -3,6 +3,10 @@ from pathlib import Path
 import pcbnew
 import wx
 from . import core
+try:
+    from .wayricad_runtime.editor_refresh import SavedBoardRefresh
+except ImportError:
+    from wayricad_runtime.editor_refresh import SavedBoardRefresh
 
 
 class CounterPreview(wx.Panel):
@@ -114,9 +118,9 @@ class LayerCounterFrame(wx.Frame):
         self.mirror.SetSelection(self.mirror_modes.index(settings['mirror_mode']))
         self.mirror.SetToolTip('Lower half uses the full physical stack, not just the checked layers. Choose core faces only after checking explicit fabrication pairs.')
         form.Add(self.mirror,0,wx.EXPAND|wx.ALL,8)
-        count=len(self.layers);first=(count+1)//2+1
-        hint=wx.StaticText(controls,label=f'Default top view: L{first}–L{count} are mirrored.\nThe full stack determines the midline, even for a subset.')
-        hint.Wrap(300);form.Add(hint,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        self.midline_hint=wx.StaticText(controls,label='')
+        self._set_midline_hint()
+        form.Add(self.midline_hint,0,wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
         form.Add(wx.StaticText(controls,label='Core pairs (physical layers)'),0,wx.LEFT,8)
         self.pairs=wx.TextCtrl(controls,value=settings['core_pairs']);form.Add(self.pairs,0,wx.EXPAND|wx.ALL,8)
         self.pairs.SetToolTip('Example: L1/L2,L3/L4. These are explicit pairs, not inferred core/prepreg material boundaries.')
@@ -138,8 +142,10 @@ class LayerCounterFrame(wx.Frame):
         buttons=wx.BoxSizer(wx.HORIZONTAL)
         self.preview_button=wx.Button(panel,label='Preview');self.add_button=wx.Button(panel,label='Add counter')
         self.undo_button=wx.Button(panel,label='Undo');self.redo_button=wx.Button(panel,label='Redo')
+        self.locate_button=wx.Button(panel,label='Locate counter')
+        self.locate_button.Bind(wx.EVT_BUTTON,self.locate_counter)
         help_button=wx.Button(panel,label='Help');close=wx.Button(panel,label='Close')
-        for button in (self.preview_button,self.add_button,self.undo_button,self.redo_button,help_button,close):buttons.Add(button,0,wx.ALL,5)
+        for button in (self.preview_button,self.add_button,self.locate_button,self.undo_button,self.redo_button,help_button,close):buttons.Add(button,0,wx.ALL,5)
         outer.Add(buttons,0,wx.ALIGN_RIGHT|wx.RIGHT|wx.BOTTOM,8);panel.SetSizer(outer)
         self.style.Bind(wx.EVT_CHOICE,self.mode_changed);self.layer_list.Bind(wx.EVT_CHECKLISTBOX,self.invalidate)
         self.mirror.Bind(wx.EVT_CHOICE,self.mode_changed);self.pairs.Bind(wx.EVT_TEXT,self.invalidate)
@@ -151,9 +157,91 @@ class LayerCounterFrame(wx.Frame):
         area=wx.Display(self).GetClientArea()
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
         self.CentreOnScreen()
+        self.saved_refresh=SavedBoardRefresh(self,board.GetFileName(),self._invalidate_saved,
+                                             self._refresh_saved,lambda:True)
+        self.Bind(wx.EVT_ACTIVATE,self._check_live_board)
+
+    def _set_midline_hint(self):
+        count=len(self.layers);first=(count+1)//2+1
+        self.midline_hint.SetLabel(f'Default top view: L{first}–L{count} are mirrored.\nThe full stack determines the midline, even for a subset.')
+        self.midline_hint.Wrap(300)
+
+    def _editor_board(self):
+        if not self.board_guard():
+            return None
+        current=pcbnew.GetBoard()
+        return current if current is not None and core._board_identity(current)==core._board_identity(self.board) else None
+
+    def locate_counter(self,event=None):
+        try:
+            current=self._editor_board()
+            if current is None:
+                raise ValueError('Open Layer Counter from the originating PCB Editor to locate a counter.')
+            if not self.undo_stack:
+                raise ValueError('Add a counter before locating it.')
+            identifier=self._counter_uuid
+            groups=[group for group in current.Groups() if core._uid(group)==identifier]
+            if len(groups)!=1:
+                raise ValueError('This counter no longer exists in the originating PCB.')
+            pcbnew.FocusOnItem(groups[0])
+            self.status.SetLabel('Located the generated counter group in PCB Editor.')
+        except Exception as error:
+            self.status.SetLabel(str(error))
+
+    def _invalidate_saved(self):
+        self._repreview=self.preview is not None or getattr(self,'_repreview',False)
+        self.invalidate()
+        self.status.SetLabel('Saved PCB or rules changed. Previous counter preview is unavailable.')
+
+    def _refresh_saved(self):
+        if not self.board_guard():
+            return
+        new_layers=core.copper_layers(self.board,pcbnew)
+        layer_order=[row[0] for row in self.layers]
+        stack_changed=layer_order!=[row[0] for row in new_layers]
+        if new_layers!=self.layers:
+            checked={layer for index,(layer,_,_) in enumerate(self.layers) if self.layer_list.IsChecked(index)}
+            self.layers=new_layers
+            self.layer_list.Set([f'L{number} · {name}' for layer,name,number in new_layers])
+            for index,(layer,_,_) in enumerate(new_layers):
+                self.layer_list.Check(index,layer in checked)
+            self.view_layer.Set(['All selected layers']+[f'L{number} - {name}' for layer,name,number in new_layers])
+            self.view_layer.SetSelection(0)
+            self.canvas.layer=None
+            self._set_midline_hint()
+        replay=getattr(self,'_repreview',False)
+        self._repreview=False
+        if stack_changed:
+            self.status.SetLabel('Copper stack changed. Review selected layers and explicit core pairs, then Preview.')
+        elif replay:
+            self.make_preview()
+        else:
+            self.status.SetLabel('Saved PCB context refreshed. Current settings retained.')
+
+    def _check_live_board(self,event):
+        event.Skip()
+        current=self._editor_board() if event.GetActive() else None
+        if current is None:
+            return
+        stack_changed=core.copper_layers(current,pcbnew)!=self.layers
+        stale_preview=self.preview is not None and core.fingerprint(current,pcbnew)!=self.preview.source_fingerprint
+        if stack_changed or stale_preview:
+            self._invalidate_saved()
+            self._refresh_saved()
+        if not self.undo_stack or not self.preview:
+            return
+        layers={item.GetLayer() for item in pcbnew.GetCurrentSelection()
+                if hasattr(item,'GetParentGroupId') and item.GetParentGroupId().AsString()==self._counter_uuid}
+        if len(layers)==1:
+            self.canvas.layer=next(iter(layers))
+            index=next((i+1 for i,row in enumerate(self.layers) if row[0]==self.canvas.layer),0)
+            self.canvas.layer=self.canvas.layer if index else None
+            self.view_layer.SetSelection(index)
+            self.canvas.Refresh()
 
     def update_buttons(self):
         self.add_button.Enable(self.preview is not None);self.undo_button.Enable(bool(self.undo_stack));self.redo_button.Enable(bool(self.redo_stack))
+        self.locate_button.Enable(bool(self.undo_stack))
 
     def sync_mode_controls(self):
         """Expose explicit material pairs only when the chosen mode needs them."""
@@ -192,6 +280,7 @@ class LayerCounterFrame(wx.Frame):
             self.guard()
             if self.preview is None:raise ValueError('Preview the current settings first.')
             tx=core.apply(self.board,pcbnew,self.preview);self.undo_stack.append(tx);self.redo_stack.clear()
+            self._counter_uuid=core._uid(tx.group)
             self.invalidate();pcbnew.Refresh();self.status.SetLabel('Counter added. Close this window, then move its group with M.');self.update_buttons()
         except Exception as exc:self.error(exc)
 
@@ -200,6 +289,7 @@ class LayerCounterFrame(wx.Frame):
             self.guard();source=self.redo_stack if redo else self.undo_stack;target=self.undo_stack if redo else self.redo_stack
             if not source:return
             tx=source[-1];(tx.redo if redo else tx.undo)();source.pop();target.append(tx)
+            self._counter_uuid=core._uid(self.undo_stack[-1].group) if self.undo_stack else None
             self.invalidate();pcbnew.Refresh();self.status.SetLabel('Counter redone.' if redo else 'Counter undone.');self.update_buttons()
         except Exception as exc:self.error(exc)
 

@@ -189,6 +189,39 @@ class FanoutLivePreviewTests(unittest.TestCase):
         self.assertTrue(self.frame.commit_button.IsEnabled())
         self.assertFalse(list(self.fixture.board.GetTracks()))
 
+    def test_saved_edit_clears_preview_and_keeps_the_same_scope_and_style(self):
+        settings=self.frame._settings_snapshot()
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
+        self.assertTrue(self.frame.commit_button.IsEnabled())
+        path=Path(self.fixture.board.GetFileName()).with_suffix('.kicad_dru')
+        path.write_text('(version 1)\n',encoding='utf-8')
+        self.frame.saved_refresh.poll()
+        self.assertFalse(self.frame.preview_plan)
+        self.assertFalse(self.frame.commit_button.IsEnabled())
+        self.assertEqual(self.frame._settings_snapshot(),settings)
+        with patch.object(self.frame,'_cancel_live_preview') as cancelled, patch('fanout_generator_plugin.fanout_generator_plugin.wx.CallLater') as timer:
+            self.frame._live_call=None
+            self.frame.saved_refresh.poll()
+            cancelled.assert_called_once()
+            timer.assert_called_once()
+        self.frame._live_call=None
+
+    def test_row_navigation_checks_editor_origin_and_preview_before_focusing(self):
+        self.frame.preview(None,silent=True);wait_preview(self.frame)
+        event=wx.ListEvent(wx.wxEVT_LIST_ITEM_ACTIVATED)
+        event.SetIndex(0)
+        expected=self.frame.preview_plan[0].pad.m_Uuid.AsString()
+        with patch.object(fixture.p,'GetBoard',return_value=self.fixture.board),patch.object(fixture.p,'FocusOnItem') as focus:
+            self.frame.on_preview_row_activated(event)
+            focus.assert_called_once()
+            self.assertEqual(focus.call_args.args[0].m_Uuid.AsString(),expected)
+            with patch.object(self.frame,'_assert_preview_current',side_effect=ValueError('stale preview')):
+                self.frame.on_preview_row_activated(event)
+            self.assertEqual(focus.call_count,1)
+        with patch.object(fixture.p,'GetBoard',return_value=None),patch.object(fixture.p,'FocusOnItem') as focus:
+            self.frame.on_preview_row_activated(event)
+            focus.assert_not_called()
+
     def test_connector_style_event_loads_relevant_defaults(self):
         self.frame.add_vias.SetValue(True)
         self.frame.routing_mode.SetValue('Adaptive')

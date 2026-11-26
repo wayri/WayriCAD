@@ -28,6 +28,19 @@ This native synthetic six-part example reduces projected crossings from two to z
 7. Inspect before/after crossings, net length, achieved density and warnings. **Validate native candidate** runs independent before/after native KiCad DRC and pad/via/zone connectivity checks on detached copies with matching saved project rules. No live placement changes during preview or validation.
 8. **Apply reviewed placement** creates a board backup beside the source before moving footprints. Inspect the board, refill zones and run final DRC before saving. **Undo placement** restores that window's placement transaction. It is not PCB Editor's ordinary Undo; a backup survives closing the window. Undo restores complete native footprint data, including child fields and their identities. Saving or external edits can invalidate window history.
 
+If the anchor or another fixed footprint blocks the search, the result
+identifies the footprint, the conflicting placement boundary, keepout or
+courtyard, and the rule. For footprints held fixed by existing routing, review
+the listed pad numbers, nets and example contact UUIDs before changing the
+scope. These details describe the placement screen. Run native checks to
+validate pad and copper clearance.
+
+**Locate anchor in PCB** focuses the confirmed anchor in the originating
+editor. Selected PCB parts can be captured from footprints, their selected
+pads, and native groups. Saved changes discard old proposals and retain
+matching member and anchor UUIDs with the existing dimensions and placement
+settings. Preview and validate the updated board before applying.
+
 ## What the controls mean
 
 | Control | Behaviour |

@@ -200,6 +200,8 @@ class AdvancedFanoutTests(unittest.TestCase):
         via.SetViaType(pcbnew.VIATYPE_THROUGH);via.SetLayerPair(pcbnew.F_Cu,pcbnew.B_Cu);self.board.Add(via)
         plans,rejected=self.plan(add_vias=True)
         self.assertFalse(plans);self.assertIn('existing via overlap',rejected[0])
+        self.assertIn(via.m_Uuid.AsString(),rejected[0])
+        self.assertIn('checked clearance',rejected[0])
 
     def test_pair_offsets_preserve_parallel_lane_gap(self):
         self.pair()

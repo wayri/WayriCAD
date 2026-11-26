@@ -157,6 +157,59 @@ jobs:
             pcm/repo.json
           retention-days: 7
 
+  quick-emerge-solvers:
+    name: EMerge CORVID and SPARTA CPU on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      MPLBACKEND: Agg
+      PYTHONUTF8: "1"
+      OMP_NUM_THREADS: 2
+      OPENBLAS_NUM_THREADS: 2
+      MKL_NUM_THREADS: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Linux Gmsh runtime library
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes libglu1-mesa
+      - name: Install reviewed upstream solver wheels
+        run: >-
+          python -m pip install --only-binary=:all:
+          "emerge[cad,corvid]==3.0.10" "emsutil==1.1.7"
+          "sparta-solver==0.3.9" "corvid-solver==0.5.3"
+          "ezdxf>=1.4,<2" "packaging>=23,<27"
+      - name: Qualify runtime and compare both CPU solvers with SuperLU
+        shell: bash
+        run: |
+          python - <<'PY'
+          import shutil
+          import sys
+          from pathlib import Path
+          from quick_emerge_plugin.compatibility import CERTIFICATE_NAME, solver_certificate
+          from quick_emerge_plugin.qualification import qualify
+
+          target = Path(sys.prefix) / CERTIFICATE_NAME
+          result = qualify(target)
+          for solver in ('CORVID', 'SPARTA'):
+              proof = solver_certificate(solver, sys.prefix)
+              assert proof and proof['status'] == 'passed', result.get('solver_backends')
+              assert proof['mode'] == 'CPU'
+              assert proof['max_s_parameter_delta'] <= proof['tolerance']
+              print(solver, proof)
+          shutil.copyfile(target, 'quick-emerge-runtime-evidence.json')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quick-emerge-solvers-${{ matrix.os }}
+          path: quick-emerge-runtime-evidence.json
+
   pi-reference:
     name: PI known-answer benchmarks
     runs-on: ubuntu-latest

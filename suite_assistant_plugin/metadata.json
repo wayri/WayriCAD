@@ -1,8 +1,8 @@
 {
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Assistant",
-  "description": "Run reviewed KiCad checks and interpret reports with optional local Ollama.",
-  "description_full": "Use local commands or optional loopback Ollama for registered WayriCAD actions: fitted BOM counts, saved copper areas, thermal screening, and supported PI, SI and EMerge workflows. Review editable plans and supply missing inputs or study files before explicitly running Ollama proposals. Explanations cite hash-verified results, not engineering sign-off. No cloud model, automatic model download or layout edit. Solver dependencies still apply. KiCad 10 testing package.",
+  "description": "Local circuit-aware chat for reviewed KiCad checks and simulations.",
+  "description_full": "Use local fuzzy matching and saved PCB net, part and pad names to prepare registered WayriCAD actions. The native chat offers keyboard completion, typed follow-up questions, reviewed simulation execution and links to generated reports. The resizable lower pane contains plan inputs, results and board selection. Scientific tools retain their own runtime and model requirements. KiCad 10 testing package.",
   "identifier": "com.github.wayri.wayricad.assistant",
   "type": "plugin",
   "author": {
@@ -12,7 +12,7 @@
   "license": "GPL-3.0-only",
   "versions": [
     {
-      "version": "4.9.0",
+      "version": "5.0.0",
       "status": "testing",
       "kicad_version": "10.0",
       "runtime": "ipc"

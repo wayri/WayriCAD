@@ -61,6 +61,8 @@ def main(argv=None):
     parser.add_argument('--load-voltage-limits',nargs=3,action='append',metavar=('PAD','MIN_V','MAX_V'),help='Limits for a matching --load; use - for either omitted bound.')
     parser.add_argument('--sink-min-voltage',type=float,help='Minimum voltage for a legacy single sink or --command path; default 0 V.')
     parser.add_argument('--sink-max-voltage',type=float,help='Maximum voltage for a legacy single sink or --command path; omitted means unbounded.')
+    parser.add_argument('--voltage-tolerance',type=float,help='Symmetric percent around nominal source voltage for 2.5D DC loads.')
+    parser.add_argument('--show-exact-voltages',action='store_true',help='Include absolute volts alongside percent in the report.')
     parser.add_argument('--source-current-limit',type=float,help='Nonnegative source current budget in amperes; omitted means unlimited. Infeasible results return 4.')
     parser.add_argument('--load-ohms',type=float,help='Solve DC current from source voltage and a resistive load to 0 V.')
     parser.add_argument('--sweep',nargs=3,metavar=('START_A','STOP_A','POINTS'),help='Sweep prescribed DC currents (2–200 points).')
@@ -185,7 +187,7 @@ def main(argv=None):
     if args.verify:
         try:
             if args.max_cells is not None:raise ValueError('--max-cells applies to a saved-board 2.5D copper mesh, not reference benchmarks.')
-            if args.package_conduction or args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms is not None or args.sweep or args.return_path or args.load or args.load_voltage_limits or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None:raise ValueError('--verify uses no board, load, path, convergence or HTML options. Use --output for JSON.')
+            if args.package_conduction or args.board or args.html or args.net or args.source or args.sink or args.command or args.converge_levels or args.mesh_only or args.load_ohms is not None or args.sweep or args.return_path or args.load or args.load_voltage_limits or args.source_current_limit is not None or args.sink_min_voltage is not None or args.sink_max_voltage is not None or args.voltage_tolerance is not None or args.show_exact_voltages:raise ValueError('--verify uses no board, load, path, convergence or HTML options. Use --output for JSON.')
             if args.output and args.output.suffix.lower()!='.json':raise ValueError('Benchmark output must be a .json report.')
             from .service import run_job
             report=run_job({'action':'verify'},timeout=args.timeout)
@@ -228,6 +230,14 @@ def main(argv=None):
         if args.load_ohms is not None and args.sweep:raise ValueError('Choose either --load-ohms or --sweep.')
         if (args.load or args.power_load) and (args.sink or args.current is not None or args.command or args.load_ohms is not None or args.load_power is not None or args.sweep or args.return_path):
             raise ValueError('--load cannot combine with --sink, --current or --command. Multisink series paths are not supported.')
+        if args.voltage_tolerance is not None:
+            if args.model_dimension=='3d' or args.sweep:
+                raise ValueError('Percentage tolerance requires a 2.5D solved operating point.')
+            from .voltage_tolerance import limits
+            limits(args.voltage,args.voltage_tolerance)
+            request['voltage_tolerance_pct']=args.voltage_tolerance
+        if args.show_exact_voltages:
+            request['show_exact_voltages']=True
         loads=_loads(args.load,args.load_voltage_limits,args.power_load)
         if args.load_power is not None:
             if (args.current is not None or args.load_ohms is not None or args.command or args.sweep or args.return_path or args.converge_levels):

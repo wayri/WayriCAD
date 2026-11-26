@@ -52,9 +52,11 @@ def board_context(figure, native_listing, options=None):
         if not outlines:
             unsupported.append(name)
             continue
+        selected = bool(area.get('id')) and area['id'] == options.get('selected_rule_area')
         for shape in outlines:
-            patch = PathPatch(_path(shape), facecolor='none', edgecolor='#148b88',
-                linewidth=1.5, linestyle='--', label='Rule-area enclosure' if visible == 0 else None)
+            patch = PathPatch(_path(shape), facecolor=(1., .67, .16, .2) if selected else 'none',
+                edgecolor='#c76a00' if selected else '#148b88', linewidth=2.8 if selected else 1.5,
+                linestyle='-' if selected else '--', label='Rule-area enclosure' if visible == 0 else None)
             patch.set_gid('saved-rule-area-outline'); axes.add_patch(patch); visible += 1
             points.extend(shape['outer_mm'])
         # Anchor the name to an actual contour vertex, not an invented center

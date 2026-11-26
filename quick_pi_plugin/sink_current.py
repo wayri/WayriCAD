@@ -36,11 +36,11 @@ class SinkCurrentModel:
         from .solver import solve
         from .service import _solver_mesh_budgets
         request = copy.deepcopy(self.request)
-        request.pop('sink_terminal', None)
-        request.pop('sink_current', None)
-        request.pop('sink_min_voltage', None)
-        request.pop('sink_max_voltage', None)
-        request['sinks'] = [dict(row, current_A=value) for row, value in zip(self.specs, currents)]
+        if 'sinks' in request:
+            for row, current in zip(request['sinks'], currents):
+                row['current_A'] = current
+        else:
+            request['sink_current'] = currents[0]
         sinks = [dict(row, current_A=value) for row, value in zip(self.electrodes, currents)]
         result = solve(self.base['mesh'], self.source, sinks=sinks,
                        source_voltage=request.get('source_voltage', 1.),

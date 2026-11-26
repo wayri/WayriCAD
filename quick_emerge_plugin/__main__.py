@@ -1,5 +1,6 @@
 """Native window and isolated solver worker entry points."""
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,30 @@ if __package__ in (None, ''):
         sys.path.insert(0, str(runtime_root))
 
 
+@contextmanager
+def _research_solver_environment(solver):
+    if solver != 'PARDISO':
+        yield
+        return
+    from .solver_probe import _local_mkl_path
+    library = _local_mkl_path()
+    key = 'EMERGE_PARDISO_PATH'
+    previous = os.environ.get(key)
+    dll_directory = None
+    try:
+        os.environ[key] = library
+        if hasattr(os, 'add_dll_directory') and Path(library).is_file():
+            dll_directory = os.add_dll_directory(str(Path(library).resolve().parent))
+        yield
+    finally:
+        if dll_directory is not None:
+            dll_directory.close()
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous
+
+
 def main(argv=None, *, on_ready=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--board', type=Path)
@@ -31,7 +56,10 @@ def main(argv=None, *, on_ready=None):
     parser.add_argument('--list-research-antennas', nargs='?', const='*', metavar='PATTERN')
     parser.add_argument('--show-research-antenna', metavar='ID')
     parser.add_argument('--run-research-example', metavar='ID')
+    parser.add_argument('--research-solver', choices=('SUPERLU', 'PARDISO'))
+    parser.add_argument('--research-threads', type=int, choices=range(1, 65), metavar='1-64')
     parser.add_argument('--result-file', type=Path)
+    parser.add_argument('--report-file', type=Path, help='Write an offline HTML report for a research example')
     parser.add_argument('--write-research-setup', nargs=2, metavar=('ID', 'JSON'))
     parser.add_argument('--array-scan', nargs=2, metavar=('ID', 'THETA_DEG'))
     parser.add_argument('--array-phi', type=float, default=0.0, metavar='DEG')
@@ -41,6 +69,8 @@ def main(argv=None, *, on_ready=None):
     parser.add_argument('--array-theta', type=float, default=0.0, metavar='DEG')
     parser.add_argument('--array-taper', choices=('uniform', 'binomial'), default='uniform')
     args = parser.parse_args(argv)
+    if (args.report_file or args.research_solver or args.research_threads) and not args.run_research_example:
+        parser.error('Research report and solver options require --run-research-example')
     if args.run_research_example:
         if not args.board or not args.result_file:
             parser.error('--run-research-example requires --board and --result-file')
@@ -50,9 +80,17 @@ def main(argv=None, *, on_ready=None):
         target = args.result_file.resolve()
         if target.name != 'result.json' or target.exists():
             parser.error('Use result.json in a fresh run directory')
-        config = validate_config(example_config(args.run_research_example))
+        config = example_config(args.run_research_example)
+        if args.research_solver:
+            config['solver'] = args.research_solver
+        if args.research_threads:
+            config['advanced']['solver_threads'] = args.research_threads
+        config = validate_config(config)
         if config['mode'] == 'pcb_region':
             parser.error('Selected example requires a reviewed PCB region in Quick EMerge')
+        report = args.report_file.resolve() if args.report_file else None
+        if report and (report.parent != target.parent or report.suffix.lower() != '.html' or report.exists()):
+            parser.error('Choose a new HTML report in the result directory')
         target.parent.mkdir(parents=True, exist_ok=True)
         request = target.parent / 'request.json'
         with request.open('x', encoding='utf-8') as stream:
@@ -61,7 +99,11 @@ def main(argv=None, *, on_ready=None):
         previous = Path.cwd()
         try:
             os.chdir(target.parent)
-            run_request(request)
+            with _research_solver_environment(config['solver']):
+                result = run_request(request)
+            if report:
+                from .reporting import export_html
+                export_html(report, result, expected_config=config)
         finally:
             os.chdir(previous)
         return 0

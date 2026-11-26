@@ -6,6 +6,12 @@
 2. Click **Run**. Ambient starts at 20 C and can be edited; **Setup** is optional.
 3. Inspect the board temperatures, probes and heat balance.
 
+From the launching PCB Editor, select footprints or pads and click **Use PCB
+parts** to set the included thermal sources. Exact saved references and existing
+power values are retained. After saving the PCB, project or custom rules,
+QuickTherm refreshes the component inventory and clears previous thermal results.
+Use **Reload saved PCB** to retry a failed refresh. Analysis uses saved inputs.
+
 **Automatic setup** is on by default. Each run selects the built-in layered
 model when a supported saved physical stackup exists, otherwise an explicitly
 labelled thin-sheet screen. It enables automatic meshing and fills blank

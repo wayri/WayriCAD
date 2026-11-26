@@ -5,6 +5,8 @@ import json
 import math
 from pathlib import Path
 
+SOLVERS = ('SUPERLU', 'PARDISO', 'UMFPACK', 'AASDS', 'CUDSS', 'SPARTA', 'CORVID')
+
 DEFAULT_CONFIG = {
     "mode": "patch", "f_start_hz": 1.55e9, "f_stop_hz": 1.60e9,
     "points": 81, "substrate_x_mm": 100, "substrate_y_mm": 100,
@@ -37,7 +39,7 @@ def validate_config(raw):
     if config['mode'] == 'pcb_region' and (not all(config[k].strip() for k in ('rule_area_id', 'signal_net', 'reference_net')) or
                                           not config['region_er_reviewed']):
         raise ValueError('Select a rule area, signal/reference nets and review the entered dielectric permittivity.')
-    if config["solver"] not in ("SUPERLU", "PARDISO", "UMFPACK", "AASDS", "CUDSS", "SPARTA"):
+    if config["solver"] not in SOLVERS:
         raise ValueError("unknown solver")
     if config["sweep"] not in ("linear", "adaptive"):
         raise ValueError("unknown sweep")
@@ -84,6 +86,11 @@ def validate_config(raw):
         raise ValueError("line must fit inside the substrate")
     from .advanced import validate_advanced
     config['advanced'] = validate_advanced(config['advanced'], config)
+    if config['solver'] == 'CORVID':
+        settings = config['advanced']
+        if (settings['study'] != 'driven' or settings['conductor'] != 'pec'
+                or settings['coupled_thermal'] or config['adaptive_steps'] or config['sweep'] != 'linear'):
+            raise ValueError('CORVID requires a linear driven PEC study without mesh refinement or thermal coupling.')
     return config
 
 

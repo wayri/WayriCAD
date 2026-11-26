@@ -14,11 +14,17 @@ class NativeRouteDrawing(unittest.TestCase):
         board=pcbnew.BOARD();via=pcbnew.PCB_VIA(board);via.SetPosition(pcbnew.VECTOR2I(2000000,3000000));via.SetWidth(pcbnew.F_Cu,600000);via.SetDrill(300000);via.SetLayerPair(pcbnew.F_Cu,pcbnew.B_Cu);board.Add(via)
         track=pcbnew.PCB_TRACK(board);track.SetStart(pcbnew.VECTOR2I(0,0));track.SetEnd(via.GetPosition());track.SetWidth(200000);board.Add(track)
         path=SimpleNamespace(board_items=[track,via],net_name='SIGNAL',start_pad='U1.1',end_pad='J1.1')
+        identity=track.m_Uuid.AsString().casefold()
+        path.segments=[dict(item_uuid=identity,start_mm=[0,0],end_mm=[2,3])]
         try:
             canvas.show_result(SimpleNamespace(primary=path,mate=None));canvas.route_endpoints=[(0,0),(2,3)]
             bitmap=wx.Bitmap(700,500);dc=wx.MemoryDC(bitmap);gc=wx.GraphicsContext.Create(dc)
             # Direct call fails the test even when on_paint catches exceptions.
+            canvas.set_editor_selection([identity,'unrelated'])
+            self.assertEqual(canvas._editor_overlay,(((0,0),(2,3)),))
             canvas.draw_scene(gc,canvas.project)
+            canvas.set_editor_selection([])
+            self.assertEqual(canvas._editor_overlay,())
             frame.Show();wx.Yield();canvas.Refresh();canvas.Update();wx.Yield()
             self.assertIsNone(canvas.draw_error)
             self.assertEqual(len(canvas.tracks),2)

@@ -58,8 +58,14 @@ class DifferentialTests(unittest.TestCase):
         b=field();b['differential_probes']={'a':dict(layer=0,x_mm=.25,y_mm=.25),'b':dict(layer=0,x_mm=1,y_mm=.5)}
         self.assertAlmostEqual(saved_probe(b)['voltage_a_minus_b_V'],1.25)
         html=report_html(b,0)
-        self.assertIn('Saved probe V(A) - V(B): 1.25 V',html)
+        self.assertIn('Saved probe V(A) - V(B): 1250 mV',html)
         self.assertIn('diff-readout',html);self.assertIn('canvas.addEventListener',html)
+        b['result']['source_voltage_V']=5.
+        b['request']={'voltage_tolerance_pct': 5}
+        relative=report_html(b,0)
+        self.assertIn('Saved probe V(A) - V(B): 25%',relative)
+        self.assertNotIn('1250 mV',relative)
+        self.assertIn('"unit":"%"',relative)
         b['result']['potential_V']=[2*v for v in b['result']['potential_V']]
         self.assertAlmostEqual(saved_probe(b)['voltage_a_minus_b_V'],2.5)
 

@@ -61,7 +61,12 @@ _add('quick-emerge.runtime', 'quick-emerge', 'Inspect EMerge solver runtime',
 
 STUDY = field('Reviewed study JSON file', 'path')
 for _id, _tool, _title, _board in (
+    ('quick-pi.transient', 'quick-pi', 'PI transient RLC load step', False),
+    ('quick-pi.electrothermal', 'quick-pi', 'PI electrothermal coupling', False),
+    ('quick-pi.ac', 'quick-pi', 'PI AC harmonic copper loss', False),
     ('quick-pi.ac-ports', 'quick-pi', 'PI two-port AC impedance matrix', False),
+    ('quick-pi.plane-ports', 'quick-pi', 'PI planar PDN impedance', False),
+    ('quick-pi.solid', 'quick-pi', 'PI 3D solid electrothermal study', False),
     ('quick-pi.batch', 'quick-pi', 'PI multi-net DC bundle', True),
     ('quick-therm.solid', 'quick-therm', 'Thermal 3D solid study', False),
     ('quick-therm.transient', 'quick-therm', 'Thermal transient component RC study', False),
@@ -71,7 +76,38 @@ for _id, _tool, _title, _board in (
          dict(board=BOARD, study=STUDY) if _board else dict(study=STUDY), effect='analysis',
          summary=_title + ' from an explicitly supplied native CLI study file.')
 
-_STUDY_FLAGS = {'quick-pi.ac-ports':'--ac-ports', 'quick-pi.batch':'--batch',
+_add('quick-pi.batch-cases', 'quick-pi', 'Quick PI multi-net DC',
+     ('quick pi batch', 'multi net pi', 'run dc on multiple rails'),
+     ('board', 'rails'), dict(board=BOARD,
+        rails=field('Rail cases, e.g. net 3V3 from J1.1 to U1.1 at 3.3 V with 500 mA'),
+        mesh_backend=field('Mesh backend','choice',choices=['auto','vtk','gmsh'])),
+     effect='analysis', summary='Run independent copper solves for explicit nets and pad pairs in a single board study.')
+
+_TRANSIENT_INPUTS = dict(
+    voltage=number('Source voltage', 'V', **POSITIVE),
+    source_mohm=number('Source resistance', 'mOhm', **POSITIVE),
+    source_nh=number('Source inductance', 'nH', minimum=0),
+    initial_a=number('Initial current', 'A', minimum=0),
+    step_a=number('Step current', 'A', minimum=0),
+    event_ms=number('Step time', 'ms', minimum=0),
+    path_mohm=number('Path resistance', 'mOhm', minimum=0),
+    path_nh=number('Path inductance', 'nH', minimum=0),
+    cap_uf=number('Load capacitance', 'uF', **POSITIVE),
+    esr_mohm=number('Load ESR', 'mOhm', minimum=0),
+    duration_ms=number('Duration', 'ms', **POSITIVE),
+    step_us=number('Time step', 'us', **POSITIVE),
+)
+_add('quick-pi.load-step', 'quick-pi', 'Quick PI explicit load-step transient',
+     ('set up a pi load step', 'set up quick pi transient'),
+     tuple(_TRANSIENT_INPUTS), dict(_TRANSIENT_INPUTS, board=BOARD, sink=PAD,
+          min_voltage=number('Minimum load voltage', 'V'),
+          max_voltage=number('Maximum load voltage', 'V'),
+          budget_a=number('Source current limit', 'A', minimum=0)), effect='analysis',
+     summary='Explicit lumped source/path R and L, load C and ESR, and one stepped current load.')
+
+_STUDY_FLAGS = {'quick-pi.transient':'--transient', 'quick-pi.electrothermal':'--electrothermal',
+                'quick-pi.ac':'--ac', 'quick-pi.plane-ports':'--plane-ports', 'quick-pi.solid':'--thermoelectric-3d',
+                'quick-pi.ac-ports':'--ac-ports', 'quick-pi.batch':'--batch',
                 'quick-pi.series':'--series-file', 'quick-therm.solid':'--thermoelectric-3d',
                 'quick-therm.transient':'--transient', 'signal-integrity.study':'--config'}
 _add('quick-pi.series', 'quick-pi', 'PI reviewed series path', ('solve PI series path',),
@@ -85,7 +121,9 @@ _add('quick-pi.infer-series', 'quick-pi', 'Find candidate series paths', ('find 
      ('board','source','sink'), dict(board=BOARD,source=PAD,sink=PAD), effect='preview')
 _add('quick-emerge.run-example', 'quick-emerge', 'Run a built-in EMerge research example',
      ('run emerge research example','simulate antenna example'), ('board','example_id'),
-     dict(board=BOARD,example_id=field('Exact built-in research example ID')), effect='analysis',
+     dict(board=BOARD,example_id=field('Exact built-in research example ID'),
+          solver=field('Solver backend override', 'choice', choices=['SUPERLU','PARDISO']),
+          threads=field('Solver threads override', 'integer', minimum=1, maximum=64)), effect='analysis',
      summary='Run the named built-in example using the prepared solver; no runtime installation.')
 _add('quick-emerge.examples', 'quick-emerge', 'List built-in research antenna examples',
      ('list emerge examples','list research antennas'))
@@ -109,6 +147,7 @@ _add('quick-pi.solve', 'quick-pi', 'DC rail analysis',
           voltage=number('Source voltage', 'V', **POSITIVE),
           current=number('Sink current', 'A', **POSITIVE),
           mesh_edge=number('Mesh edge', 'mm', **POSITIVE),
+          mesh_backend=field('Mesh backend', 'choice', choices=['auto','vtk','gmsh']),
           return_nets=field('Explicit return nets', 'list'),
           temperature=number('Copper temperature', 'C')), effect='analysis',
      summary='2.5D DC analysis with explicit source voltage and sink current; no inferred loads.')
@@ -155,8 +194,9 @@ _add('fanout-generator.preview', 'fanout-generator', 'Preview component fanout',
      dict(board=BOARD, refs=field('Reference wildcard, e.g. U1 or J*'),
           pattern=field('Fanout style', 'choice', choices=list(FANOUT_PATTERNS)),
           width=number('Track width', 'mm', **POSITIVE), length=number('Escape length', 'mm', **POSITIVE),
-          clearance=number('Clearance', 'mm', minimum=0), add_vias=field('Add vias', 'boolean')),
-     effect='preview', summary='Read-only plan and SVG; project rules and the planner determine accepted candidates.')
+          clearance=number('Clearance', 'mm', minimum=0), add_vias=field('Add vias', 'boolean'),
+          netclass=field('Optional exact saved netclass for routing dimensions')),
+     effect='preview', summary='Read-only plan and SVG; choose a netclass to load its routing dimensions.')
 _add('via-stitching.preview', 'via-stitching', 'Preview via stitching',
      ('stitching', 'stitch ground vias'), ('board', 'net'),
      dict(board=BOARD, net=NET, spacing=number('Via pitch', 'mm', **POSITIVE)), effect='preview')
@@ -344,12 +384,31 @@ def compile_action(action_id, params, context, output_dir):
     elif action_id == 'quick-emerge.examples': args.append('--list-research-antennas')
     elif action_id == 'quick-emerge.run-example':
         args.extend(['--board', values['board'], '--run-research-example='+values['example_id']])
+        option('solver', '--research-solver')
+        option('threads', '--research-threads')
         output('--result-file', 'result.json')
+        output('--report-file', 'report.html')
         result['assumptions'].append('Built-in example geometry is independent of the saved PCB.')
+    elif action_id in ('quick-pi.batch-cases', 'quick-pi.load-step'):
+        from .assistant_pi_inputs import batch_study, bind_transient
+        if 'board' in values:
+            args.append(values['board'])
+        if action_id == 'quick-pi.batch-cases':
+            result['documents']['settings.json'] = batch_study(values['rails'], mesh_backend=values.get('mesh_backend'))
+            args.extend(['--batch', str(root / 'settings.json')])
+            note = 'Independent fixed-temperature rail solves with automatic mesh. Return coupling requires a reviewed batch file.'
+        else:
+            result['documents']['settings.json'] = bind_transient(values)
+            args.extend(['--transient', str(root / 'settings.json')])
+            note = 'An explicit lumped circuit with one load and an aggregate capacitor. A saved PCB supplies provenance only.'
+        output(); output('--html', 'study.html')
+        result['assumptions'].append(note)
     elif action_id in _STUDY_FLAGS:
         if action_id == 'signal-integrity.study': args.append('study')
         if 'board' in values: args.append(values['board'])
         option('study', _STUDY_FLAGS[action_id]); option('voltage'); option('current'); output()
+        if action_id not in {'quick-pi.ac-ports', 'quick-pi.plane-ports'}:
+            output('--html', 'study.html')
         result['assumptions'].append('Uses the selected study as authored; review its inputs, referenced sources and solver assumptions.')
     elif action_id in ('quick-pi.power-tree','quick-pi.infer-series'):
         args.extend([values['board'], '--infer-power-tree' if action_id.endswith('power-tree') else '--infer-series'])
@@ -376,12 +435,29 @@ def compile_action(action_id, params, context, output_dir):
     elif action_id == 'quick-pi.verify': args.append('--verify'); output()
     elif action_id == 'quick-pi.solve':
         args.append(values['board'])
-        for key in ('net', 'source', 'sink', 'voltage', 'current', 'temperature'): option(key)
-        if 'mesh_edge' in values: option('mesh_edge')
-        else: args.append('--auto-mesh')
         if values.get('return_nets'):
-            args.extend(['--return-path', '--return-nets', *values['return_nets']])
-        output(); output('--html', 'report.html')
+            # The standalone --return-path flag changes the CLI action to a
+            # geometry-only review. Batch runs the DC solve and return review.
+            electrical = dict(net=values['net'], source_terminal=values['source'],
+                sink_terminal=values['sink'], source_voltage=values['voltage'], sink_current=values['current'],
+                options=dict(temperature_c=values.get('temperature', 20.0)))
+            if 'mesh_backend' in values:
+                electrical['mesh_backend'] = values['mesh_backend']
+            if 'mesh_edge' in values:
+                electrical['edge_mm'] = values['mesh_edge']
+            else:
+                electrical['mesh_sizing'] = 'auto'
+            result['documents']['settings.json'] = dict(schema='wayricad.pi-batch/v1', cases=[
+                dict(name='DC rail and return review', electrical=electrical,
+                     return_path=dict(return_nets=values['return_nets']))])
+            args.extend(['--batch', str(root/'settings.json')])
+            output(); output('--html', 'study.html')
+            result['assumptions'].append('Return geometry is reviewed separately. Return resistance is not included without explicit return terminals.')
+        else:
+            for key in ('net', 'source', 'sink', 'voltage', 'current', 'temperature', 'mesh_backend'): option(key)
+            if 'mesh_edge' in values: option('mesh_edge')
+            else: args.append('--auto-mesh')
+            output(); output('--html', 'report.html')
         if 'temperature' not in values: result['assumptions'].append('Copper temperature uses the CLI default of 20 C.')
     elif action_id == 'signal-integrity.screen':
         args.extend(['screen', values['board']])
@@ -408,8 +484,12 @@ def compile_action(action_id, params, context, output_dir):
     elif action_id in ('fanout-generator.preview', 'via-stitching.preview', 'via-stitching.guard'):
         args.extend(['plan', '--board', values['board'], '--settings', str(root / 'settings.json')])
         if action_id.startswith('fanout'):
-            settings = {key: value for key, value in values.items() if key not in ('board', 'refs')}
-            settings.update(scope='Reference wildcard', ref=values['refs'], use_netclass_rules=True)
+            settings = {key: value for key, value in values.items() if key not in ('board', 'refs', 'netclass')}
+            settings.update(scope='Reference wildcard', ref=values['refs'])
+            if 'netclass' in values:
+                settings.update(netclass_filter=values['netclass'], use_netclass_rules=True)
+            else:
+                result['assumptions'].append('No netclass was selected. Review the proposed dimensions against the board rules.')
         elif action_id=='via-stitching.guard':
             if values['guard_net'] in values['signal_nets']:
                 raise ValueError('The guard net must be distinct from the signal nets.')

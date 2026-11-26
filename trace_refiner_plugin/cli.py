@@ -81,8 +81,14 @@ def run_native(options):
     if options.get('protected') is not None:
         settings['protected'] = options['protected']
     plan = propose(board, api, settings)
+    rejection=None
     if options['validate'] or output:
-        validate_detached(board, api, plan)
+        try:
+            validate_detached(board, api, plan)
+        except ValueError as error:
+            if not plan.evidence:
+                raise
+            rejection=str(error)
     def check_sources():
         if any(not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest() != digest
                for p, digest in hashes.items()):
@@ -97,6 +103,9 @@ def run_native(options):
                                 before_mm=[[api.ToMM(x), api.ToMM(y)] for x, y in c.before],
                                 after_mm=[[api.ToMM(x), api.ToMM(y)] for x, y in c.after])
                            for c in plan.changes], skipped=plan.skipped)
+    if rejection:
+        report.update(status='REJECTED',error=rejection)
+        return report
     if output:
         if snapshot(board, api) != plan.fingerprint:
             raise ValueError('Board changed after validation.')
@@ -151,8 +160,9 @@ def main(argv=None):
         if report_path:
             with report_path.open('x', encoding='utf-8') as stream:
                 stream.write(rendered)
-        print(rendered, end='')
-        return 0
+        rejected=payload['status']=='REJECTED'
+        print(rendered,end='',file=sys.stderr if rejected else sys.stdout)
+        return 1 if rejected else 0
     except (OSError, RuntimeError, ValueError) as exc:
         print(json.dumps(dict(status='ERROR', error=str(exc))), file=sys.stderr)
         return 1

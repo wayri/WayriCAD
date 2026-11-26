@@ -67,6 +67,12 @@ The installed package includes [offline help](help.html) with its workflow and l
 
 ## Workflow
 
+A save to the PCB or rules invalidates the current candidates. **Auto refresh**
+runs the same settings on stable saved inputs. With auto refresh off, the window
+reloads the board context and waits for Preview. **Locate guard routes in PCB**
+selects the matching source routes in an IPC-launched editor. In the native
+action it focuses the first matching segment.
+
 1. Configure geometry and pad scope or target net.
 2. Click **Preview**. The canvas and result table show accepted candidates and rejection reasons. Preview creates no PCB copper.
 3. Inspect the result, then **Apply to board**. A named WayriCAD group contains the committed geometry. Run KiCad DRC before saving or manufacturing.

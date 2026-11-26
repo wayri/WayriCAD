@@ -23,7 +23,7 @@ class ModelTests(unittest.TestCase):
 
     def test_advanced_controls(self):
         self.assertEqual(validate_config({})['adaptive_steps'], 0)
-        for solver in ('SUPERLU', 'PARDISO', 'UMFPACK', 'AASDS', 'CUDSS', 'SPARTA'):
+        for solver in ('SUPERLU', 'PARDISO', 'UMFPACK', 'AASDS', 'CUDSS', 'SPARTA', 'CORVID'):
             self.assertEqual(validate_config({'solver': solver})['solver'], solver)
         self.assertEqual(validate_config({'sweep': 'adaptive', 'adaptive_steps': 20,
                                           'convergence': 1, 'max_tets': 100})['max_tets'], 100)
@@ -35,6 +35,14 @@ class ModelTests(unittest.TestCase):
                       {'max_tets': 99}, {'max_tets': 10000001}):
             with self.subTest(patch=patch), self.assertRaises(ValueError):
                 validate_config(patch)
+
+    def test_corvid_requires_a_fixed_mesh_driven_pec_sweep(self):
+        for settings in ({'sweep': 'adaptive'}, {'adaptive_steps': 1},
+                         {'advanced': {'study': 'periodic'}},
+                         {'advanced': {'conductor': 'finite'}},
+                         {'advanced': {'coupled_thermal': True}}):
+            with self.subTest(settings=settings), self.assertRaisesRegex(ValueError, 'CORVID requires'):
+                validate_config({'solver': 'CORVID', **settings})
 
     def test_geometry_and_field_boundaries(self):
         for patch in ({"patch_width_mm": 101}, {"inset_width_mm": 53},

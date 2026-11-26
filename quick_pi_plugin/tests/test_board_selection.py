@@ -26,6 +26,14 @@ class BoardSelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             selection_plan(['a', 'b'], self.inventory, self.scene, 'source')
 
+    def test_follow_clear_only_for_opted_in_overlays(self):
+        legacy,overlay=SelectionState(),SelectionState()
+        self.assertTrue(legacy.changed(['a'],0))
+        self.assertTrue(overlay.changed(['a'],0,include_empty=True))
+        self.assertFalse(legacy.changed([],0))
+        self.assertTrue(overlay.changed([],0,include_empty=True))
+        self.assertFalse(overlay.changed([],0,include_empty=True))
+
     def test_follow_latest_epoch_and_disposal(self):
         state = SelectionState()
         self.assertTrue(state.changed(['A'], 0))

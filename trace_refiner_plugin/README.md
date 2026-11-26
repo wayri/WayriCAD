@@ -216,7 +216,22 @@ The installed console entry point, `wayricad-trace-refiner`, accepts the same ar
 
 Apply, Undo and Redo use a grouped object exchange with recovery on failure. If an error explicitly says recovery needs inspection, inspect the current board before continuing or saving; do not assume that operation completed. Closing Trace Refiner discards its window history. Keep a saved project reference for longer-term comparison.
 
+### PCB navigation and refresh
+
+Select one proposal and choose **Locate in PCB** to focus its original route in
+the originating editor. A uniquely matching selected trace in that editor also
+focuses the proposal in the plugin. Saving board or rule changes clears stale
+proposals and refreshes the visible board context. Returning to the plugin
+after a live edit clears a stale review as well. Existing scope and input values
+remain available for Preview. Each new proposal still needs native validation.
+
 ## Validation
+
+When native validation rejects a proposal, the review table shows the rule
+description and item UUIDs on the affected proposal where possible. Unmatched
+findings and changed terminal connectivity partitions appear as separate rows.
+The CLI returns a rejected report with the same evidence and a nonzero exit
+status. Apply and board export still require a successful validation.
 
 Windows / KiCad 10.0.6: native and geometry checks cover the UI, scopes, endpoint/branch/contact preservation, protected nets, source/rule staleness, clearance rejection and rollback. An extracted PCM package was tested without source-tree or sibling-plugin imports; this is distinct from launching a PCM-installed plugin inside PCB Editor. The repository records exact checks and counts in [validation details](https://github.com/wayri/WayriCAD/blob/develop/docs/audits/TRACE_REFINER_0.2.0.md).
 

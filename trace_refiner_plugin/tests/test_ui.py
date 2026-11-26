@@ -130,6 +130,38 @@ class UITests(unittest.TestCase):
         self.assertIn('SIGNAL',self.frame.checked)
         self.open=False;self.frame.on_preview();self.assertIn('closed or replaced',self.frame.status.GetLabel())
 
+    def test_editor_navigation_and_saved_refresh_keep_scenario_settings(self):
+        api=test_native.api
+        board=self.fixture.board
+        self.frame.scope.SetSelection(2)
+        self.frame.on_preview()
+        scenario=self.frame.settings()
+        self.assertTrue(self.frame.review.changes)
+        row=self.frame.details.GetItemCount()
+        self.assertGreater(row,0)
+        self.frame.details.SetItemState(0,wx.LIST_STATE_SELECTED,wx.LIST_STATE_SELECTED)
+        with patch.object(api,'GetBoard',return_value=board), patch.object(api,'FocusOnItem') as focus:
+            self.frame.locate_in_editor()
+            selected=focus.call_args.args[0]
+            self.assertIn(selected.m_Uuid.AsString(),self.frame._proposal_source_ids[0])
+            with patch.object(api,'GetCurrentSelection',return_value=[selected]):
+                self.frame._follow_editor_selection()
+                self.assertEqual(self.frame.canvas.active_change,0)
+            with patch.object(api,'GetBoard',return_value=None):
+                self.frame.locate_in_editor()
+                self.assertEqual(focus.call_count,1)
+            self.fixture.tracks[0].SetWidth(api.FromMM(.25))
+            project=self.fixture.path.with_suffix(".kicad_pro")
+            project.write_bytes(project.read_bytes()+b"\n")
+            self.frame.saved_refresh.poll()
+            self.assertIsNone(self.frame.review)
+            self.assertFalse(self.frame.apply_button.IsEnabled())
+            self.frame.saved_refresh.poll()
+            self.assertIn('refreshed',self.frame.status.GetLabel())
+            self.assertEqual(self.frame.settings(),scenario)
+            self.frame.on_preview()
+            self.assertEqual(self.frame.review.settings,scenario)
+
     def test_native_action_dispatch_and_replacement_guard(self):
         from trace_refiner_plugin.action import TraceRefinerAction
         action=TraceRefinerAction();current=[self.fixture.board]

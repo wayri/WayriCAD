@@ -62,6 +62,7 @@ class QuickThermFrame(wx.Frame):
         self._thermal_focus_snapshot=None
         self._busy = False
         self._closed = False
+        self._source_dirty = False
         self._cancel = threading.Event()
         self._thermal_playing = False
         self._thermal_timer = wx.Timer(self)
@@ -84,13 +85,15 @@ class QuickThermFrame(wx.Frame):
         title.Add(filename, 0, wx.ALIGN_CENTER_VERTICAL)
         for label,handler,tip,art in (
                 ('Components',self.on_manual_setup,'Review included parts, power and temperature limits',wx.ART_LIST_VIEW),
+                ('Use PCB parts',self._setup_from_pcb,'Use the exact selected footprints or pads from the originating PCB Editor as the component scope',wx.ART_FIND),
                 ('Run',self.on_quick_therm,'Run the current thermal setup; missing inputs are explained before solving',wx.ART_GO_FORWARD),
                 ('Files',self._thermal_files,'Save or load setup and complete simulation data',wx.ART_FILE_SAVE)):
             button=wx.Button(self.main_panel,label=label,style=wx.BU_EXACTFIT)
             button.SetBitmap(wx.ArtProvider.GetBitmap(art,wx.ART_BUTTON,self.FromDIP((16,16))))
             button.SetToolTip(tip);button.Bind(wx.EVT_BUTTON,handler)
             title.Add(button,0,wx.ALIGN_CENTER_VERTICAL|wx.LEFT,5)
-            if label=='Run':self.therm_run_header=button
+            if label=='Use PCB parts':self.therm_setup_selection=button
+            elif label=='Run':self.therm_run_header=button
             elif label=='Files':self.therm_files_button=button
         root.Add(title, 0, wx.EXPAND | wx.ALL, 6)
         self.book = wx.Notebook(self.main_panel)
@@ -124,6 +127,11 @@ class QuickThermFrame(wx.Frame):
         self.main_panel.SetSizer(root)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Bind(wx.EVT_SIZE,self._thermal_workspace_resized)
+        from wayricad_runtime.context import LaunchContext
+        self._origin_context=LaunchContext.capture()
+        from wayricad_runtime.editor_refresh import SavedBoardRefresh
+        self._source_refresh=SavedBoardRefresh(self,lambda:self.board_path,self._saved_source_changed,
+            self._inspect,lambda:not (self._closed or self._busy))
         self._buttons()
         self._show_thermal_start()
         self.Centre()
@@ -208,10 +216,13 @@ class QuickThermFrame(wx.Frame):
 
     def _buttons(self):
         self.reload.Enable(not self._busy)
-        self.therm_run.Enable(not self._busy)
-        self.therm_run_header.Enable(not self._busy)
-        self.therm_whole_board.Enable(not self._busy)
-        self.therm_manual_button.Enable(not self._busy)
+        ready=not self._busy and not self._source_dirty
+        self.therm_run.Enable(ready)
+        self.therm_run_header.Enable(ready)
+        self.therm_whole_board.Enable(ready)
+        self.therm_manual_button.Enable(ready)
+        self.therm_setup_selection.Enable(ready and bool(self.inventory.get('source_sha256'))
+                                         and bool(self._origin_context.socket and self._origin_context.token))
         if hasattr(self, 'therm_inputs'):
             self.therm_inputs.Enable(not self._busy)
         self.therm_export.Enable(not self._busy and bool(self.thermal_bundle.get("quick_therm")))
@@ -283,9 +294,18 @@ class QuickThermFrame(wx.Frame):
         self._task(lambda: run_job(request, cancelled=self._cancel.is_set,
                                    progress=show_progress), finished, message)
 
+    def _saved_source_changed(self):
+        self._source_dirty=True
+        self._invalidate_thermal()
+        self.status.SetLabel('Saved PCB or rules changed. Refreshing component sources…')
+        self.therm_status.SetLabel('Saved inputs changed. Previous thermal results are unavailable.')
+
     def _inspect(self):
-        if self._closed:
+        if self._closed or self._busy:
             return
+        from wayricad_runtime.editor_refresh import source_stamp
+        stamp=source_stamp(self.board_path)
+        self.therm_inputs.commit_pending_edits(validate=False)
         same_board = getattr(self, '_inventory_board_path', None) == self.board_path
         controls = {'power_w': self.therm_power, 'theta_ja_air_k_per_w': self.therm_ja,
                     'theta_jb_k_per_w': self.therm_jb, 'theta_jc_k_per_w': self.therm_jc}
@@ -294,14 +314,25 @@ class QuickThermFrame(wx.Frame):
         previous_other = [control.GetValue() for control in other_controls] if same_board else ['', '', '']
         selected = {self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount())
                     if self.therm_refs.IsChecked(i)} if same_board else set()
-        self.inventory = {}
+        old_components=self.inventory.get('components',[]) if same_board else []
         self._invalidate_thermal()
 
         def loaded(inventory):
+            if source_stamp(self.board_path)!=stamp:
+                raise ValueError('Saved inputs changed while refreshing. Waiting for the next stable revision.')
             # Batch field/list updates; Windows otherwise repaints every inserted item.
             self.main_panel.Freeze()
             try:
                 self.inventory = inventory
+                self._source_dirty=False
+                source_hash=inventory.get('source_sha256')
+                if getattr(self,'_component_storage_board_sha',None)!=source_hash:
+                    self._component_storage={}
+                if getattr(self,'_package_contacts_board_sha',None)!=source_hash:
+                    self._package_contacts=[]
+                if self._copper_loss_import and self._copper_loss_import.get('source_sha256')!=source_hash:
+                    self._copper_loss_import=None
+                    self.therm_copper_loss_status.SetLabel('Copper losses: re-import a Quick PI result for the new PCB revision')
                 if self._thermal_auto_model_pending:
                     self.therm_model_kind.SetSelection(1 if inventory.get('thermal_stackup',{}).get('available') else 0)
                     self._thermal_auto_model_pending=False
@@ -322,21 +353,24 @@ class QuickThermFrame(wx.Frame):
                     'minimum_c':previous_other[1],'maximum_c':previous_other[2]})
                 self.therm_limit_min.SetValue(limit_mapping['minimum_c'])
                 self.therm_limit_max.SetValue(limit_mapping['maximum_c'])
+                from .thermal_selection import retained_references
+                retained=retained_references(old_components,inventory.get('components',[]))
+                lost=(selected | self.manual_values.keys() | self.virtual_heatsinks.keys())-retained.keys() if same_board else set()
+                selected_now={retained[ref] for ref in selected if ref in retained}
                 refs = inventory.get("component_references", [])
                 self.therm_refs.Set(refs)
                 for i, ref in enumerate(refs):
-                    self.therm_refs.Check(i, ref in selected or (not same_board and len(refs) == 1))
+                    self.therm_refs.Check(i, ref in selected_now or (not same_board and len(refs) == 1))
                 self._therm_mount_candidates = inventory.get("mounting_holes", [])
                 self.therm_mounts.Set([
                     f"{row['reference']}.{row['pad_number'] or '?'} · {row['net'] or 'no net'} · "
                     f"{'PTH' if row['plated'] else 'NPTH'} · Ø{row['drill_mm']:.3g} mm"
                     for row in self._therm_mount_candidates
                 ])
-                self.virtual_heatsinks = {
-                    ref: sink for ref, sink in self.virtual_heatsinks.items() if ref in refs
-                }
-                self.manual_values = {ref: values for ref, values in self.manual_values.items()
-                                      if same_board and ref in refs}
+                self.virtual_heatsinks = {retained[ref]: sink for ref, sink in self.virtual_heatsinks.items()
+                                          if ref in retained}
+                self.manual_values = {retained[ref]: values for ref, values in self.manual_values.items()
+                                      if ref in retained}
                 self.therm_inputs.load(inventory, mapping, self.manual_values,
                     [self.therm_refs.GetString(i) for i in range(self.therm_refs.GetCount())
                      if self.therm_refs.IsChecked(i)], self._temperature_field_map())
@@ -345,7 +379,8 @@ class QuickThermFrame(wx.Frame):
                     f"{len(refs)} components. "+
                     ('Layered model selected from the saved stackup. ' if self.therm_model_kind.GetSelection()==1 else
                      'Thin-sheet screen selected; no layer thicknesses guessed. ')+
-                    'Include known power or choose parts, enter power and ambient, then run. Package resistances are optional for board temperatures.'
+                    'Include known power or choose parts, enter power and ambient, then run. Package resistances are optional for board temperatures.'+
+                    (f' Review {len(lost)} missing or ambiguous previous component assignments.' if lost else '')
                 )
                 self._show_thermal_start()
             finally:
@@ -395,6 +430,7 @@ class QuickThermFrame(wx.Frame):
         self.status.SetLabel("Cancelling the worker…")
 
     def on_close(self, event):
+        self._source_refresh.stop()
         self._stop_thermal_playback()
         self._cancel.set()
         self._closed = True
@@ -1250,7 +1286,7 @@ class QuickThermFrame(wx.Frame):
 
 
     def on_quick_therm(self,event=None):
-        if self._busy:return
+        if self._busy or self._source_dirty:return
         environment=('air','vacuum','forced_air','potting','sealed')[self.therm_env.GetSelection()]
         try:self._prepare_automatic_setup(environment)
         except ValueError as exc:
@@ -1995,7 +2031,8 @@ class QuickThermFrame(wx.Frame):
         def finish(answer):
             self._last_thermal_sent=chosen
             self.therm_status.SetLabel(f"Selected {answer['count']} components in PCB Editor; focus {answer['focus']}.")
-        self._task(lambda:select_origin_components(self.board_path,chosen,expected_sha256=expected),finish,
+        self._task(lambda:select_origin_components(self.board_path,chosen,expected_sha256=expected,
+                                                   launch_context=self._origin_context),finish,
                    'Selecting reviewed components in the originating PCB Editor…')
 
 
@@ -2142,12 +2179,40 @@ class QuickThermFrame(wx.Frame):
     def _select_thermal_in_editor(self,identifier):
         from .thermal_selection import select_origin_component
         return select_origin_component(self.board_path,identifier,
-            expected_sha256=self.thermal_bundle.get('source_sha256'))
+            expected_sha256=self.thermal_bundle.get('source_sha256'),launch_context=self._origin_context)
 
+
+    def _setup_from_pcb(self,event=None):
+        if self._source_dirty or self._busy:
+            return
+        expected=self.inventory.get('source_sha256')
+        if not expected:
+            self.status.SetLabel('Refresh the saved PCB before using its selection.')
+            return
+        from .thermal_selection import selected_origin_component_ids
+        path=self.board_path
+        origin=self._origin_context
+        self._task(lambda:selected_origin_component_ids(path,expected_sha256=expected,launch_context=origin),
+                   self._apply_pcb_part_scope,'Reading exact selected PCB components…')
+
+    def _apply_pcb_part_scope(self,identifiers):
+        selected=set(identifiers)
+        rows=[row for row in self.inventory.get('components',[]) if row['id'].casefold() in selected]
+        if not rows:
+            self.therm_status.SetLabel('No saved components match the PCB selection. Setup retained.')
+            return
+        references={row['reference'] for row in rows}
+        from collections import Counter
+        counts=Counter(row['reference'] for row in self.inventory.get('components',[]))
+        if len(rows)!=len(selected) or any(counts[ref]!=1 for ref in references):
+            self.therm_status.SetLabel('Selected parts do not resolve to unique saved references. Setup retained.')
+            return
+        self.therm_inputs.include_references(references)
+        self.therm_status.SetLabel(f'{len(references)} selected PCB components included. Review their power inputs.')
 
     def _sync_thermal_selection(self,event=None):
         if not self.thermal_bundle:return
         from .thermal_selection import selected_origin_component_ids
         self._task(lambda:selected_origin_component_ids(self.board_path,
-            expected_sha256=self.thermal_bundle.get('source_sha256')),
+            expected_sha256=self.thermal_bundle.get('source_sha256'),launch_context=self._origin_context),
             lambda ids:self._thermal_apply_selection(ids,from_editor=True,update_table=True))

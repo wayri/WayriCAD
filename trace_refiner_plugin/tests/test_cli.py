@@ -122,6 +122,10 @@ class CLITests(unittest.TestCase):
         result, payload = self.run_cli('--net', 'SIGNAL', '--output', str(output))
         self.assertNotEqual(result.returncode, 0, payload)
         self.assertRegex(payload['error'], 'DRC|findings')
+        self.assertEqual(payload['status'],'REJECTED')
+        findings=payload['evidence']['finding_delta']
+        self.assertTrue(any(obstacle.m_Uuid.AsString() in row['item_uuids'] for row in findings))
+        self.assertTrue(any(row['proposal_indices'] for row in findings))
         self.assertFalse(output.exists())
         self.assertFalse(output.with_suffix('.kicad_pro').exists())
 

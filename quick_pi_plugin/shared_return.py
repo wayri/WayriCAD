@@ -158,14 +158,16 @@ def execute_groups(study,rows,execute_case,board_path,sha,current):
                 if not feasible:case['status']='INFEASIBLE';record['status']='INFEASIBLE'
                 elif case['status']=='INFEASIBLE':
                     review=case.get('return_path',{}).get('return_path',{})
-                    case['status']='INCOMPLETE' if review.get('unknown_count') else 'REVIEW_REQUIRED' if review.get('warning_count') else 'COMPLETED'
+                    incomplete=review.get('status')=='INCOMPLETE' or review.get('unknown_count') or review.get('unresolved_transition_count')
+                    case['status']='INCOMPLETE' if incomplete else 'REVIEW_REQUIRED' if review.get('warning_count') else 'COMPLETED'
         except InterruptedError:
             raise
         except Exception as exc:
             record={'name':group['name'],'net':group['net'],'status':'FAILED','error':str(exc),'error_type':type(exc).__name__,'source_sha256':sha}
             for name in members:
                 cases[name].pop('shared_return',None)
-                cases[name].update(status='FAILED',error='Shared return '+group['name']+': '+str(exc))
+                cases[name]['status'] = 'FAILED'
+                cases[name].setdefault('error', 'Shared return '+group['name']+': '+str(exc))
         current();results.append(record)
     return results
 

@@ -1,7 +1,6 @@
 """Explicit rail and shared-return study editor with bounded worker lifecycle."""
 from __future__ import annotations
 import copy
-import hashlib
 import json
 from pathlib import Path
 import threading
@@ -44,8 +43,18 @@ class BatchStudyDialog(wx.Dialog):
         guided_layout.Add(return_actions,0,wx.ALL,8)
         self.setup_note=wx.StaticText(guided);self.setup_note.Wrap(900);guided_layout.Add(self.setup_note,0,wx.EXPAND|wx.ALL,8)
         guided.SetSizer(guided_layout);self.book.AddPage(guided,'1 · Rails and returns')
-        self.details=wx.TextCtrl(self.book,style=wx.TE_MULTILINE|wx.TE_READONLY)
-        self.book.AddPage(self.details,'2 · Results')
+        results=wx.Panel(self.book)
+        result_layout=wx.BoxSizer(wx.VERTICAL)
+        self.result_table=wx.ListCtrl(results,style=wx.LC_REPORT|wx.LC_SINGLE_SEL)
+        for index,(label,width) in enumerate((('Rail / case',245),('Status',145),('Path drop',140),('Copper loss',120))):
+            self.result_table.InsertColumn(index,label,width=width)
+        self.result_table.SetMinSize((-1,self.FromDIP(120)))
+        result_layout.Add(self.result_table,1,wx.EXPAND|wx.ALL,8)
+        self.details=wx.TextCtrl(results,style=wx.TE_MULTILINE|wx.TE_READONLY)
+        result_layout.Add(self.details,2,wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM,8)
+        results.SetSizer(result_layout)
+        self.book.AddPage(results,'2 · Results')
+        self.result_table.Bind(wx.EVT_LIST_ITEM_SELECTED,self.show_case)
         self.setup=wx.TextCtrl(self.book,value=json.dumps(initial,indent=2,allow_nan=False),style=wx.TE_MULTILINE|wx.TE_DONTWRAP)
         self.book.AddPage(self.setup,'Advanced JSON')
         catalog=wx.TextCtrl(self.book,value='\n'.join(t.get('net','')+' · '+t.get('label',t['id']) for t in inventory.get('terminals',[])),
@@ -74,7 +83,7 @@ class BatchStudyDialog(wx.Dialog):
         self.stop.Disable();self.export.Disable();self.refresh_summary();fit_to_display(self);install_accessibility(self,Path(__file__).with_name('help.html'))
 
     def changed(self,event=None):
-        self.result=None;self.export.Disable();self.insulation.Disable();self.details.Clear()
+        self.result=None;self.export.Disable();self.insulation.Disable();self.result_table.DeleteAllItems();self.details.Clear()
         self.refresh_summary()
         self.status.SetLabel('Study changed. Rerun every case before exporting.')
         if event:event.Skip()
@@ -96,14 +105,22 @@ class BatchStudyDialog(wx.Dialog):
             open_sankey(self.result)
         except Exception as exc:self.status.SetLabel('Power flow: '+str(exc))
 
-    def study(self):return parse_study(self.setup.GetValue().encode('utf-8'))
+    def study(self, *, allow_empty=False):
+        return parse_study(self.setup.GetValue().encode('utf-8'),allow_empty=allow_empty)
 
     def refresh_summary(self):
         """Present saved case identities and return mappings without requiring JSON."""
         from .service import sink_requests
         self.case_table.DeleteAllItems();self.return_table.DeleteAllItems();self._return_rows=[]
-        try:study=self.study()
-        except ValueError as exc:self.setup_note.SetLabel('Advanced JSON needs correction: '+str(exc));return
+        try:study=self.study(allow_empty=True)
+        except ValueError as exc:
+            self.run.Disable();self.setup_note.SetLabel('Advanced JSON needs correction: '+str(exc));return
+        self.run.Enable(bool(study['cases']) and not self._busy)
+        if not study['cases']:
+            for control in (self.units,self.returns,self.edit_return,self.remove_return):control.Disable()
+            self.setup_note.SetLabel('Add a net case or open a saved batch study.')
+            return
+        self.units.Enable(not self._busy);self.returns.Enable(not self._busy)
         returns={}
         for i,group in enumerate(study.get('shared_returns',[])):
             members=sorted({m['case'] for m in group['loads']})
@@ -244,7 +261,7 @@ class BatchStudyDialog(wx.Dialog):
             while dialog.ShowModal()==wx.ID_OK:
                 try:
                     from .ui import load_values
-                    study=self.study()
+                    study=self.study(allow_empty=True)
                     if not net.GetValue() or source.GetSelection()<0 or sink.GetSelection()<0 or source.GetStringSelection()==sink.GetStringSelection():
                         raise ValueError('Choose a net and two different explicit source/load pads.')
                     load=load_values(sink.GetStringSelection(),current.GetValue())
@@ -296,11 +313,10 @@ class BatchStudyDialog(wx.Dialog):
         if self._busy:return
         try:
             study=self.study()
-            if hashlib.sha256(Path(self.board_path).read_bytes()).hexdigest()!=self.sha:raise ValueError('Saved PCB changed; close the study and reload.')
         except (ValueError,OSError) as exc:self.status.SetLabel(str(exc));return
         self.changed();self._busy=True;self._cancel.clear();self.run.Disable();self.stop.Enable()
         for control in (self.setup,self.add,self.units,self.returns,self.edit_return,self.remove_return,self.load,self.save):control.Disable()
-        self.status.SetLabel('Running rails and simultaneous shared-return groups. Cancel discards the batch.')
+        self.status.SetLabel(f"Running {len(study['cases'])} rail cases. Shared-return groups combine mapped rail currents. Cancel discards the batch.")
         request={'action':'batch','study':study,'board_path':self.board_path,'source_sha256':self.sha}
         def work():
             result=None;error=None
@@ -321,12 +337,29 @@ class BatchStudyDialog(wx.Dialog):
         if error:self.status.SetLabel(error);return
         self.result=result;rows=result['batch']['cases']
         from .batch_result_text import case_result_text
+        from .voltage_tolerance import show_exact, voltage_text
+        for row in rows:
+            bundle=row.get('electrical') or {}
+            solved=bundle.get('result') or {}
+            drop=voltage_text(solved,solved.get('voltage_drop_V'),exact=show_exact(bundle),drop=True)
+            loss=solved.get('total_power_W')
+            index=self.result_table.InsertItem(self.result_table.GetItemCount(),row['name'])
+            self.result_table.SetItem(index,1,row['status'])
+            self.result_table.SetItem(index,2,drop)
+            self.result_table.SetItem(index,3,f'{loss*1000:.4g} mW' if loss is not None else 'Unavailable')
         self.details.SetValue('\n\n'.join(case_result_text(row) for row in rows))
-        if result['batch'].get('shared_returns'):
-            self.details.AppendText('\n\nShared-return coupling\n'+json.dumps([{k:v for k,v in group.items() if k not in ('return_conduction','physical_return_potential_V')} for group in result['batch']['shared_returns']],indent=2))
+        for group in result['batch'].get('shared_returns',[]):
+            detail=group.get('error') or group.get('notice')
+            if detail:
+                self.details.AppendText(f"\n\n{group['name']} · {group['status']}\n{detail}")
         self.book.SetSelection(1);self.export.Enable()
         self.insulation.Enable(len({row.get('electrical',{}).get('geometry',{}).get('net') for row in rows if row.get('electrical',{}).get('result')})>=2)
         self.status.SetLabel(result['batch']['status']+' · '+str(len(rows))+' cases; review shared-return loads, failures and assumptions.')
+
+    def show_case(self,event):
+        if self.result:
+            from .batch_result_text import case_result_text
+            self.details.SetValue(case_result_text(self.result['batch']['cases'][event.GetIndex()]))
 
     def export_report(self,event=None):
         if self._busy or not self.result:return

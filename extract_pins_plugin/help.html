@@ -22,7 +22,8 @@ body{font:16px "Segoe UI",Arial,sans-serif;max-width:1120px;margin:28px auto;pad
 <li>Leave <b>Follow PCB selection</b> enabled and click footprints in PCB Editor. The modeless window adds them to the Selection basket.</li>
 <li>Optionally enter comma-separated reference patterns such as <code>J*, U1, P?</code>, net patterns such as <code>CAN_*, 28V*</code>, and a value pattern.</li>
 <li>Choose whether to hide unconnected pins or power/ground nets, then click <b>Preview Extraction</b>.</li>
-<li>Double-click a preview row to select its footprint and highlight its net on the PCB.</li>
+<li>Reviewed footprints are checked in batches for unsaved edits. Saving the board, project or rules refreshes the full preview. Click <b>Preview Extraction</b> to include newly added footprints matching your patterns immediately.</li>
+<li>Double-click a preview row to select its exact physical pad in the originating PCB Editor. Use <b>Highlight Net</b> for the net.</li>
 <li>Click <b>View connector tables</b> to see labelled pin rows and the nets shared by multiple extracted components. The embedded summary is a native preview; export interactive HTML to click nets and highlight matching rows in the full report.</li>
 <li>Click <b>Export Preview...</b> and choose interactive HTML, CSV, or Markdown. Export uses the exact reviewed data, not a new implicit selection. The HTML file works offline and marks pin 1 and available footprint bounding-box dimensions.</li>
 </ol>
