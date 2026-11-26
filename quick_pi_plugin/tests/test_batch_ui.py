@@ -16,7 +16,7 @@ try:
     from quick_pi_plugin.ui import QuickPIFrame
 except ImportError:
     wx=None
-from quick_pi_plugin.batch import execute
+from quick_pi_plugin.batch import execute, initial_study
 from quick_pi_plugin.tests.test_batch import case,study
 from quick_pi_plugin.tests.test_solver import strip
 from quick_pi_plugin.solver import solve
@@ -61,12 +61,25 @@ class BatchUITests(unittest.TestCase):
         self.assertEqual(dialog.result['batch']['status'],'COMPLETED')
         self.assertIn('A · COMPLETED',dialog.details.GetValue())
         self.assertIn('B · COMPLETED',dialog.details.GetValue())
+        self.assertEqual(dialog.result_table.GetItemCount(),2)
+        dialog.result_table.Select(1);self.app.Yield()
+        self.assertTrue(dialog.details.GetValue().startswith('B · COMPLETED'))
         self.assertTrue(dialog.export.IsEnabled())
         dialog.setup.SetValue(json.dumps(study(case('Changed'))));self.app.Yield()
         self.assertIsNone(dialog.result);self.assertFalse(dialog.export.IsEnabled())
 
+    def test_empty_batch_opens_without_a_preselected_single_rail(self):
+        dialog=BatchStudyDialog(None,initial_study(None),{'terminals':[]},self.runner,self.path,self.sha)
+        self.dialogs.append(dialog)
+        self.assertIn('Add a net case',dialog.setup_note.GetLabel())
+        self.assertFalse(dialog.run.IsEnabled())
+        dialog.apply_study(study(case('New rail')))
+        self.assertTrue(dialog.run.IsEnabled())
+        self.assertEqual(dialog.case_table.GetItemText(0),'New rail')
+
     def test_stale_board_and_cancel_do_not_accept_partial_batch(self):
         dialog=self.dialog();self.path.write_text('Changed');dialog.run_cases()
+        self.wait(lambda:not dialog._busy)
         self.assertIsNone(dialog.result);self.assertIn('changed',dialog.status.GetLabel())
         self.path.write_text('Synthetic IO boundary; solver uses analytical strip fixture')
         def runner(request,cancel):
@@ -76,7 +89,10 @@ class BatchUITests(unittest.TestCase):
         self.assertIsNone(dialog.result);self.assertFalse(dialog.export.IsEnabled())
 
     def test_feedback_checkbox_dispatch_and_missing_physical_inputs_do_not_run(self):
-        calls=[];frame=NS(joule_feedback=NS(GetValue=lambda:True),on_electrothermal=lambda **kw:calls.append(kw))
+        calls=[]
+        frame=NS(_closed=False,_closing=False,editor_refresh=NS(poll=lambda:None),
+                 _viewport_snapshot_current=lambda:True,board_workflow=NS(live_edits=NS(GetValue=lambda:False)),
+                 joule_feedback=NS(GetValue=lambda:True),on_electrothermal=lambda **kw:calls.append(kw))
         QuickPIFrame.on_run(frame);self.assertEqual(calls,[{'feedback':True}])
         studies=feedback_studies(case()['electrical'])
         for key in ('ambient_c','copper_k_w_mk','dielectric_k_w_mk','board_h_w_m2k','board_emissivity'):

@@ -32,7 +32,7 @@
 <div class="table-scroll"><table>
 <tr><th>Question</th><th>Start here</th><th>Essential inputs and limits</th></tr>
 <tr><td>Board DC voltage drop, current sharing and copper loss</td><td>Main window, 2.5D layered copper</td><td>Saved copper, stackup, source and loads. Fixed temperature unless explicit feedback is enabled.</td></tr>
-<tr><td>Shared ground rise between rails</td><td>Rails / ground returns</td><td>Explicit ground source and load contacts. Fixed-current 2.5D shared-return groups.</td></tr>
+<tr><td>Shared ground rise between rails</td><td>Batch</td><td>Explicit ground source and load contacts. Fixed-current 2.5D shared-return groups.</td></tr>
 <tr><td>Reference-plane coverage and nearby return vias</td><td>Return path tab</td><td>Explicit return nets. Geometric audit, not electrical loop impedance.</td></tr>
 <tr><td>DC current through copper volume</td><td>3D copper model</td><td>Gmsh, manual mesh and supported through-hole geometry. No AC effects.</td></tr>
 <tr><td>Temperature changes resistance</td><td>Include Joule heating / temperature feedback</td><td>Explicit materials, cooling, bounds and converged coupling.</td></tr>
@@ -120,7 +120,7 @@
 <h3 id="independent-rails">Independent rails</h3>
 <ol>
 <li>Configure a rail in the main window.</li>
-<li>Open Rails / ground returns and Add net case for each additional rail.</li>
+<li>Open Batch above the board and choose Add net case for each rail, or load a saved study JSON.</li>
 <li>Review each source, load unit, voltage, mesh and current/voltage limits.</li>
 <li>Run the study and read every case status, including failures. Cases are independent until explicitly linked by shared return mapping.</li>
 </ol>

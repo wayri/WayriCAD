@@ -382,6 +382,36 @@ class NativeTests(unittest.TestCase):
                 tx.exchange(True)
         self.assertEqual(self.native.serialize(self.board, api), before)
 
+    def test_ui_refresh_retains_anchor_uuid_and_dimensions_after_reannotation(self):
+        if wx.GetApp() is None:
+            self.skipTest('Run GUI checks inside the normal wx main-loop harness.')
+        from component_arranger_plugin.ui import ArrangerFrame
+        for footprint in self.parts:
+            footprint.SetSelected()
+        frame=ArrangerFrame(None,self.board)
+        frame.error=lambda error:self.fail(str(error))
+        try:
+            frame.find_groups(None)
+            old=frame.anchor.GetStringSelection()
+            anchor=next(part for part in self.parts if part.GetReference()==old)
+            frame.area_w.ChangeValue('23')
+            frame.area_h.ChangeValue('12')
+            anchor.SetReference('U904')
+            frame._invalidate_saved()
+            frame._refresh_saved()
+            self.assertEqual(frame.anchor.GetStringSelection(),'U904')
+            self.assertIn('U904',frame.checked)
+            self.assertNotIn(old,frame.checked)
+            self.assertEqual((frame.area_w.GetValue(),frame.area_h.GetValue()),('23','12'))
+            self.assertFalse(frame.apply_button.IsEnabled())
+            with patch.object(api,'GetBoard',return_value=self.board),patch.object(api,'FocusOnItem') as focus:
+                frame.locate_anchor()
+                focus.assert_called_once()
+                self.assertEqual(self.native.uid(focus.call_args.args[0]),self.native.uid(anchor))
+        finally:
+            frame.Destroy()
+            wx.YieldIfNeeded()
+
     def test_native_ui_constructs_and_runs_real_preview(self):
         if wx.GetApp() is None:
             self.skipTest('Run GUI checks inside the normal wx main-loop harness.')

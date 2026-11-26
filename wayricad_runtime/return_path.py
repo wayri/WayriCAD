@@ -60,7 +60,7 @@ def collect_board_evidence(board: Any, signal_net: str, return_nets: list[str] |
                 evidence["unsupported_geometry"].append("Arc on " + layer_names[item.GetLayer()])
                 continue
             evidence["segments"].append({
-                "layer": layer_names[item.GetLayer()],
+                "id": str(item.m_Uuid.AsString()), "layer": layer_names[item.GetLayer()],
                 "start": _xy(item.GetStart(), pcbnew), "end": _xy(item.GetEnd(), pcbnew),
                 "width_mm": pcbnew.ToMM(item.GetWidth()),
             })
@@ -117,6 +117,15 @@ def _in_region(point: tuple[float, float], region: dict) -> bool:
 def _finding(level: str, code: str, detail: str, *, layer: str = "", position: list[float] | None = None) -> dict:
     return {"level": level, "code": code, "detail": detail,
             "layer": layer, "position_mm": position}
+
+
+def _record_transition_finding(findings, transition, level, code, detail):
+    """Bind the missing geometry evidence to both the via and the legacy findings list."""
+    row=_finding(level,code,detail,layer=" / ".join(transition['signal_layers']),
+                 position=transition['position_mm'])
+    row['signal_via_id']=transition['signal_via_id']
+    findings.append(row)
+    transition['missing_evidence'].append({'code':code,'detail':detail})
 
 
 def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
@@ -209,9 +218,10 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
         if len(matches)!=1:raise ValueError('Declared return pad role must match one selected return terminal.')
         resolved_roles[role]=matches[0]
     endpoint_bins={}
-    for segment in evidence.get('segments',[]):
+    segments = list(evidence.get("segments", []))
+    for index, segment in enumerate(segments):
         for xy in (segment['start'],segment['end']):
-            endpoint_bins.setdefault((math.floor(xy[0]/.02),math.floor(xy[1]/.02)),[]).append((xy,segment['layer']))
+            endpoint_bins.setdefault((math.floor(xy[0]/.02),math.floor(xy[1]/.02)),[]).append((xy,index))
     via_bins={}
     for via in evidence.get('return_vias',[]):
         if via.get('net') in evidence['return_nets']:
@@ -219,7 +229,6 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
     coverage=[];transitions=[]
     unfilled = set(evidence.get("unfilled_reference_layers", []))
     findings: list[dict] = []
-    segments = list(evidence.get("segments", []))
     if not segments:
         findings.append(_finding("unknown", "NO_ROUTED_TRACKS", "No routed straight signal tracks were supplied."))
     for segment in segments:
@@ -251,6 +260,7 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
                          'sample_count':count+1,'covered_sample_count':covered,'status':'SAMPLED_COVERED' if uncovered is None else 'GAP_SAMPLED',
                          'references':[{'net':net,'layer':name} for net,name in sorted(references)]})
         if uncovered is not None:
+            coverage[-1]['first_sampled_gap_mm'] = uncovered
             findings.append(_finding("warning", "REFERENCE_GAP_SAMPLED",
                 f"A sampled point lacks filled return copper on either adjacent layer (sample pitch {sample_pitch_mm:g} mm).",
                 layer=layer, position=uncovered))
@@ -261,18 +271,31 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
     # transition. A physical through-via may span unused copper layers.
     for via in evidence.get("signal_vias", []):
         xy = via["position"]
-        connected=set();ex,ey=math.floor(xy[0]/.02),math.floor(xy[1]/.02)
-        for dx in (-1,0,1):
-            for dy in (-1,0,1):
-                for point,layer in endpoint_bins.get((ex+dx,ey+dy),()):
-                    if math.dist(point,xy)<=.02:connected.add(layer)
-        transition={'position_mm':list(xy),'signal_layers':sorted(connected,key=positions.get),'reference_layers':[],
-                    'nearby_candidates':[],'status':'UNKNOWN','connectivity':'Not established by geometric review'}
+        ex,ey=math.floor(xy[0]/.02),math.floor(xy[1]/.02)
+        attached = sorted({index for dx in (-1,0,1) for dy in (-1,0,1)
+                           for point,index in endpoint_bins.get((ex+dx,ey+dy),())
+                           if math.dist(point,xy)<=.02 and
+                           segments[index]['layer'] in via.get('layers',layers)})
+        connected = {segments[index]['layer'] for index in attached}
+        vx,vy=math.floor(xy[0]/return_via_radius_mm),math.floor(xy[1]/return_via_radius_mm)
+        distances = ((math.dist(xy,item['position']),item)
+                     for dx in (-1,0,1) for dy in (-1,0,1)
+                     for item in via_bins.get((vx+dx,vy+dy),()))
+        candidates = sorted((pair for pair in distances if pair[0] <= return_via_radius_mm),
+                            key=lambda pair:(pair[0], str(pair[1].get('id',''))))
+        transition={'position_mm':list(xy),'signal_via_id':via.get('id'),
+                    'signal_layers':sorted(connected,key=positions.get),'reference_layers':[],
+                    'sections':[{'index':index,'id':segments[index].get('id'),
+                                 'layer':segments[index]['layer'],'coverage':coverage[index]['status'],
+                                 'first_sampled_gap_mm':coverage[index].get('first_sampled_gap_mm')}
+                                for index in attached],
+                    'nearby_candidates':[],'status':'UNKNOWN','missing_evidence':[],
+                    'nearest_return_via_in_radius_mm':candidates[0][0] if candidates else None,
+                    'connectivity':'Not established by geometric review'}
         transitions.append(transition)
         if len(connected) < 2:
-            findings.append(_finding("unknown", "TRANSITION_LAYERS_UNKNOWN",
-                "Signal via has fewer than two evidenced connected routing layers; its return transfer cannot be assessed.",
-                position=xy))
+            _record_transition_finding(findings,transition,"unknown","TRANSITION_LAYERS_UNKNOWN",
+                "Signal via has fewer than two evidenced connected routing layers; its return transfer cannot be assessed.")
             continue
         # A signal-via center is normally an antipad void in its reference
         # plane. Preserve that void, but look for local reference candidates on
@@ -285,20 +308,22 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
         transition['reference_probe_radius_mm']=probe_radius
         transition['reference_basis']='Local annular samples around the signal antipad; no copper is assumed inside its drill/void.'
         transition['reference_layers']=sorted(reference_layers,key=positions.get)
-        if len(reference_layers) < 2:
-            findings.append(_finding("unknown", "REFERENCE_TRANSFER_UNKNOWN",
-                "The selected filled zones do not identify two distinct local reference layers at the recorded annular probe radius.",
-                position=xy))
+        missing_layers=[layer for layer in transition['signal_layers']
+                        if not any(abs(positions[ref]-positions[layer])==1 for ref in reference_layers)]
+        if len(reference_layers) < 2 or missing_layers:
+            detail=("An adjacent filled reference is missing for "+", ".join(missing_layers)+"."
+                    if missing_layers else
+                    "The samples do not identify two distinct local reference layers. "
+                    "A possible shared-plane return requires a continuity check.")
+            _record_transition_finding(findings,transition,"unknown","REFERENCE_TRANSFER_UNKNOWN",detail)
             continue
-        transition['reference_layers']=sorted(reference_layers,key=positions.get)
         reference_nets={region['net'] for name in reference_layers for region in local_regions[name]}
         transition['reference_nets']=sorted(reference_nets)
         if len(reference_nets)>1:
-            findings.append(_finding('unknown','REFERENCE_NET_CHANGE','Different return nets cover this transition; a nearby via does not establish transfer between them.',position=xy))
-        vx,vy=math.floor(xy[0]/return_via_radius_mm),math.floor(xy[1]/return_via_radius_mm)
-        candidates=[item for dx in (-1,0,1) for dy in (-1,0,1) for item in via_bins.get((vx+dx,vy+dy),()) if math.dist(xy,item['position'])<=return_via_radius_mm]
+            _record_transition_finding(findings,transition,'unknown','REFERENCE_NET_CHANGE',
+                'Different return nets cover this transition. Their transfer connection is unknown.')
         nearby=[]
-        for item in sorted(candidates,key=lambda row:math.dist(xy,row['position'])):
+        for distance,item in candidates:
             contact_layers=[]
             center=item['position'];radius=float(item.get('diameter_mm',0))/2
             # Sample the outer annulus because a plated drill center is a hole.
@@ -307,22 +332,24 @@ def audit_return_path(evidence: dict, *, sample_pitch_mm: float = 0.25,
                 if name in item.get('layers',[]) and any(contains(point,region) for region in local_regions[name] if region['net']==item['net'] for point in samples):contact_layers.append(name)
             spans=reference_layers.issubset(set(item.get('layers',[])))
             contact=reference_layers.issubset(set(contact_layers))
-            candidate={'id':item.get('id',''),'net':item['net'],'position_mm':list(center),'distance_mm':math.dist(xy,center),
+            candidate={'id':item.get('id',''),'net':item['net'],'position_mm':list(center),'distance_mm':distance,
                        'spans_reference_layers':spans,'sampled_contact_layers':sorted(contact_layers,key=positions.get),'contact_status':'SAMPLED_CONTACT' if contact else 'CONTACT_UNRESOLVED'}
             transition['nearby_candidates'].append(candidate)
             if spans:nearby.append(candidate)
         if nearby and len(reference_nets)==1 and any(item['contact_status']=='SAMPLED_CONTACT' for item in nearby):transition['status']='GEOMETRIC_CANDIDATE'
         elif nearby:
-            findings.append(_finding('unknown','RETURN_VIA_CONTACT_UNKNOWN','A nearby spanning via was found but sampled contact to every local reference layer on its own net is not established.',position=xy))
+            _record_transition_finding(findings,transition,'unknown','RETURN_VIA_CONTACT_UNKNOWN',
+                'A nearby spanning via lacks demonstrated contact to every local reference layer on its own net.')
         if not nearby:
-            findings.append(_finding("warning", "NO_NEARBY_RETURN_VIA",
-                f"No selected return-net via spanning the local reference layers lies within {return_via_radius_mm:g} mm.",
-                position=xy))
+            _record_transition_finding(findings,transition,"warning","NO_NEARBY_RETURN_VIA",
+                f"No selected return-net via spanning the local reference layers lies within {return_via_radius_mm:g} mm.")
+    unresolved = sum(row['status']=='UNKNOWN' for row in transitions)
     warnings = sum(item["level"] == "warning" for item in findings)
     unknowns = sum(item["level"] == "unknown" for item in findings)
     return {"signal_net": evidence["signal_net"], "return_nets": list(evidence["return_nets"]),
             "findings": findings, "warning_count": warnings, "unknown_count": unknowns,
-            "status":"REVIEW" if warnings else "INCOMPLETE" if unknowns else "GEOMETRY_SCREENED",
+            "unresolved_transition_count":unresolved,
+            "status":"INCOMPLETE" if unknowns or unresolved else "REVIEW" if warnings else "GEOMETRY_SCREENED",
             "coverage":coverage,"transitions":transitions,"selected_return_terminals":selected_terminals,"return_terminal_roles":resolved_roles,
             "return_terminal_inventory":[row for row in terminals if row['net'] in evidence['return_nets']],
             "signal_terminals":[row for row in terminals if row['net']==evidence['signal_net']],
@@ -341,12 +368,23 @@ def analyze_return_path(board: Any, signal_net: str, return_nets: list[str] | tu
                              return_terminal_roles=return_terminal_roles)
 
 
+def unresolved_transition_count(result):
+    """Read the geometry verdict, including transitions from older saved results."""
+    return sum(row.get('status') == 'UNKNOWN' for row in result.get('transitions', []))
+
+
 def summary_text(result):
     """Describe declared terminals, sampled references and transition candidates."""
     settings=result.get('settings',{})
     lines=[str(result.get('status','INCOMPLETE'))+' · '+', '.join(result.get('return_nets',[])),
            result.get('scope','Whole signal net; no return-current or loop-impedance solve.'),
            'Pitch '+str(settings.get('sample_pitch_mm','?'))+' mm; stitching search '+str(settings.get('return_via_radius_mm','?'))+' mm.']
+    transitions=result.get('transitions',[])
+    if transitions:
+        unresolved=unresolved_transition_count(result)
+        lines.append(f"Unresolved via transitions: {unresolved} of {len(transitions)}. "
+                     "A geometric candidate indicates sampled copper contact. "
+                     "Return detour length, current and loop impedance are uncomputed.")
     pads=result.get('selected_return_terminals',[])
     lines.append('Declared return pads: '+(', '.join(row['label']+' ('+row['net']+')' for row in pads) if pads else 'Not specified; source/load return closure is unresolved.'))
     for role,pad in result.get('return_terminal_roles',{}).items():lines.append(role.title()+' return: '+pad['label']+' ('+pad['net']+')')
@@ -359,10 +397,23 @@ def summary_text(result):
     for layer,item in grouped.items():
         refs=', '.join(sorted(item['references'])) or 'None evidenced'
         lines.append(f"{layer}: {item['segments']} segments; {item['covered']}/{item['total']} covered samples; {refs} [{', '.join(sorted(item['states']))}]")
-    for row in result.get('transitions',[]):
+    for row in transitions[:20]:
         point=', '.join(f'{v:.5g}' for v in row['position_mm'])
         lines.append(f"Via at {point} mm: {' / '.join(row['signal_layers'])} -> {' / '.join(row['reference_layers']) or 'reference unresolved'} [{row['status']}]")
-        lines.append('  Reference probe radius '+str(row.get('reference_probe_radius_mm',0))+' mm; local annular evidence, not copper inside the antipad.')
+        if row.get('signal_via_id'):
+            lines.append('  Saved via '+str(row['signal_via_id']))
+        if row.get('reference_probe_radius_mm') is not None:
+            lines.append('  Reference probe radius '+str(row['reference_probe_radius_mm'])+' mm.')
+        if 'nearest_return_via_in_radius_mm' in row:
+            nearest=row['nearest_return_via_in_radius_mm']
+            lines.append('  Nearest selected return via within search radius: '+
+                         (f'{nearest:.5g} mm (proximity only).' if nearest is not None else 'none found.'))
+        for section in row.get('sections',[]):
+            gap=section['first_sampled_gap_mm']
+            detail='; first uncovered sample at '+', '.join(f'{v:.5g}' for v in gap)+' mm' if gap else ''
+            lines.append(f"  Section {section['id'] or section['index']} on {section['layer']}: {section['coverage']}{detail}")
+        for item in row.get('missing_evidence',[]):
+            lines.append('  '+item['detail'])
         for candidate in row['nearby_candidates'][:3]:
             lines.append(f"  {candidate['net']}: {candidate['distance_mm']:.5g} mm; span={candidate['spans_reference_layers']}; {candidate['contact_status']}; layers {', '.join(candidate['sampled_contact_layers']) or 'unresolved'}")
     if len(result.get('transitions',[]))>20:lines.append('More transitions are retained in the exported evidence tables/JSON.')
@@ -379,8 +430,14 @@ def html_details(result):
     html='<h2>Explicit return-path review</h2><p>'+escape(result.get('scope','Whole selected signal net'))+'</p><pre>'+escape(summary_text(result))+'</pre>'
     html+=table(['Signal layer','Length mm','Covered / sampled','Reference net / layer','Status'],[
         [row['signal_layer'],f"{row['length_mm']:.6g}",f"{row['covered_sample_count']} / {row['sample_count']}",'; '.join(v['net']+' / '+v['layer'] for v in row['references']),row['status']] for row in result.get('coverage',[])])
-    html+=table(['Signal via XY mm','Signal layers','Reference layers','Return candidate net','Distance mm','Spans layers','Sampled contact','Status'],[
-        [', '.join(f'{v:.6g}' for v in row['position_mm']),', '.join(row['signal_layers']),', '.join(row['reference_layers']),candidate.get('net','None'),candidate.get('distance_mm','Unknown'),candidate.get('spans_reference_layers','Unknown'),', '.join(candidate.get('sampled_contact_layers',[])),candidate.get('contact_status',row['status'])]
+    html+=table(['Signal via XY mm','Signal layers','Reference layers','Transition verdict','Missing evidence','Return candidate net','Distance mm','Spans layers','Sampled contact','Contact verdict'],[
+        [', '.join(f'{v:.6g}' for v in row['position_mm']),', '.join(row['signal_layers']),', '.join(row['reference_layers']),row['status'],' '.join(item['detail'] for item in row.get('missing_evidence',[])),candidate.get('net','None'),candidate.get('distance_mm','Unknown'),candidate.get('spans_reference_layers','Unknown'),', '.join(candidate.get('sampled_contact_layers',[])),candidate.get('contact_status',row['status'])]
         for row in result.get('transitions',[]) for candidate in row['nearby_candidates'] or [{}]])
+    sections = [(row,section) for row in result.get('transitions',[]) for section in row.get('sections',[])]
+    if sections:
+        html+=table(['Signal via','Attached section','Signal layer','Reference coverage','First sampled gap (mm)'],
+                    [[row.get('signal_via_id') or row['position_mm'],section.get('id') or section['index'],
+                      section['layer'],section['coverage'],section.get('first_sampled_gap_mm') or 'Unrecorded']
+                     for row,section in sections])
     html+=table(['Level','Finding','Layer','XY mm','Detail'],[[row['level'],row['code'],row['layer'],row['position_mm'],row['detail']] for row in result.get('findings',[])])
     return html

@@ -49,7 +49,7 @@ _SPECS = dict(
     },
 )
 _ALIASES = {
-    "quick-pi": ["quick pi", "power integrity", "voltage drop", "ir drop", "dc rail", "supply current"],
+    "quick-pi": ["quick pi", "pi", "power integrity", "voltage drop", "ir drop", "dc rail", "supply current"],
     "quick-therm": ["quick therm", "quicktherm", "thermal", "temperature"],
     "signal-integrity": ["quick si", "signal integrity", "crosstalk", "route delay"],
     "trace-impedance": ["rlc", "impedance", "microstrip", "stripline", "coplanar"],
@@ -193,7 +193,7 @@ def _analysis_mode(query, tools):
         if has(r'\b(cross\s*talk|multi[- ]?net|eye diagram|skew|diff(?:erential)? pair)\b'):
             return 'signal-integrity.study'
         return 'signal-integrity.screen'
-    if 'quick-therm' in tools or has(r'\b(hotspots?|heat map|hot does|heating|thermals?)\b'):
+    if 'quick-therm' in tools or ('quick-pi' not in tools and has(r'\b(hotspots?|heat map|hot does|heating|thermals?)\b')):
         if has(r'\b(transient|over time|warm[- ]?up|cool[- ]?down)\b'):
             return 'quick-therm.transient'
         if has(r'\b(3d|solid)\b'):
@@ -205,10 +205,18 @@ def _analysis_mode(query, tools):
             return None
         if has(r'\b(AC|PDN|impedance sweep|frequency sweep|two[- ]port)\b'):
             return 'quick-pi.ac-ports'
-        if has(r'\b(multi[- ]?net|several rails|multiple rails|rail bundle)\b'):
-            return 'quick-pi.batch'
-        if has(r'\b(transient|load step|over time|electrothermal|joule heating)\b'):
-            return 'quick-pi.transient' if has(r'\b(transient|load step|over time)\b') else 'quick-pi.electrothermal'
+        study_file = has(r'\b(?:study|config|settings|file)\b|\.json\b')
+        rail_batch = (has(r'\b(batch|multi[- ]?net|several (?:rails|nets)|multiple (?:rails|nets)|rail bundle|DC bundle)\b')
+                      or len(re.findall(r'\b(?:net|rail)\s+(?:"[^"]+"|[^\s,]+)\s+from\b', query, re.I)) > 1)
+        if has(r'\b(electrothermal|joule heating)\b'):
+            return 'quick-pi.electrothermal'
+        if has(r'\b(transient|load[- ]step|over time)\b'):
+            from .assistant_pi_inputs import transient_slots
+            if not (study_file or rail_batch) and (transient_slots(query) or has(r'\b(?:set up|configure)\b')):
+                return 'quick-pi.load-step'
+            return 'quick-pi.transient'
+        if rail_batch:
+            return 'quick-pi.batch' if study_file else 'quick-pi.batch-cases'
         return 'quick-pi.solve'
     return None
 
@@ -315,6 +323,16 @@ def _slots(query):
             value=(match.group(1) or match.group(2)).rstrip('.')
             values[key]=[value] if key=='signal_nets' else value
     return values
+
+
+def _pi_slots(identifier, clause):
+    if identifier == 'quick-pi.batch-cases':
+        rails = re.search(r'\b(?:net|rail)\s+(?:"[^"]+"|[^\s,]+)\s+from\b', clause, re.I)
+        return {'rails': clause[rails.start():]} if rails else {}
+    if identifier == 'quick-pi.load-step':
+        from .assistant_pi_inputs import transient_slots
+        return transient_slots(clause)
+    return {}
 
 
 def _safe_context(context):
@@ -585,8 +603,13 @@ def reply_answers(plan, text):
     slots = _slots(text)
     result = {}
     for question in questions:
-        field = question['key'].split('.', 1)[-1]
-        if field in slots:
+        index, field = question['key'].split('.', 1)
+        steps = plan.get('steps', [])
+        step = steps[int(index)] if index.isdigit() and int(index) < len(steps) else {}
+        recognized = _pi_slots(step.get('action'), text)
+        if field in recognized:
+            result[question['key']] = recognized[field]
+        elif field in slots:
             result[question['key']] = slots[field]
     units = Counter(q.get('unit') for q in questions if q.get('kind') == 'number')
     for question in questions:
@@ -669,6 +692,7 @@ def propose(query, context=None, answers=None, *, inventory=None):
             identifier = ranked[0]["action"]
         spec = _SPECS[identifier]
         slots = _slots(clause)
+        slots.update(_pi_slots(identifier, clause))
         if identifier=='via-stitching.guard' and context.get('selected_nets') and 'signal_nets' not in slots:
             slots['signal_nets']=context['selected_nets']
         params = {}
@@ -720,6 +744,13 @@ def propose(query, context=None, answers=None, *, inventory=None):
         circuit = {}
         if inventory is not None:
             circuit = _resolve_circuit(params, spec, clause, inventory, plan["assumptions"])
+        if 'rails' in params:
+            from .assistant_pi_inputs import resolved_rail_cases
+            try:
+                params['rails'] = resolved_rail_cases(params['rails'], inventory)
+            except ValueError as exc:
+                params.pop('rails')
+                circuit['rails'] = ([], str(exc))
         missing = [key for key in spec["required"] if key not in params]
         missing.extend(circuit)
         if (
@@ -931,7 +962,7 @@ def _read_log(path, limit):
 
 
 def run_plan(
-    plan, output_root, python=None, cancel=None, progress=None, timeout_seconds=600
+    plan, output_root, python=None, cancel=None, progress=None, timeout_seconds=600, *, emerge_python=None
 ):
     """Run a sealed read-only plan in owned, cancellable subprocesses.
 
@@ -981,8 +1012,11 @@ def run_plan(
                 _write_new(_relative(directory, name), document)
             request = dict(plan=plan, index=i, output_dir=str(directory))
             _write_new(directory / "worker.json", request)
+            interpreter = emerge_python if emerge_python and step["action"] in {
+                "quick-emerge.runtime", "quick-emerge.run-example"
+            } else python
             argv = [
-                str(python or sys.executable),
+                str(interpreter or sys.executable),
                 "-I",
                 "-X",
                 "utf8",
@@ -994,7 +1028,7 @@ def run_plan(
                 action=step["action"],
                 tool=compiled["tool"],
                 title=step["title"],
-                command=command(compiled["tool"], compiled["arguments"], python),
+                command=command(compiled["tool"], compiled["arguments"], interpreter),
                 status="running",
             )
             started = time.monotonic()
@@ -1143,7 +1177,7 @@ def run_plan(
 
 
 def uses_circuit_context(query, answers=None):
-    fields = {'net', 'refs', 'start', 'source', 'powers', 'return_nets'}
+    fields = {'net', 'refs', 'start', 'source', 'sink', 'powers', 'return_nets', 'rails'}
     clauses = [part for part in re.split(r'\b(?:and then|then|also)\b|[;\n]', query, flags=re.I) if part.strip()]
     for index, clause in enumerate(clauses):
         choice = (answers or {}).get(f'{index}.action', (answers or {}).get('action'))

@@ -152,6 +152,19 @@ def _texts(board, api):
             yield text, None, 'board'
 
 
+def board_identity(board):
+    """Unwrap native board proxies across the supported SWIG hosts."""
+    pointer=board
+    for _ in range(8):
+        try:
+            return int(pointer)
+        except (TypeError,ValueError):
+            pointer=getattr(pointer,'this',None)
+        if pointer is None:
+            break
+    raise ValueError('Cannot identify the originating native board.')
+
+
 def fingerprint(board, api):
     """Include text geometry, native silk floors and resolved via exposure."""
     rows = [(item_id(t), _state(t), t.GetText(), t.IsVisible(), t.IsLocked(), t.GetLayer(),

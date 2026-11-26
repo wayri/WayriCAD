@@ -7,6 +7,10 @@ import pcbnew
 import wx
 from .refiner import DEFAULTS, propose, validate_detached, Transaction
 from . import refiner
+try:
+    from .wayricad_runtime.editor_refresh import SavedBoardRefresh, source_stamp
+except ImportError:
+    from wayricad_runtime.editor_refresh import SavedBoardRefresh, source_stamp
 
 
 class Preview(wx.Panel):
@@ -175,6 +179,9 @@ class RefinerFrame(wx.Frame):
     def __init__(self,parent,board,guard=None):
         super().__init__(parent,title='WayriCAD Trace Refiner',size=(1150,780))
         self.SetMinSize((950,650));self.board=board;self.guard=guard or (lambda:True);self.review=None;self.transactions=[];self.redos=[];self._table_rows=[];self._excluded_notices=[];self._last_tooltip=None
+        self._busy=False
+        self._last_editor_selection=None
+        self._proposal_source_ids=[]
         self.checked=set();self.nets=sorted({t.GetNetname() for t in board.GetTracks() if t.GetNetname()})
         panel=wx.Panel(self);root=wx.BoxSizer(wx.VERTICAL)
         title=wx.StaticText(panel,label='Repair existing routing');title.SetFont(title.GetFont().Bold().Larger());root.Add(title,0,wx.ALL,12)
@@ -218,10 +225,12 @@ class RefinerFrame(wx.Frame):
         self.results_splitter.SetMinimumPaneSize(100);self.results_splitter.SplitHorizontally(self.canvas,self.details,-170);self.results_splitter.SetSashGravity(1)
         right.Add(self.results_splitter,1,wx.EXPAND)
         actions=wx.BoxSizer(wx.HORIZONTAL);self.exclude_button=wx.Button(right_panel,label='Exclude selected proposals');self.exclude_button.Disable();actions.Add(self.exclude_button,0,wx.RIGHT,8)
-        hint=wx.StaticText(right_panel,label='Click a row to focus. Ctrl/Shift selects several.');hint.Wrap(250);hint.SetToolTip('Excluding proposals clears validation. Validate the retained subset before Apply.');actions.Add(hint,1,wx.ALIGN_CENTER_VERTICAL)
+        self.locate_button=wx.Button(right_panel,label='Locate in PCB');self.locate_button.Disable();actions.Add(self.locate_button,0,wx.RIGHT,8)
+        hint=wx.StaticText(right_panel,label='Click to focus. Ctrl/Shift selects several.');hint.Wrap(250);actions.Add(hint,1,wx.ALIGN_CENTER_VERTICAL)
         right.Add(actions,0,wx.EXPAND|wx.TOP,5)
         self.details.Bind(wx.EVT_LIST_ITEM_SELECTED,self._review_selected);self.details.Bind(wx.EVT_LIST_ITEM_DESELECTED,self._review_selection_changed)
         self.details.Bind(wx.EVT_MOTION,self._review_tooltip);self.exclude_button.Bind(wx.EVT_BUTTON,self.exclude_selected)
+        self.locate_button.Bind(wx.EVT_BUTTON,self.locate_in_editor)
         right_panel.SetSizer(right)
         self.settings_splitter.SetMinimumPaneSize(250);self.settings_splitter.SplitVertically(left,right_panel,300);self.settings_splitter.SetSashGravity(0)
         root.Add(self.settings_splitter,1,wx.EXPAND|wx.LEFT|wx.RIGHT,12)
@@ -244,6 +253,13 @@ class RefinerFrame(wx.Frame):
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
         self.CentreOnScreen()
         self._operation_changed()
+        self.saved_refresh=SavedBoardRefresh(self,board.GetFileName(),self._invalidate_saved,
+                                             self._refresh_saved,lambda:not self._busy)
+        self.editor_timer=wx.Timer(self)
+        self.Bind(wx.EVT_TIMER,self._follow_editor_selection,self.editor_timer)
+        self.Bind(wx.EVT_ACTIVATE,self._check_live_board)
+        self.Bind(wx.EVT_WINDOW_DESTROY,self._stop_editor_timer)
+        self.editor_timer.Start(500)
     def _operation_changed(self,event=None):
         center=self.operation.GetSelection()==1
         self.deviation.Enable(not center);self.shortening.Enable(not center);self.center_shift.Enable(center)
@@ -257,18 +273,39 @@ class RefinerFrame(wx.Frame):
         if event:event.Skip()
     def _populate_review(self):
         self.details.DeleteAllItems();self._table_rows=[];self._last_tooltip=None
+        self._proposal_source_ids=[]
         self.canvas.set_plan(self.review)
         if self.review is None:return
+        by_proposal={}
+        unattributed=[]
+        for finding in self.review.evidence.get('finding_delta',[]):
+            description=f"{finding['reason']} · "+', '.join(finding['item_uuids'])
+            if not finding['proposal_indices']:
+                unattributed.append(description)
+            for proposal in finding['proposal_indices']:
+                by_proposal.setdefault(proposal,[]).append(description)
         for index,change in enumerate(self.review.changes):
+            self._proposal_source_ids.append(frozenset(refiner.uid(item) for item in change.originals))
             metrics=refiner.change_metrics(change,pcbnew)
             row=self.details.InsertItem(self.details.GetItemCount(),change.net);self._table_rows.append(index)
             reason='Proposed contact centering; pads/vias stay fixed' if self.review.settings.get('mode')=='center contacts' else f"Proposed; {metrics['removed_segments']} segments removed"
+            if index in by_proposal:
+                reason='Native DRC: '+' | '.join(by_proposal[index])
             cells=[self.board.GetLayerName(change.layer),f"{metrics['before_mm']:.4f}",f"{metrics['after_mm']:.4f}",f"{metrics['shortening_mm']:.4f}",f'{len(change.before)-1} → {len(change.after)-1}',reason]
             for column,value in enumerate(cells,1):self.details.SetItem(row,column,value)
-        for net,reason in [*self.review.skipped,*self._excluded_notices]:
+        notes=list(self.review.skipped)+self._excluded_notices
+        notes.extend(('Unattributed native finding',description) for description in unattributed)
+        evidence=self.review.evidence
+        if evidence.get('connectivity')=='changed':
+            for partition in evidence['removed_partitions']:
+                notes.append(('Connectivity before',', '.join(partition)))
+            for partition in evidence['added_partitions']:
+                notes.append(('Connectivity after',', '.join(partition)))
+        for net,reason in notes:
             row=self.details.InsertItem(self.details.GetItemCount(),net);self._table_rows.append(None)
             self.details.SetItem(row,6,reason)
-        self.exclude_button.Disable()
+        self._last_editor_selection=None
+        self._review_selection_changed()
 
     def _review_summary(self):
         changes=self.review.changes if self.review else ()
@@ -288,8 +325,97 @@ class RefinerFrame(wx.Frame):
         return result
 
     def _review_selection_changed(self,event=None):
-        self.exclude_button.Enable(bool(self.review and self._selected_changes()))
+        selected=self._selected_changes() if self.review else set()
+        self.exclude_button.Enable(bool(selected))
+        self.locate_button.Enable(len(selected)==1)
         if event:event.Skip()
+
+    def _editor_board(self):
+        '''Return the hosting editor board only when it still owns this window.'''
+        if not self.guard():
+            return None
+        editor=pcbnew.GetBoard()
+        if editor is not None and refiner.board_identity(editor)==refiner.board_identity(self.board):
+            return editor
+        return None
+
+    def locate_in_editor(self,event=None):
+        try:
+            if self._editor_board() is None:
+                raise ValueError('Open Trace Refiner from PCB Editor to locate items on the board.')
+            if not self.review or len(indices:=self._selected_changes())!=1:
+                raise ValueError('Select one proposal to locate its original track.')
+            if not self._review_is_current():
+                raise ValueError('PCB or rules changed. Preview again before locating a proposal.')
+            index=next(iter(indices))
+            change=self.review.changes[index]
+            wanted=self._proposal_source_ids[index]
+            current=[item for item in self.board.GetTracks() if refiner.uid(item) in wanted]
+            if len(current)!=len(wanted):
+                raise ValueError('Original tracks no longer resolve uniquely. Preview again.')
+            pcbnew.FocusOnItem(current[0])
+            self.status.SetLabel(f'Located original {change.net} route in the originating PCB Editor.')
+        except Exception as exc:self.error(exc)
+
+    def _follow_editor_selection(self,event=None):
+        if self._busy or not self.review or self._editor_board() is None:
+            return
+        selected=frozenset(refiner.uid(item) for item in pcbnew.GetCurrentSelection())
+        if selected==self._last_editor_selection:
+            return
+        self._last_editor_selection=selected
+        matches=[index for index,identifiers in enumerate(self._proposal_source_ids)
+                 if selected & identifiers]
+        if len(matches)==1:
+            self.canvas.focus_change(matches[0])
+        elif self.canvas.active_change is not None:
+            self.canvas.active_change=None
+            self.canvas.Refresh()
+
+    def _review_is_current(self):
+        return (self.review.fingerprint==refiner.snapshot(self.board,pcbnew)
+                and self.review.rules==refiner.rule_hash(self.board))
+
+    def _invalidate_saved(self):
+        self.invalidate()
+        self.status.SetLabel('Saved PCB or rules changed. Refreshing board context…')
+
+    def _refresh_saved(self):
+        # A detached test/CLI window has no live editor source to inspect.
+        if self._editor_board() is None:
+            self.status.SetLabel('Saved sources changed. Reopen Trace Refiner from PCB Editor.')
+            return
+        self._refresh_board_context()
+
+    def _refresh_board_context(self):
+        self.canvas.capture_context()
+        self.remember_nets()
+        self.nets=sorted({t.GetNetname() for t in self.board.GetTracks() if t.GetNetname()})
+        self._show_filtered_nets()
+        options=((self.groups,sorted({t.GetNetClassName() for t in self.board.GetTracks()})),
+                 (self.layers,[self.board.GetLayerName(layer) for layer in self.board.GetEnabledLayers().CuStack()]))
+        for control,values in options:
+            checked=set(control.GetCheckedStrings())
+            if list(control.GetStrings())!=values:
+                # Retain stale checks until explicit user review. Losing a
+                # checked layer would silently broaden scope to all layers.
+                control.Set([*values,*sorted(checked-set(values))])
+                control.SetCheckedStrings(list(checked))
+        self.canvas.Refresh()
+        self.status.SetLabel('PCB context refreshed. Preview again with the existing settings.')
+
+    def _check_live_board(self,event):
+        event.Skip()
+        if not event.GetActive() or self._busy or self._editor_board() is None:
+            return
+        if self.review is not None and not self._review_is_current():
+            self.invalidate()
+            self._refresh_board_context()
+
+    def _stop_editor_timer(self,event):
+        if event.GetEventObject() is self:
+            self.editor_timer.Stop()
+        event.Skip()
 
     def _review_selected(self,event):
         row=event.GetIndex()
@@ -321,32 +447,47 @@ class RefinerFrame(wx.Frame):
     def remember_nets(self):
         visible=set(self.netlist.GetStrings());self.checked.difference_update(visible);self.checked.update(self.netlist.GetCheckedStrings())
     def filter_nets(self,event):
-        self.remember_nets();query=self.search.GetValue().casefold();values=[n for n in self.nets if query in n.casefold()];self.netlist.Set(values)
-        for i,n in enumerate(values):self.netlist.Check(i,n in self.checked)
+        self.remember_nets()
+        self._show_filtered_nets()
+
+    def _show_filtered_nets(self):
+        query=self.search.GetValue().casefold()
+        values=[name for name in self.nets if query in name.casefold()]
+        self.netlist.Set(values)
+        self.netlist.SetCheckedStrings([name for name in values if name in self.checked])
     def settings(self):
         self.remember_nets()
         return dict(scope=['selected tracks','selected nets','whole board','net filters','groups'][self.scope.GetSelection()],nets=sorted(self.checked),layers=list(self.layers.GetCheckedStrings()),groups=list(self.groups.GetCheckedStrings()),max_deviation=float(self.deviation.GetValue()),max_shortening=float(self.shortening.GetValue()),protected=self.protected.GetValue(),mode='center contacts' if self.operation.GetSelection()==1 else 'refine',max_center_shift=float(self.center_shift.GetValue()))
     def invalidate(self,event=None):
-        self.review=None;self.canvas.set_plan(None);self.details.DeleteAllItems();self._table_rows=[];self._excluded_notices=[];self.validate_button.Disable();self.apply_button.Disable();self.exclude_button.Disable()
+        self.review=None;self.canvas.set_plan(None);self.details.DeleteAllItems();self._table_rows=[];self._proposal_source_ids=[];self._excluded_notices=[];self.validate_button.Disable();self.apply_button.Disable();self.exclude_button.Disable();self.locate_button.Disable()
         self.status.SetLabel('Inputs changed. Preview again.')
     def error(self,exc):self.status.SetLabel(str(exc));wx.MessageBox(str(exc),'Trace Refiner',wx.OK|wx.ICON_ERROR,parent=self)
     def on_preview(self,event=None):
         self.invalidate();self.details.DeleteAllItems()
         # Generic progress avoids native task-dialog teardown during wx repaints.
+        self._busy=True
         progress=wx.GenericProgressDialog('Preview trace refinement','Inspecting native routing…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
         try:
             self.require_board()
             def pulse(label):
                 return self.guard() and progress.Pulse(label)[0]
-            self.review=propose(self.board,pcbnew,self.settings(),progress=pulse)
+            stamp=source_stamp(self.board.GetFileName())
+            review=propose(self.board,pcbnew,self.settings(),progress=pulse)
+            self.require_board()
+            if source_stamp(self.board.GetFileName())!=stamp:
+                raise ValueError('Saved PCB or rules changed during preview. Preview again.')
+            self.review=review
             self.canvas.capture_context()
             self._populate_review()
             self.validate_button.Enable(bool(self.review.changes));self.canvas.Refresh()
             self.status.SetLabel(self._review_summary()+' Validate before Apply. Protected/locked/grouped items are untouched.')
         except Exception as exc:self.error(exc)
-        finally:progress.Destroy()
+        finally:
+            progress.Destroy()
+            self._busy=False
     def on_validate(self,event=None):
         if self.review is None or not self.review.changes:return
+        self._busy=True
         progress=wx.GenericProgressDialog('Validate trace refinement','Preparing native snapshot…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
         try:
             self.require_board();review=self.review
@@ -354,9 +495,16 @@ class RefinerFrame(wx.Frame):
                 if not self.guard():return False
                 return progress.Pulse(label)[0]
             validate_detached(self.board,pcbnew,review,progress=pulse)
+            if self.review is not review:
+                raise ValueError('The old preview was cleared during validation. Preview again.')
             self.apply_button.Enable(True);self.status.SetLabel(f'{len(review.changes)} chains validated: native terminal connectivity unchanged; no new DRC findings. Review, then Apply.')
-        except Exception as exc:self.apply_button.Disable();self.error(exc)
-        finally:progress.Destroy()
+        except Exception as exc:
+            self.apply_button.Disable()
+            self._populate_review()
+            self.error(exc)
+        finally:
+            progress.Destroy()
+            self._busy=False
     def on_apply(self,event=None):
         try:
             self.require_board()

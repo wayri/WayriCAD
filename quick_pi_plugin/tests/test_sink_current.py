@@ -45,6 +45,19 @@ class SinkCurrentTests(unittest.TestCase):
         self.assertEqual(base['request'], before)
         self.assertEqual([r['current_A'] for r in changed['terminal_units']['loads']], [3., 2.])
 
+    def test_derived_voltage_window_does_not_become_a_saved_override(self):
+        from quick_pi_plugin.service import sink_requests
+        base=fixture()
+        base['request']['voltage_tolerance_pct']=5
+        changed=SinkCurrentModel(base).update([3.,2.])
+        saved=changed['request']
+        self.assertEqual(saved['sinks'][0]['min_voltage_V'],3.2)
+        self.assertNotIn('min_voltage_V',saved['sinks'][1])
+        self.assertNotIn('max_voltage_V',saved['sinks'][1])
+        self.assertAlmostEqual(changed['result']['sinks'][1]['min_voltage_V'],3.135)
+        saved['voltage_tolerance_pct']=10
+        self.assertAlmostEqual(sink_requests(saved)[1]['min_voltage_V'],2.97)
+
     def test_shared_sheet_voltage_redistributes_without_changing_other_demand(self):
         from quick_pi_plugin.tests.test_solver import strip
         mesh, source, edge = strip(length=20, width=2, nx=10, ny=4)

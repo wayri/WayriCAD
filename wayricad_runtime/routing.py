@@ -453,6 +453,20 @@ class FanoutPlanner:
         getter=getattr(item,'GetLayer',None)
         return getter() == layer if getter else True
 
+    @staticmethod
+    def _collision_reason(reason, item, margin, launch_footprint=None):
+        uuid = getattr(item,'m_Uuid',None)
+        net = getattr(item,'GetNetname',lambda:'')()
+        details = []
+        if launch_footprint is not None:
+            details.append(f"planned from {launch_footprint.GetReference()}.{item.GetNumber()}")
+        if net:
+            details.append(f"net {net}")
+        if uuid is not None:
+            details.append(f"{'launch pad' if launch_footprint is not None else 'item'} {uuid.AsString()}")
+        details.append(f"checked clearance {margin/1e6:.4g} mm")
+        return reason + ' (' + ', '.join(details) + ')'
+
     def _blocked(self, plan, accepted, pads, tracks, zones, outline, margin):
         if not hasattr(self,'_copper_layers'):self._copper_layers=set(self.board.GetEnabledLayers().CuStack())
         segments=self._segments(plan)
@@ -473,7 +487,7 @@ class FanoutPlanner:
         for item in nearby_vias:
             if 'VIA' in str(getattr(item,'GetClass',lambda:'')()):
                 if any(self._copper_hits(item,item.TopLayer(),v,v,plan.via_diameter/2+margin) for v in vias):
-                    return 'existing via overlap'
+                    return self._collision_reason('existing via overlap',item,margin)
         obstacles=[item for item in nearby if item.GetNetCode()!=plan.net_code]
         for item in obstacles:
             if hasattr(item,'GetAttribute') and item.GetAttribute()==self.api.PAD_ATTRIB_NPTH:
@@ -482,15 +496,15 @@ class FanoutPlanner:
                 hole_margin=max(margin,getattr(self.board.GetDesignSettings(),'m_HoleClearance',0))
                 if (any(self._copper_hits(item,plan.layer,v,v,plan.via_diameter/2+hole_margin) for v in vias)
                         or any(self._copper_hits(item,plan.layer,a,b,plan.width/2+hole_margin) for a,b in segments)):
-                    return 'non-plated hole clearance'
+                    return self._collision_reason('non-plated hole clearance',item,hole_margin)
                 continue
             layers=item.GetLayerSet().Seq() if hasattr(item,'GetLayerSet') else [item.GetLayer()]
             if vias and any(self._copper_hits(item,layer,v,v,plan.via_diameter/2+margin)
                             for layer in layers if layer in self._copper_layers
                             for v in vias):
-                return 'via clearance to other-net copper'
+                return self._collision_reason('via clearance to other-net copper',item,margin)
             if self._on_layer(item,plan.layer) and any(self._copper_hits(item,plan.layer,a,b,plan.width/2+margin) for a,b in segments):
-                return 'other-net copper'
+                return self._collision_reason('other-net copper',item,margin)
         if any(not segment_inside_native(a,b,plan.width/2+margin,outline) for a,b in segments):
             return 'board edge/cutout'
         if any(not inside_native(v,plan.via_diameter/2+margin,outline) for v in vias):
@@ -504,19 +518,19 @@ class FanoutPlanner:
             blocked_via=zone.GetDoNotAllowVias()
             blocked_track=zone.GetDoNotAllowTracks()
             if blocked_via and any(self._zone_hits(zone,layer,v,v,plan.via_diameter/2+margin)
-                                   for layer in zone.GetLayerSet().Seq() for v in vias):return 'zone/keepout'
-            if blocked_track and self._on_layer(zone,plan.layer) and any(self._zone_hits(zone,plan.layer,a,b,plan.width/2+margin) for a,b in segments):return 'zone/keepout'
+                                   for layer in zone.GetLayerSet().Seq() for v in vias):return self._collision_reason('zone/keepout',zone,margin)
+            if blocked_track and self._on_layer(zone,plan.layer) and any(self._zone_hits(zone,plan.layer,a,b,plan.width/2+margin) for a,b in segments):return self._collision_reason('zone/keepout',zone,margin)
         def distance(a,b,c,d):return segment_segment_distance((a.x,a.y),(b.x,b.y),(c.x,c.y),(d.x,d.y))
         for other in accepted:
             pair_margin=max(margin, getattr(other, 'clearance', 0))
             other_vias=([other.start] if other.start_via else [])+([other.end] if other.add_via else [])
             if any(math.hypot(a.x-b.x,a.y-b.y)<(plan.via_diameter+other.via_diameter)/2+pair_margin for a in vias for b in other_vias):
-                return 'generated via overlap'
+                return self._collision_reason('generated via overlap',other.pad,pair_margin,launch_footprint=other.footprint)
             if other.net_code==plan.net_code:continue
             other_segments=self._segments(other)
-            if plan.layer==other.layer and any(distance(a,b,c,d)<(plan.width+other.width)/2+pair_margin-2 for a,b in segments for c,d in other_segments):return 'generated copper collision'
-            if any(distance(v,v,a,b)<(plan.via_diameter+other.width)/2+pair_margin-2 for v in vias for a,b in other_segments):return 'generated via/track collision'
-            if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+pair_margin-2 for v in other_vias for a,b in segments):return 'generated via/track collision'
+            if plan.layer==other.layer and any(distance(a,b,c,d)<(plan.width+other.width)/2+pair_margin-2 for a,b in segments for c,d in other_segments):return self._collision_reason('generated copper collision',other.pad,pair_margin,launch_footprint=other.footprint)
+            if any(distance(v,v,a,b)<(plan.via_diameter+other.width)/2+pair_margin-2 for v in vias for a,b in other_segments):return self._collision_reason('generated via/track collision',other.pad,pair_margin,launch_footprint=other.footprint)
+            if any(distance(v,v,a,b)<(other.via_diameter+plan.width)/2+pair_margin-2 for v in other_vias for a,b in segments):return self._collision_reason('generated via/track collision',other.pad,pair_margin,launch_footprint=other.footprint)
         return ''
 
     def _zone_hits(self, zone, layer, start, end, radius):

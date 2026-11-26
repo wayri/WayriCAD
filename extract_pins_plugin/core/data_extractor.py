@@ -116,6 +116,13 @@ class DataExtractor:
             self._footprints_cache = list(self.board.GetFootprints())
         return self._footprints_cache
 
+    def refresh_footprints(self):
+        """Rebuild pin and net indexes from the current editor snapshot."""
+        self._footprints_cache = list(self.board.GetFootprints())
+        self._nets_cache = None
+        self._net_to_pads_cache = None
+        return self._footprints_cache
+
     @property
     def all_nets(self) -> Set[str]:
         """Cached set of all net names on the board."""
@@ -323,7 +330,9 @@ class DataExtractor:
         ignore_power_nets: bool = False,
         value_filter: Optional[str] = None,
         net_filter: Optional[str] = None,
-        sort_pins_by_net_type: bool = False
+        sort_pins_by_net_type: bool = False,
+        *,
+        include_pad_uuids: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
         """
         Extract detailed data from a list of footprints.
@@ -412,6 +421,9 @@ class DataExtractor:
                     "Net Name": net_name,
                     "Net Type": net_type
                 })
+                if include_pad_uuids:
+                    identity = getattr(pad, "m_Uuid", None)
+                    pins[-1]["pad_uuid"] = identity.AsString() if identity else ""
 
             # Sort pins by net type if requested
             if sort_pins_by_net_type and pins:

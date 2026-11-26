@@ -108,6 +108,9 @@ def build(frame, board):
     frame.setup_button = button(header, 'Setup', frame.toggle_setup, toggle=True)
     frame.setup_button.SetToolTip('Show or hide Geometry, Physics and Solve settings; reviewed geometry stays visible.')
     bar.Add(frame.setup_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
+    frame.focus_button = button(header, 'Focus view', frame.focus_view, toggle=True)
+    frame.focus_button.SetToolTip('Hide Setup and probe details to expand the viewport; click again to restore them (F11).')
+    bar.Add(frame.focus_button, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 8)
     frame.files_button=button(header,'Files',frame.show_files)
     frame.files_button.SetToolTip('Choose a setup or completed-results file to save or load')
     bar.Add(frame.files_button,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT,8)
@@ -154,6 +157,18 @@ def build(frame, board):
     for label, control in [('Enclosure', frame.rule_area), ('Signal net (F.Cu)', frame.signal_net), ('Reference net (B.Cu)', frame.reference_net)]:
         rows.Add(wx.StaticText(content, label=label), 0, wx.LEFT | wx.TOP, 5)
         rows.Add(control, 0, wx.EXPAND | wx.ALL, 5); control.Bind(wx.EVT_CHOICE, frame.invalidate)
+    def area_changed(event):
+        frame.invalidate(event)
+        frame.board_sync.highlight()
+    frame.rule_area.Unbind(wx.EVT_CHOICE)
+    frame.rule_area.Bind(wx.EVT_CHOICE, area_changed)
+    actions = wx.WrapSizer(wx.HORIZONTAL)
+    frame.pcb_selection_buttons = []
+    for label, incoming in (('Use PCB selection', True), ('Show in PCB', False)):
+        control = button(content, label, lambda event, incoming=incoming: frame.board_sync.select(incoming))
+        actions.Add(control, 0, wx.RIGHT | wx.BOTTOM, 4)
+        frame.pcb_selection_buttons.append(control)
+    rows.Add(actions, 0, wx.EXPAND | wx.ALL, 5)
     frame.region_material_review = wx.CheckBox(content, label='Reviewed material and bare-copper model')
     frame.region_material_review.Bind(wx.EVT_CHECKBOX, frame.invalidate); rows.Add(frame.region_material_review, 0, wx.ALL, 5)
     frame.region_notice = wx.StaticText(content, label='Load a saved enclosure to review copper and ports.')
@@ -233,8 +248,6 @@ def build(frame, board):
     frame.radiation_overview_button.SetToolTip('Show the same stored radiation result as interactive 3D lobes and a scaled 2D cut')
     frame.radiation_overview_button.Disable()
     nav.Add(frame.radiation_overview_button,0,wx.LEFT,5)
-    frame.focus_button=button(frame.workspace,'Focus view',frame.focus_view,toggle=True)
-    frame.focus_button.Hide()
     body.Add(nav,0,wx.EXPAND | wx.ALL,5)
     frame.workspace_stack=wx.Simplebook(frame.workspace)
     viewer=wx.Panel(frame.workspace_stack); viewer_rows=wx.BoxSizer(wx.VERTICAL)
@@ -324,13 +337,13 @@ def build(frame, board):
     split.Initialize(frame.workspace);frame.settings.Hide()
     def limit_setup(event):
         if split.IsSplit():
-            maximum=max(frame.FromDIP(270),split.GetClientSize().width-frame.FromDIP(540))
+            maximum=frame.setup_sash_limit()
             if event.GetSashPosition()>maximum:event.SetSashPosition(maximum)
         event.Skip()
     split.Bind(wx.EVT_SPLITTER_SASH_POS_CHANGING,limit_setup)
     def resize_workspace(event):
         if split.IsSplit():
-            maximum=max(frame.FromDIP(270),split.GetClientSize().width-frame.FromDIP(540))
+            maximum=frame.setup_sash_limit()
             if split.GetSashPosition()>maximum:split.SetSashPosition(maximum)
         event.Skip()
     split.Bind(wx.EVT_SIZE,resize_workspace)

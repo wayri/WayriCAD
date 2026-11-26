@@ -95,6 +95,31 @@ class GuardUiTests(unittest.TestCase):
         self.assertEqual(len(self.frame._guard_track_ids),1)
         self.assertEqual(self.frame.net_choice.GetValue(),'GND')
 
+    def test_saved_change_invalidates_vias_then_reuses_guard_settings(self):
+        settings=self.frame._settings_snapshot()
+        self.frame.auto_refresh.SetValue(True)
+        self.frame.preview(None)
+        old_job=self.jobs[-1]
+        with patch.object(self.frame,'_load_context'),patch.object(self.frame,'_show_guard_targets'):
+            self.frame._saved_source_changed()
+            self.assertTrue(old_job.cancelled and old_job.closed)
+            self.assertFalse(self.frame.commit_button.IsEnabled())
+            self.frame._refresh_saved()
+        self.assertEqual(self.jobs[-1].settings,settings)
+        self.assertEqual(self.frame.net_choice.GetValue(),'GND')
+
+    def test_locate_resolves_captured_route_and_rejects_missing_identity(self):
+        self.fixture.signal.SetSelected()
+        self.frame.capture_guard_tracks()
+        with patch.object(p,'GetBoard',return_value=self.fixture.board),patch.object(p,'FocusOnItem') as focus:
+            self.frame.locate_guard_routes()
+            focus.assert_called_once()
+            self.assertEqual(focus.call_args.args[0].m_Uuid.AsString(),self.fixture.signal.m_Uuid.AsString())
+            self.frame._guard_track_ids.append('invalid-missing-uuid')
+            self.frame.locate_guard_routes()
+            self.assertEqual(focus.call_count,1)
+            self.assertIn('no longer resolve',self.frame.status.GetLabel())
+
     def test_live_snapshot_is_explicit(self):
         self.frame.live_snapshot.SetValue(True)
         self.frame.preview(None)

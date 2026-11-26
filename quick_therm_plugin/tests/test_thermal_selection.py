@@ -54,3 +54,10 @@ def test_multiple_parts_and_selected_pads_sync_to_all_component_rows(monkeypatch
     assert result['selected_ids']==['aaaa','bbbb'] and result['count']==2
     board.selected=[board.parts[0],pad]
     assert thermal_selection.selected_origin_component_ids(path)==['aaaa','bbbb']
+
+def test_refresh_retains_reannotated_identity_but_never_reuses_a_reference():
+    old=[{'id':'A','reference':'U1'},{'id':'B','reference':'U2'},{'id':'C','reference':'U3'}]
+    new=[{'id':'A','reference':'U2'},{'id':'B','reference':'U1'},{'id':'D','reference':'U3'}]
+    assert thermal_selection.retained_references(old,new)=={'U1':'U2','U2':'U1'}
+    new.append({'id':'E','reference':'U1'})
+    assert thermal_selection.retained_references(old,new)=={'U1':'U2'}

@@ -54,9 +54,22 @@ def comparison(before,after,metric,identity=None,sink=None,all_fields=False,pend
     old=values(before,identity,sink)
     new=values(after,identity,sink) if after is not None else {}
     if pending_current is not None:new['current']=pending_current
-    keys=['current',*(FIELDS if all_fields else [metric])]
+    from .voltage_tolerance import nominal_voltage,show_exact
+    fields=dict(FIELDS)
+    nominal=nominal_voltage(before.get('result',{}))
+    if nominal:
+        for key,factor in (('voltage',100/nominal),('drop',.1/nominal)):
+            relative=key+'_pct'
+            fields[relative]=(FIELDS[key][0]+' relative to nominal','%')
+            for valueset in (old,new):
+                value=valueset.get(key)
+                valueset[relative]=None if value is None else value*factor
+            if not show_exact(before):
+                fields.pop(key)
+                if metric==key:metric=relative
+    keys=['current',*(fields if all_fields else [metric])]
     if all_fields:keys.append('total_loss')
-    labels={**FIELDS,'current':('Sink current' if sink is not None else 'Total current','A'),
+    labels={**fields,'current':('Sink current' if sink is not None else 'Total current','A'),
             'total_loss':('Whole-model loss','W')}
     return [dict(key=key,label=labels[key][0],unit=labels[key][1],before=old.get(key),after=new.get(key)) for key in keys]
 

@@ -57,6 +57,38 @@ class AssistantEngineTests(unittest.TestCase):
         self.assertEqual(reply_answers(plan, 'Use 250 mA'), {'0.current': .25})
         self.assertEqual([provider['id'] for provider in capabilities()['providers']], ['local'])
 
+    def test_pi_batch_resolves_each_rail_against_saved_pad_nets(self):
+        from wayricad_runtime.assistant_context import CircuitInventory
+        inventory = CircuitInventory(['/A/3V3', '/B/1V8'], {},
+                                     {'J1.1': {'/A/3V3'}, 'U1.1': {'/A/3V3'},
+                                      'J1.2': {'/B/1V8'}, 'U1.2': {'/B/1V8'}})
+        query = ('Quick PI batch net 3V3 from j1.1 to u1.1 at 3.3 V with 250 mA, '
+                 'net 1V8 from J1.2 to U1.2 at 1.8 V with 100 mA')
+        plan = engine.propose(query, inventory=inventory)
+        self.assertEqual(plan['steps'][0]['action'], 'quick-pi.batch-cases')
+        self.assertIn('net "/A/3V3" from J1.1 to U1.1', plan['steps'][0]['params']['rails'])
+        wrong = engine.propose(query.replace('to U1.2', 'to U1.1'), inventory=inventory)
+        self.assertIn('does not match', next(row['error'] for row in wrong['questions'] if row['key']=='0.rails'))
+        self.assertEqual(engine.propose('Quick PI batch study rails.json')['steps'][0]['action'], 'quick-pi.batch')
+        prompt = engine.propose('Quick PI batch')
+        self.assertIn('0.rails', engine.reply_answers(prompt, query))
+
+    def test_pi_transient_requests_missing_physics_and_normalizes_units(self):
+        query = ('PI transient source voltage 3.3 V, source resistance 50 mOhm, source inductance 100 nH, '
+                 'initial current 200 mA, step current 1 A, step time 1 ms, path resistance 20 mOhm, '
+                 'path inductance 10 nH, capacitance 100 \u00b5F, ESR 10 mOhm, duration 2 ms')
+        partial = engine.propose(query)
+        self.assertEqual(partial['steps'][0]['action'], 'quick-pi.load-step')
+        self.assertEqual([row['key'] for row in partial['questions']], ['0.step_us'])
+        values = engine.reply_answers(partial, 'Time step 1000 ns')
+        self.assertAlmostEqual(values['0.step_us'], 1)
+        plan = engine.propose(query, answers=values)
+        self.assertEqual(plan['status'], 'ready')
+        self.assertAlmostEqual(plan['steps'][0]['params']['initial_a'], .2)
+        self.assertAlmostEqual(plan['steps'][0]['params']['cap_uf'], 100.)
+        self.assertEqual(engine.propose('Quick PI transient study example.json')['steps'][0]['action'],
+                         'quick-pi.transient')
+
     def test_analytics_and_board_heat_intents(self):
         for query, action, params in (
             ('Give me the number of 10u capacitors','bom-studio.count-value',{'kind':'C','value':'10u'}),

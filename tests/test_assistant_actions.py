@@ -30,6 +30,8 @@ class AssistantActionsTests(unittest.TestCase):
             field = spec['fields'][key]
             kind = field['kind']
             if key in self.context: values[key] = self.context[key]
+            elif key == 'rails': values[key] = ('net 3V3 from J1.1 to U1.1 at 3.3 V with 250 mA, '
+                                                   'net 1V8 from J1.2 to U1.2 at 1.8 V with 100 mA')
             elif key == 'powers': values[key] = ['U1=0.5']
             elif kind == 'path': values[key] = str(self.root / 'spec.json')
             elif kind == 'choice': values[key] = field['choices'][0]
@@ -70,6 +72,51 @@ class AssistantActionsTests(unittest.TestCase):
                 json.dumps(result, allow_nan=False)
                 self.assertFalse(self.output.exists())
 
+    def test_conversational_pi_creates_native_configurations(self):
+        from quick_pi_plugin.batch import validate_study
+        from quick_pi_plugin.transient import _request
+        batch = self.compile('quick-pi.batch-cases')
+        study = batch['documents']['settings.json']
+        validate_study(study)
+        self.assertIn('--batch', batch['arguments'])
+        self.assertEqual([row['electrical']['sink_current'] for row in study['cases']], [.25, .1])
+        transient = self.compile('quick-pi.load-step')
+        self.assertIn('--transient', transient['arguments'])
+        line = _request(transient['documents']['settings.json'])
+        self.assertAlmostEqual(line['loads'][0]['capacitance_F'], 1e-6)
+        self.assertAlmostEqual(line['step_s'], 1e-6)
+        self.assertFalse(self.output.exists())
+
+    def test_study_console_bounds_an_oversized_json_echo(self):
+        from io import StringIO
+        from wayricad_runtime.assistant_worker import _StudyConsole
+        output = StringIO()
+        stream = _StudyConsole(output)
+        stream.write('x' * (9 * 1024 * 1024))
+        stream.write('A native diagnostic')
+        self.assertIn('report.json', output.getvalue())
+        self.assertIn('A native diagnostic', output.getvalue())
+        self.assertLess(len(output.getvalue()), 100)
+
+    def test_dc_with_returns_keeps_the_solve_and_reviews_return_geometry(self):
+        values = dict(self.sample('quick-pi.solve'), return_nets=['GND'], mesh_backend='vtk', temperature=30)
+        result = self.compile('quick-pi.solve', values)
+        self.assertIn('--batch', result['arguments'])
+        self.assertNotIn('--return-path', result['arguments'])
+        case = result['documents']['settings.json']['cases'][0]
+        self.assertEqual(case['electrical']['sink_current'], values['current'])
+        self.assertEqual(case['electrical']['mesh_backend'], 'vtk')
+        self.assertEqual(case['electrical']['options']['temperature_c'], 30)
+        self.assertEqual(case['return_path']['return_nets'], ['GND'])
+
+    def test_study_uses_a_distinct_html_stem_when_the_native_cli_supports_it(self):
+        for action in ('quick-pi.ac', 'quick-pi.transient', 'quick-pi.solid', 'quick-therm.transient', 'signal-integrity.study'):
+            with self.subTest(action=action):
+                self.assertEqual(self.compile(action)['outputs'], ['report.json', 'study.html'])
+        for action in ('quick-pi.ac-ports', 'quick-pi.plane-ports'):
+            with self.subTest(action=action):
+                self.assertEqual(self.compile(action)['outputs'], ['report.json'])
+
     def test_board_heat_builds_only_explicit_source_watts(self):
         values = dict(board=self.context['board'],ambient=25,powers=['C1=0.5','C2=0'])
         result = self.compile('quick-therm.board-heat',values)
@@ -95,14 +142,21 @@ class AssistantActionsTests(unittest.TestCase):
     def test_emerge_example_builds_a_revision_bound_worker_request(self):
         from quick_emerge_plugin import __main__ as cli, backend
         board = Path(cli.__file__).resolve().parent/'tests'/'fixtures'/'region_coupon.kicad_pcb'
-        with tempfile.TemporaryDirectory() as temp, patch.object(backend,'run_request') as run:
+        with (tempfile.TemporaryDirectory() as temp, patch.object(backend,'run_request') as run,
+              patch('quick_emerge_plugin.solver_probe._local_mkl_path',return_value='mkl_rt.dll'),
+              patch('quick_emerge_plugin.reporting.export_html') as report):
             result = Path(temp)/'result.json'
+            html = Path(temp)/'report.html'
             self.assertEqual(cli.main(['--board',str(board),'--run-research-example','rezaeipour-2021-dual-feed-patch',
-                                       '--result-file',str(result)]),0)
+                                       '--result-file',str(result),'--report-file',str(html),
+                                       '--research-solver','PARDISO','--research-threads','4']),0)
             request = run.call_args.args[0]
+            self.assertEqual(report.call_args.args, (html, run.return_value))
             record = json.loads(request.read_text(encoding='utf-8'))
             self.assertEqual(record['source'],backend.source_identity(board))
             self.assertEqual(record['config_sha256'],backend.config_digest(record['config']))
+            self.assertEqual(record['config']['solver'], 'PARDISO')
+            self.assertEqual(record['config']['advanced']['solver_threads'], 4)
 
     def test_no_source_mutation_switch_or_command(self):
         forbidden = {'--apply', '--yes', '--install', '--save-settings', '--init-rules',
@@ -155,7 +209,11 @@ class AssistantActionsTests(unittest.TestCase):
         result = self.compile('fanout-generator.preview')
         doc = result['documents']['settings.json']
         self.assertEqual(doc['scope'], 'Reference wildcard')
-        self.assertTrue(doc['use_netclass_rules'])
+        self.assertFalse(doc.get('use_netclass_rules', False))
+        params = dict(self.sample('fanout-generator.preview'), netclass='Default')
+        selected = self.compile('fanout-generator.preview', params)['documents']['settings.json']
+        self.assertTrue(selected['use_netclass_rules'])
+        self.assertEqual(selected['netclass_filter'], 'Default')
         self.assertNotIn('output', doc)
         with self.assertRaises(ValueError): self.compile('quick-therm.analyze', dict(config='untrusted.json'))
         audit = self.compile('manufacturing-readiness.audit')['documents']['request.json']
@@ -198,6 +256,8 @@ class AssistantActionsTests(unittest.TestCase):
                  'quick-pi.ac-ports': 'quick_pi_plugin.cli',
                  'quick-pi.series': 'quick_pi_plugin.cli',
                  'quick-pi.batch': 'quick_pi_plugin.cli',
+                 'quick-pi.batch-cases': 'quick_pi_plugin.cli',
+                 'quick-pi.load-step': 'quick_pi_plugin.cli',
                  'quick-pi.power-tree': 'quick_pi_plugin.cli',
                  'quick-pi.infer-series': 'quick_pi_plugin.cli',
                  'quick-therm.analyze': 'quick_therm_plugin.cli',

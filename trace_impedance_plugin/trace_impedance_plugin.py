@@ -15,7 +15,9 @@ from wayricad_runtime.readable_choice import ReadableChoice, ReadableComboBox
 from wayricad_runtime.searchable_selection import searchable_row
 from wayricad_runtime.saved_board import assert_current, provenance
 
+from .bulk_ui import BulkController
 from .measurement import PathMeasurement, TraceMeasurementEngine
+from .origin_selection import OriginSelection, saved_pick
 from .help_utils import open_help
 from .selection_utils import pads_on_net, select_items
 from .guided_ui import add_workflow
@@ -46,12 +48,18 @@ class TraceImpedancePlugin(pcbnew.ActionPlugin):
             wx.MessageBox(str(exc), "WayriCAD Trace RLC / Impedance Analyzer", wx.OK | wx.ICON_ERROR)
 
 
-class TraceFrame(wx.Frame):
+from .saved_refresh import SavedRefreshMixin
+
+
+class TraceFrame(SavedRefreshMixin, wx.Frame):
     def __init__(self, parent: Any, board: Any, saved_board: bool = False) -> None:
         super().__init__(parent, title="WayriCAD Trace RLC / Impedance Analyzer", size=(1180, 760), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((940, 650))
         self.board = board
         self.saved_board = saved_board
+        self.source_dirty = False
+        self.origin_selection = OriginSelection(board.GetFileName()) if saved_board else None
+        self.selection_worker = BulkController()
         self.engine = TraceMeasurementEngine(board)
         self.current: Optional[PathMeasurement] = None
         self.mate_result: Optional[PathMeasurement] = None
@@ -61,9 +69,13 @@ class TraceFrame(wx.Frame):
         self._build_ui()
         self._load_nets()
         self._load_stackup()
-        if not self.saved_board:
+        self._terminal_changed()
+        if self.saved_board:
+            self.start_saved_refresh()
+        else:
             self.selection_timer.Start(500)
         self.Bind(wx.EVT_CLOSE, self.on_close)
+        self.Bind(wx.EVT_WINDOW_DESTROY, self.on_destroy)
         self.Centre()
         from wayricad_runtime.layout import install_accessibility
         install_accessibility(self,Path(__file__).with_name('help.html'))
@@ -72,7 +84,7 @@ class TraceFrame(wx.Frame):
         panel = wx.Panel(self); root = wx.BoxSizer(wx.VERTICAL)
         self.workflow = add_workflow(panel, root, "Trace RLC / Impedance Analyzer", "Choose a route and stackup context, preview measured geometry, then export the engineering estimate.", ("Configure path", "Review result", "Export"), help_handler=lambda event:open_help(self))
         if self.saved_board:
-            banner = wx.StaticText(panel, label="Saved board analysis — save/refill in KiCad and reopen to refresh.")
+            banner = wx.StaticText(panel, label="Saved PCB · Saving in KiCad refreshes the geometry and clears previous results.")
             root.Add(banner, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         self.workspace_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         self.workspace_splitter.SetMinimumPaneSize(self.FromDIP(130));self.workspace_splitter.SetSashGravity(0.)
@@ -101,6 +113,11 @@ class TraceFrame(wx.Frame):
         self.net_search.SetDescriptiveText("Search nets by name; clear to show all")
         self.net_search.Bind(wx.EVT_TEXT, self._filter_nets)
         config_box.Add(self.net_search, 0, wx.EXPAND | wx.ALL, 4)
+        self.pcb_pick = wx.Button(config_host, label="Use PCB selection")
+        self.pcb_pick.SetToolTip("Select one net and up to two endpoint pads in PCB Editor. This sets inputs without running Analyze.")
+        self.pcb_pick.Bind(wx.EVT_BUTTON, self.use_pcb_selection)
+        self.pcb_pick.Enable(not self.saved_board or self.origin_selection.available)
+        config_box.Add(self.pcb_pick, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 4)
         self.options = wx.CollapsiblePane(config_host, label="Reference and pair options", style=wx.CP_DEFAULT_STYLE | wx.CP_NO_TLW_RESIZE)
         options_panel = self.options.GetPane()
         self.diff_net.Reparent(options_panel)
@@ -108,7 +125,9 @@ class TraceFrame(wx.Frame):
         self.corridor_width.Reparent(options_panel)
         self.auto_refresh = wx.CheckBox(options_panel, label="Follow PCB selection")
         self.auto_refresh.SetValue(False)
-        self.auto_refresh.Enable(not self.saved_board)
+        if self.saved_board:
+            self.auto_refresh.SetToolTip("Highlight selected copper in the current preview. Use PCB selection to set route inputs.")
+        self.auto_refresh.Enable(not self.saved_board or self.origin_selection.available)
         self.auto_pair = wx.CheckBox(options_panel, label="Detect differential mate")
         self.auto_pair.SetValue(True)
         self.auto_pair.SetToolTip("Detect pair mates via _P/_N, +/-, _DP/_DM and P/N suffix patterns")
@@ -126,8 +145,10 @@ class TraceFrame(wx.Frame):
         self.net.Bind(wx.EVT_COMBOBOX, self._load_pads)
         self.mode.Bind(wx.EVT_CHOICE, self._mode_changed)
         self.zone_layer.Bind(wx.EVT_COMBOBOX, self._zone_changed)
-        for control in (self.start, self.end, self.reference, self.diff_net):
-            control.Bind(wx.EVT_COMBOBOX, self._invalidate)
+        for control in (self.start, self.end):
+            control.Bind(wx.EVT_COMBOBOX, self._terminal_changed)
+        for control in (self.reference, self.diff_net):
+            control.Bind(wx.EVT_COMBOBOX, self._terminal_changed)
         for control in (self.frequency, self.corridor_width):
             control.Bind(wx.EVT_TEXT, self._invalidate)
         self.measure_button = wx.Button(panel, label="Analyze")
@@ -187,6 +208,8 @@ class TraceFrame(wx.Frame):
             self.sections.InsertColumn(index, label, width=135 if index < 3 else 88)
         preview_sizer.Add(self.sections, 1, wx.EXPAND | wx.ALL, 6)
         self.sections.Bind(wx.EVT_LIST_ITEM_SELECTED,self._section_selected)
+        self.sections.Bind(wx.EVT_LIST_ITEM_ACTIVATED,self.locate_section)
+        self.sections.SetToolTip("Double-click a section to locate its copper item in PCB Editor.")
         result_page.SetSizer(result_sizer)
         self.notes = wx.TextCtrl(notes_page, style=wx.TE_MULTILINE | wx.TE_READONLY | wx.TE_RICH2)
         notes_sizer.Add(self.notes, 1, wx.EXPAND | wx.ALL, 6)
@@ -207,7 +230,7 @@ class TraceFrame(wx.Frame):
         self.cross_section_panel = CrossSectionPanel(notebook)
         notebook.AddPage(self.cross_section_panel, "Line cross section")
         from .frequency_ui import FrequencyPanel
-        self.frequency_panel=FrequencyPanel(notebook,self.board.GetFileName())
+        self.frequency_panel=FrequencyPanel(notebook,self.board.GetFileName(),self.check_source)
         notebook.AddPage(self.frequency_panel,"AC loss sweep")
         notebook.AddPage(stackup_page, "Board Stackup")
         notebook.AddPage(notes_page, "Engineering Notes")
@@ -245,16 +268,15 @@ class TraceFrame(wx.Frame):
         if self.mode.GetSelection() == 1:
             pads = self.engine.zone_terminals(self.zone_options[index]['id']) if index != wx.NOT_FOUND else []
         else:
-            self.measure_button.Enable(bool(self.net.GetValue()))
+            pads = self.engine.pads_for_net(self.net.GetValue())
         self.route_preview.clear_probes()
-        pads = self.engine.pads_for_net(self.net.GetValue())
         previous = (self.start.GetValue(), self.end.GetValue())
         self.start.Clear(); self.end.Clear()
         self.start.AppendItems(pads); self.end.AppendItems(pads)
         if pads:
             self.start.SetValue(previous[0] if previous[0] in pads else pads[0])
             self.end.SetValue(previous[1] if previous[1] in pads and previous[1] != self.start.GetValue() else pads[-1])
-        self.measure_button.Enable(len(pads) > 1)
+        self._terminal_changed()
         if self.mode.GetSelection() == 1:
             self.summary.SetLabel(f"{len(pads)} terminals touch this filled island. R/L uses the assumed current width; C uses reference overlap.")
 
@@ -274,6 +296,10 @@ class TraceFrame(wx.Frame):
     def _more(self, _event: Any) -> None:
         menu = wx.Menu()
         actions = [("Help", lambda event: open_help(self))]
+        if self.saved_board:
+            actions.insert(0, ("Reload saved PCB", self.reload_source))
+            if self.origin_selection.available and not self.source_dirty:
+                actions.insert(0, ("Select net on PCB", self.select_net))
         if not self.saved_board:
             actions = [("Select net on PCB", self.select_net), ("Highlight net on PCB", self.highlight_net), ("Refresh stackup", self._load_stackup), *actions]
         for label, handler in actions:
@@ -340,13 +366,14 @@ class TraceFrame(wx.Frame):
             self.zone_layer.SetSelection(0)
         self._zone_changed(None)
         self._auto_mate()
+        self._terminal_changed()
 
     def _auto_mate(self) -> None:
         """Fill the differential-mate combo automatically from pair patterns."""
         if not self.auto_pair.GetValue():
             return
         current = self.net.GetValue()
-        names = [self.net.GetString(i) for i in range(self.net.GetCount())]
+        names = self.all_net_names
         mate = diff_pairs.find_mate(current, names)
         rule = next((pair.rule for pair in diff_pairs.detect_pairs(names) if current in (pair.positive, pair.negative)), "")
         index = self.diff_net.FindString(mate) if mate else wx.NOT_FOUND
@@ -364,7 +391,7 @@ class TraceFrame(wx.Frame):
 
     def analyze(self, _event: Any) -> None:
         try:
-            assert_current(self.board)
+            self.check_source()
             frequency = float(self.frequency.GetValue())
             self.mate_result = None
             if self.mode.GetSelection() == 1:
@@ -381,7 +408,7 @@ class TraceFrame(wx.Frame):
                     self.mate_result = self.engine.measure(mate, pads[0], pads[-1], frequency, self.reference.GetValue())
                 elif pads:
                     self.current.notes.append(f"Mate {mate} has fewer than two terminals; pair measurement unavailable.")
-            assert_current(self.board)
+            self.check_source()
             self._show(self.current)
             self.workflow.set_step(2, "Review geometry, per-section estimates and notes; export when ready." if self.saved_board else "Review route geometry, skew, and notes; cross-select or highlight the pair; then export if appropriate.")
         except Exception as exc:
@@ -426,6 +453,19 @@ class TraceFrame(wx.Frame):
             self.summary.SetLabel(self.summary.GetLabel()+'\n'+detail)
         self.summary.Wrap(max(500,self.GetClientSize().width-35))
 
+    def locate_section(self, event):
+        index = event.GetIndex()
+        if not self.current or not 0 <= index < len(self.current.segments):
+            return
+        uid = self.current.segments[index].get("item_uuid")
+        if not uid:
+            return
+        if self.saved_board:
+            self._pcb_selection_task(lambda: self.origin_selection.locate([uid]),
+                lambda result: self.summary.SetLabel(f"Selected the reviewed copper item in PCB Editor. Zoom: {result['focus']}."))
+        else:
+            select_items(self.board, [i for i in self.current.board_items if i.m_Uuid.AsString() == uid])
+
     def highlight_net(self, _event: Any = None) -> None:
         if self.saved_board:
             return
@@ -448,9 +488,15 @@ class TraceFrame(wx.Frame):
             self.summary.SetLabel("Highlight is not supported by this KiCad version; items were selected instead.")
 
     def select_net(self, _event: Any) -> None:
-        if self.saved_board:
-            return
         net_name = self.net.GetValue()
+        if self.saved_board:
+            if not net_name:
+                self.summary.SetLabel("Choose a saved net before selecting copper in PCB Editor.")
+                return
+            def finish(value):
+                self.summary.SetLabel(f"Selected {value['count']} items on {net_name} in the originating PCB Editor.")
+            self._pcb_selection_task(lambda: self.origin_selection.select_net(net_name), finish)
+            return
         targets = list(pads_on_net(self.board, net_name))
         targets.extend(item for item in getattr(self.board, "GetTracks", lambda: [])() if str(getattr(item, "GetNetname", lambda: "")()) == net_name)
         count = select_items(self.board, targets)
@@ -478,6 +524,8 @@ class TraceFrame(wx.Frame):
         index = self.zone_layer.GetSelection()
         selected_zone = self.zone_options[index] if self.mode.GetSelection() == 1 and index != wx.NOT_FOUND else None
         self.route_preview.show_measurement(result, self.mate_result, selected_zone)
+        if self.saved_board and self.auto_refresh.GetValue():
+            self.follow_selection(self.selection_follower.state.last or ())
         if self.mate_result:
             skew_mm = abs(result.length_mm - self.mate_result.length_mm)
             extra = (
@@ -510,12 +558,7 @@ class TraceFrame(wx.Frame):
         models = " ".join(str(row.get("model", "")) for row in getattr(result, "segments", [])).lower()
         topology = "microstrip" if "microstrip" in models else "stripline"
         uniform = getattr(result, "impedance_valid", False)
-        def contribution(key, total, unit):
-            sections = getattr(result, "segments", [])
-            if not sections or not any(row.get(key) is not None for row in sections):
-                return "Unavailable"
-            suffix = " (modeled contributions)" if result.status != "ok" else ""
-            return f"{total:.4g} {unit}{suffix}"
+        coverage = result.quantity_coverage()
         rows = (
             ("Topology", result.impedance_model or "-"),
             ("Average trace width", f"{result.average_width_mm:.4g} mm" if result.average_width_mm else "-"),
@@ -523,11 +566,11 @@ class TraceFrame(wx.Frame):
             ("Width / height ratio", f"{result.width_to_height:.4g}" if uniform and result.width_to_height else "See sections"),
             ("Effective permittivity", f"{result.effective_permittivity:.4g}" if uniform and result.effective_permittivity else "See sections"),
             ("Characteristic impedance Z0", f"{result.impedance_ohm:.3g} ohm" if result.impedance_ohm and getattr(result, "impedance_valid", False) else "Unavailable; see section estimates and notes"),
-            ("C (selected geometry)", contribution("capacitance_pf", result.capacitance_pf, "pF")),
-            ("L (selected geometry)", contribution("inductance_nh", result.inductance_nh, "nH")),
-            ("R DC (modeled sections)", contribution("resistance_ohm", result.resistance_ohm, "ohm")),
-            ("R AC with skin effect", f"{result.resistance_ac_ohm:.6g} ohm" if result.resistance_ac_ohm else "-"),
-            ("Propagation delay", f"{result.propagation_delay_ns:.4g} ns" if result.propagation_delay_ns else "-"),
+            ("Capacitance (pF)", result.quantity_text(coverage, "capacitance_pf")),
+            ("Inductance (nH)", result.quantity_text(coverage, "inductance_nh")),
+            ("R DC (ohm)", result.quantity_text(coverage, "resistance_ohm")),
+            ("R AC with skin effect (ohm)", result.quantity_text(coverage, "resistance_ac_ohm")),
+            ("Propagation delay (ns)", result.quantity_text(coverage, "propagation_delay_ns")),
         )
         for key, value in rows:
             index = self.model_table.InsertItem(self.model_table.GetItemCount(), key)
@@ -539,40 +582,113 @@ class TraceFrame(wx.Frame):
         self.sweep_canvas.configure_route(result, frequency, topology)
 
     def _selected_board_items(self) -> list[Any]:
-        items = []
-        for footprint in self.board.GetFootprints():
-            items.extend(pad for pad in footprint.Pads() if bool(getattr(pad, "IsSelected", lambda: False)()))
-        items.extend(item for item in getattr(self.board, "GetTracks", lambda: [])() if bool(getattr(item, "IsSelected", lambda: False)()))
-        return items
+        from itertools import chain
+
+        pads = (pad for footprint in self.board.GetFootprints() for pad in footprint.Pads())
+        tracks = getattr(self.board, 'GetTracks', lambda: ())()
+        zones = getattr(self.board, 'Zones', lambda: ())()
+        return [item for item in chain(pads, tracks, zones)
+                if getattr(item, 'IsSelected', lambda: False)()]
+
+    def _pcb_selection_task(self, operation, finish):
+        if self.source_dirty or self.selection_worker.busy:
+            return
+        origin = self.origin_selection
+        self.pcb_pick.Disable()
+        self.summary.SetLabel("Reading the originating PCB Editor…")
+
+        def complete(value, error):
+            self.pcb_pick.Enable()
+            if self.source_dirty or self.origin_selection is not origin:
+                return
+            if error:
+                self.summary.SetLabel(error)
+                return
+            try:
+                self.origin_selection.check_source()
+                assert_current(self.board)
+                finish(value)
+            except Exception as exc:
+                self.summary.SetLabel(str(exc))
+
+        self.selection_worker.start(lambda _cancel, _progress: operation(), complete, wx.CallAfter)
+
+    def use_pcb_selection(self, _event=None):
+        if self.saved_board:
+            self._pcb_selection_task(self.origin_selection.read, self._apply_pcb_selection)
+        else:
+            try:
+                self._apply_pcb_selection([item.m_Uuid.AsString() for item in self._selected_board_items()])
+            except ValueError as exc:
+                self.summary.SetLabel(str(exc))
+
+    def _terminal_changed(self, _event=None):
+        self._invalidate(None)
+        a, b = self.start.GetValue(), self.end.GetValue()
+        zone = self.mode.GetSelection() == 1
+        self.measure_button.Enable(bool(not self.source_dirty and a and b and a != b
+            and self.reference.GetValue() and (zone or self.diff_net.GetValue())
+            and (not zone or self.zone_layer.GetSelection() != wx.NOT_FOUND)))
+
+    def _apply_pcb_selection(self, identifiers):
+        net, pads = saved_pick(self.board, identifiers, route=True)
+        if net not in self.all_net_names:
+            raise ValueError("Selected net is not available in the saved route inventory.")
+        if self.net.FindString(net, True) == wx.NOT_FOUND:
+            self.net_search.ChangeValue("")
+            self._filter_nets()
+        self.mode.SetSelection(0)
+        self._mode_changed(None)
+        self.net.SetSelection(self.net.FindString(net, True))
+        self._load_pads(None)
+        # Missing endpoints stay unselected. A trace alone identifies its net
+        # but does not identify the two electrical endpoints.
+        self.start.SetSelection(wx.NOT_FOUND)
+        self.end.SetSelection(wx.NOT_FOUND)
+        if pads:
+            self.start.SetSelection(self.start.FindString(pads[0], True))
+        if len(pads) == 2:
+            self.end.SetSelection(self.end.FindString(pads[1], True))
+        self._terminal_changed()
+        if len(pads) == 2:
+            summary = f"PCB selection: {net} · {pads[0]} → {pads[1]}. Ready to analyze."
+        else:
+            summary = f"PCB selection: {net} · {len(pads)} endpoint pads. Choose the remaining endpoints."
+        self.summary.SetLabel(summary)
+
+    def _follow_toggled(self,event):
+        if not self.auto_refresh.GetValue():
+            self.follow_selection(())
+        event.Skip()
 
     def on_selection_timer(self, _event: Any) -> None:
         if self.saved_board or not self.auto_refresh.GetValue():
             return
-        try:
-            items = self._selected_board_items()
-            signature = tuple(sorted(str(getattr(item, 'm_Uuid', id(item))) for item in items))
-            if signature == self.last_selection_signature:
-                return
-            self.last_selection_signature = signature
-            net_names = [str(getattr(item, "GetNetname", lambda: "")()) for item in items]
-            net_name = next((name for name in net_names if name), "")
-            if net_name and self.net.FindString(net_name) != wx.NOT_FOUND:
-                self.net.SetValue(net_name)
-                self._load_pads(None)
-            selected_pads = []
-            for footprint in self.board.GetFootprints():
-                for pad in footprint.Pads():
-                    if bool(getattr(pad, "IsSelected", lambda: False)()):
-                        selected_pads.append(f"{footprint.GetReference()}.{pad.GetNumber()}")
-            if selected_pads:
-                self.start.SetValue(selected_pads[0])
-                self.end.SetValue(selected_pads[-1])
-            self.summary.SetLabel(f"PCB selection: {len(items)} routed items; net {net_name or 'none'}; {len(selected_pads)} endpoint pads.")
-        except Exception:
-            pass
+        signature = tuple(sorted(item.m_Uuid.AsString() for item in self._selected_board_items()))
+        if signature == self.last_selection_signature:
+            return
+        self.last_selection_signature = signature
+        if signature:
+            try:
+                self._apply_pcb_selection(signature)
+            except ValueError as exc:
+                self.summary.SetLabel(str(exc))
 
     def on_close(self, event: Any) -> None:
+        self.stop_workers()
+        event.Skip()
+
+    def stop_workers(self):
         self.selection_timer.Stop()
+        self.selection_worker.close()
+        if self.saved_board:
+            self.source_refresh.stop()
+            self.selection_follower.stop()
+            self.refresh_worker.close()
+
+    def on_destroy(self, event: Any) -> None:
+        if event.GetEventObject() is self:
+            self.stop_workers()
         event.Skip()
 
     def export_csv(self, _event: Any) -> None:
@@ -584,9 +700,11 @@ class TraceFrame(wx.Frame):
             target=Path(dialog.GetPath()).resolve()
             if target==source or target.suffix.lower()!=".csv":
                 wx.MessageBox("Choose a separate .csv report.", "Export", parent=self); return
-            row = self.current.as_dict()
             try:
-                assert_current(self.board)
+                self.check_source()
+                if self.current is None:
+                    raise ValueError("The result was cleared. Analyze the refreshed PCB before exporting.")
+                row = self.current.as_dict()
                 evidence = provenance(self.board)
                 if evidence is not None:
                     row['saved_board_provenance'] = json.dumps(evidence, sort_keys=True)
@@ -610,7 +728,7 @@ class RoutePreview(PanZoomCanvas):
         self.terminals = []
         self.corridor = None
         self.colours = {}
-        self.colour_mode=0;self.selected_uuid=None;self.section_metrics={};self.metric_max={}
+        self.colour_mode=0;self.followed_ids=frozenset();self.selected_uuid=None;self.section_metrics={};self.metric_max={}
 
     def set_colour_mode(self,mode):
         self.colour_mode=mode
@@ -664,6 +782,7 @@ class RoutePreview(PanZoomCanvas):
     def show_measurement(self, result, mate=None, selected_zone=None) -> None:
         self.measurement = result
         self.selected_uuid=None
+        self.followed_ids=frozenset()
         self.section_metrics={}
         for measurement in (result,mate):
             for section in getattr(measurement,'segments',[]):
@@ -695,7 +814,7 @@ class RoutePreview(PanZoomCanvas):
                         for island, (outer, holes) in enumerate(self._polygons(item.GetFilledPolysList(number))):
                             if selected_zone and island != selected_zone['island']:
                                 continue
-                            self.copper.append((outer, holes, self._layer(number), "zone"))
+                            self.copper.append((outer, holes, self._layer(number), "zone", item.m_Uuid.AsString()))
                     continue
                 if hasattr(item, "GetDrillValue"):
                     point = self._point(item.GetPosition())
@@ -726,7 +845,7 @@ class RoutePreview(PanZoomCanvas):
                         self.terminals.append((self._point(pad.GetPosition()), label))
                         try:
                             for outer, holes in self._polygons(pad.GetEffectivePolygon(pad.GetLayer())):
-                                self.copper.append((outer, holes, self._layer(pad.GetLayer()), "pad"))
+                                self.copper.append((outer, holes, self._layer(pad.GetLayer()), "pad", pad.m_Uuid.AsString()))
                         except (AttributeError, TypeError):
                             pass
         layers = list(dict.fromkeys([row[1] for row in self.segments] + [row[2] for row in self.copper] + [row[3] for row in self.vias]))
@@ -746,14 +865,14 @@ class RoutePreview(PanZoomCanvas):
 
     def scene_bounds(self):
         points = [point for row in self.segments for point in row[0]]
-        points += [point for outer, holes, layer, kind in self.copper for point in outer]
+        points += [point for outer, holes, layer, kind, uid in self.copper for point in outer]
         points += [row[0] for row in self.vias] + [row[0] for row in self.terminals]
         if not points:
             return None
         return (min(p[0] for p in points), min(p[1] for p in points), max(p[0] for p in points), max(p[1] for p in points))
 
     def draw_scene(self, gc, project) -> None:
-        for outer, holes, layer, kind in sorted(self.copper, key=lambda row: row[3] == "pad"):
+        for outer, holes, layer, kind, uid in sorted(self.copper, key=lambda row: row[3] == "pad"):
             if not outer:
                 continue
             path = gc.CreatePath()
@@ -766,18 +885,19 @@ class RoutePreview(PanZoomCanvas):
                 path.CloseSubpath()
             colour = wx.Colour(self.colours.get(layer, "#718096"))
             fill = wx.Colour(colour.Red(), colour.Green(), colour.Blue(), 42 if kind == "zone" else 170)
-            gc.SetPen(wx.Pen(colour, 1))
+            highlighted = uid in self.followed_ids or uid == self.selected_uuid
+            gc.SetPen(wx.Pen("#ecb943" if highlighted else colour, 3 if highlighted else 1))
             gc.SetBrush(wx.Brush(fill))
             gc.DrawPath(path, wx.ODDEVEN_RULE)
         for points, layer, width, lane, item in self.segments:
-            if str(item.m_Uuid.AsString())==self.selected_uuid:
+            if item.m_Uuid.AsString() in self.followed_ids or item.m_Uuid.AsString() == self.selected_uuid:
                 gc.SetPen(wx.Pen('#ecb943',max(5,round(width*self.scale)+5)));gc.StrokeLines([project(point) for point in points])
             gc.SetPen(wx.Pen(wx.Colour(self.item_colour(item,layer)), max(1, round(width * self.scale))))
             gc.StrokeLines([project(point) for point in points])
         for point, width, drill, layer, item in self.vias:
             x, y = project(point)
             diameter = max(2., width * self.scale)
-            gc.SetPen(wx.Pen('#ecb943' if str(item.m_Uuid.AsString())==self.selected_uuid else wx.Colour(self.item_colour(item,layer)), 3))
+            gc.SetPen(wx.Pen('#ecb943' if item.m_Uuid.AsString() in self.followed_ids or item.m_Uuid.AsString() == self.selected_uuid else wx.Colour(self.item_colour(item,layer)), 3))
             gc.SetBrush(wx.Brush(wx.Colour(self.item_colour(item,layer))))
             gc.DrawEllipse(x-diameter/2, y-diameter/2, diameter, diameter)
             diameter = max(1., drill * self.scale)

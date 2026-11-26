@@ -6,6 +6,8 @@ extraction, antenna templates, RF network plots, sampled fields and interactive
 3D radiation views. It is a **read-only engineering beta**, not an automatic
 whole-board RF sign-off tool.
 
+In **PCB enclosure**, select a rule area in the originating PCB Editor and choose **Use PCB selection**, or choose an enclosure here and click **Show in PCB** to highlight it in the editor. Save board, project or rule edits to refresh the study. Quick EMerge clears the previous results and reloads the enclosure list. It retains the enclosure UUID, exact net names and study inputs when they still exist. Confirm the material and review any missing input, then choose **Preview** before running again.
+
 ## Capabilities at a glance
 
 **Added in 4.8.1: [coupled FEM phased arrays / AESA](FEM_AESA.md).** Choose
@@ -458,8 +460,9 @@ The viewport fills the workspace on opening. Use **Setup** in the top bar to
 open the Geometry / Physics / Solve drawer; close it to reclaim that space.
 Preview, Run simulation, Cancel and Help remain available, and progress/errors
 stay in the status bar. **More → Probe details** opens the inspector below the view, initially
-using at most 30% of its height. **More → Focus view** temporarily hides panels and restores
-their previous visibility. Showing or hiding panels preserves the study and its
+using at most 30% of its height. Use **Focus view** in the top bar or press **F11**
+to expand the canvas temporarily. **Restore panels** returns to the prior panel
+visibility and fits the panels to the current window. Showing or hiding panels preserves the study and its
 reviewed geometry. The setup sash leaves at least 540 logical pixels for the
 workspace; viewport minimum size is 480 × 300 logical pixels. Geometry is drawn
 as a continuous board viewport, without graph axes, ticks or a plot frame.

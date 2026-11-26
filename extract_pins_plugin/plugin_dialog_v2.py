@@ -82,6 +82,8 @@ class PluginDialogV2(wx.Frame):
         self.SetIcon(wx.Icon(os.path.join(os.path.dirname(__file__), "resources", "icon-48.png"), wx.BITMAP_TYPE_PNG))
         
         self.board = pcbnew.GetBoard()
+        from wayricad_runtime.context import LaunchContext
+        self._origin_context = LaunchContext.capture()
         self._connector_initial_refs = [str(fp.GetReference()) for fp in initial_selected_footprints]
         self.extractor = DataExtractor(self.board)
         self.analyzer = SignalFlowAnalyzer(self.extractor)
@@ -109,7 +111,11 @@ class PluginDialogV2(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.OnAutoRefreshTimer, self.auto_refresh_timer)
         self.last_known_selection = set()  # Track what we've already added
         
+        self._pin_review = None
         self.InitUI()
+        if getattr(pcbnew, "_wayricad_ipc", False):
+            from .pin_review_sync import PinReviewSync
+            self._pin_review = PinReviewSync(self, self.board.GetFileName(), self._origin_context)
         self._update_footprint_list_display(initial_selected_footprints)
         self.auto_refresh_timer.Start(500)
         
@@ -872,7 +878,8 @@ class PluginDialogV2(wx.Frame):
     # ==================== Event Handlers ====================
     
     def OnClose(self, event):
-        # Stop timer before closing
+        if self._pin_review:
+            self._pin_review.stop()
         if self.auto_refresh_timer.IsRunning():
             self.auto_refresh_timer.Stop()
         self.Destroy()
@@ -911,6 +918,17 @@ class PluginDialogV2(wx.Frame):
         return None
 
     def _highlight_net(self, net_name):
+        if getattr(pcbnew, "_wayricad_ipc", False):
+            from wayricad_runtime.analysis_selection import select_origin
+            from wayricad_runtime.context import redact_error
+            try:
+                count = select_origin(self.board.GetFileName(), net=net_name, launch_context=self._origin_context)
+            except Exception as exc:
+                self.status_text.SetLabel("Cannot highlight this net: " + redact_error(exc))
+                return False
+            self.net_action_combo.SetValue(net_name)
+            self.status_text.SetLabel(f"Highlighted {count} items on {net_name} in PCB Editor.")
+            return True
         code = self._find_net_code(net_name)
         if code is None:
             self.status_text.SetLabel(f"Net not found on the PCB: {net_name}")
@@ -1174,6 +1192,8 @@ setTimeout(fitView,50);
 
     def InvalidatePreview(self, event):
         """Make reviewed exports unavailable as soon as their inputs change."""
+        if self._pin_review:
+            self._pin_review.clear()
         self.preview_data = {}
         self.preview_footprints = []
         self.preview_rows = []
@@ -1246,6 +1266,9 @@ setTimeout(fitView,50);
         return sorted(footprints.values(), key=lambda fp: DataExtractor.natural_sort_key(fp.GetReference()))
 
     def OnPreviewExtraction(self, event):
+        selected_ids = {fp.m_Uuid.AsString() for fp in self.current_display_footprints}
+        current = self.extractor.refresh_footprints()
+        self._update_footprint_list_display([fp for fp in current if fp.m_Uuid.AsString() in selected_ids])
         footprints = self._resolve_extract_scope()
         self.pin_preview.DeleteAllItems()
         self.preview_rows = []
@@ -1257,6 +1280,7 @@ setTimeout(fitView,50);
             value_filter=self.value_filter_ctrl.GetValue().strip() or None,
             net_filter=self.net_filter_ctrl.GetValue().strip() or None,
             sort_pins_by_net_type=self.sort_by_type_cb.IsChecked(),
+            include_pad_uuids=True,
         )
         for ref, component in self.preview_data.items():
             value = component.get("general_properties", {}).get("Value", "")
@@ -1265,6 +1289,7 @@ setTimeout(fitView,50);
                     "Reference": ref,
                     "Value": value,
                     "Pad": pin.get("Pad Name/Number", ""),
+                    "pad_uuid": pin.pop("pad_uuid", ""),
                     "Function": pin.get("Pin Function", ""),
                     "Net": pin.get("Net Name", ""),
                     "Type": pin.get("Net Type", ""),
@@ -1288,10 +1313,12 @@ setTimeout(fitView,50);
         self.export_selected_btn.Enable(count > 0)
         self.preview_summary.SetLabel(
             f"Preview: {count} pin rows from {len(self.preview_data)} components; {shared_count} common nets. "
-            "Double-click a row to select its footprint and highlight its net on the PCB."
+            "Double-click a row to select its exact pad in PCB Editor."
             if count else
             "No rows match this scope. Adjust the source or filters and preview again."
         )
+        if self._pin_review:
+            self._pin_review.review(footprints)
         self.status_text.SetLabel(f"Previewed {count} pin rows; the PCB was not changed.")
 
     def OnViewConnectorTables(self, event):
@@ -1304,18 +1331,22 @@ setTimeout(fitView,50);
         if index < 0 or index >= len(self.preview_rows):
             return
         row = self.preview_rows[index]
-        footprint = self.extractor.get_footprint_by_reference(row["Reference"])
         try:
-            for fp in self.board.GetFootprints():
-                if hasattr(fp, "ClearSelected"):
-                    fp.ClearSelected()
-            if footprint is not None:
-                footprint.SetSelected()
-            net = row.get("Net", "")
-            if net:
-                self.net_action_combo.SetValue(net)
-                self._highlight_net(net)
-            pcbnew.Refresh()
+            pad_id = row.get("pad_uuid")
+            if not pad_id:
+                raise ValueError("This row has no pad UUID. Preview the current PCB again.")
+            if getattr(pcbnew, "_wayricad_ipc", False):
+                from wayricad_runtime.analysis_selection import select_origin
+                select_origin(self.board.GetFileName(), [pad_id], focus=True, launch_context=self._origin_context)
+            else:
+                pad = self.board.ResolveItem(pcbnew.KIID(pad_id), True)
+                if pad is None or pad.GetClass() != "PAD":
+                    raise ValueError("The previewed pad was removed. Preview the current PCB again.")
+                for item in pcbnew.GetCurrentSelection():
+                    item.ClearSelected()
+                pad.SetSelected()
+                pcbnew.Refresh()
+            self.net_action_combo.SetValue(row.get("Net", ""))
             self.status_text.SetLabel(f"PCB selection: {row['Reference']} pad {row['Pad']} on {row['Net'] or 'no net'}.")
         except Exception as exc:
             self.status_text.SetLabel(f"Could not update PCB selection: {exc}")

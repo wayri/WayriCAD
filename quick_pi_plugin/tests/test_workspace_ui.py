@@ -70,11 +70,24 @@ class WorkspaceTests(unittest.TestCase):
                     data=portrait_result();data['geometry']['source_sha256']=original
                     from wayricad_runtime.board_render import extract_board
                     data['board_scene']=extract_board(pcbnew.LoadBoard(str(path)),['5V_DEMO'])
+                    frame.bundle={'board_scene':data['board_scene']}
+                    track=next(row['uuid'] for row in data['board_scene']['primitives'] if row['role']=='track')
+                    frame.board_workflow.highlight([track])
+                    ax=frame.views[0][0].axes[0]
+                    self.assertTrue(any(artist.get_zorder()==10 for artist in ax.collections+ax.patches))
+                    self.assertEqual(frame.net.GetValue(),'5V_DEMO')
+                    frame.board_workflow.highlight([])
+                    self.assertFalse(frame._pcb_highlight_ids)
                     frame.show_silkscreen.SetValue(True)
                     frame._accept_result(data,data['request'],'solve');frame.Show();frame.Maximize(False)
                     self.assertIsNotNone(frame.color_legend.scale)
-                    self.assertIn('mV',frame.color_legend.scale['unit'])
-                    self.assertIn('Voltage drop',frame.metric_summary.GetLabel());self.assertIn('mV',frame.metric_summary.GetLabel())
+                    self.assertEqual(frame.voltage_tolerance.GetValue(),'5')
+                    self.assertEqual(frame.color_legend.scale['unit'],'%')
+                    self.assertIn('Voltage drop',frame.metric_summary.GetLabel())
+                    frame.show_exact_voltages.SetValue(True);frame._voltage_display_changed()
+                    self.assertEqual(frame.color_legend.scale['unit'],'mV')
+                    self.assertIn('%',frame.metric_summary.GetLabel())
+                    self.assertIs(frame.bundle,data)
                     contours=[item for item in frame.views[2][0].axes[0].patches if str(item.get_gid()).startswith('board-context:footprint:')]
                     self.assertGreaterEqual(len(contours),32)
                     def settle():

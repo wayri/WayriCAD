@@ -35,6 +35,16 @@ class BoardContextTests(unittest.TestCase):
         self.figure.canvas.draw()
         self.assertEqual(self.listing,original)
 
+    def test_only_the_selected_enclosure_is_filled(self):
+        other = dict(self.listing['areas'][0], id='unselected')
+        self.listing['areas'].append(other)
+        board_context(self.figure, self.listing, {'selected_rule_area':'roi'})
+        edge, selected, unselected = self.figure.axes[0].patches
+        self.assertGreater(selected.get_facecolor()[3], 0)
+        self.assertGreater(selected.get_linewidth(), unselected.get_linewidth())
+        self.assertEqual(unselected.get_facecolor()[3], 0)
+        self.assertEqual(edge.get_facecolor()[3], 0)
+
     def test_missing_and_unavailable_enclosures_are_explicit(self):
         self.listing['areas']=[];board_context(self.figure,self.listing)
         self.assertTrue(any('No saved rule areas' in t.get_text() for t in self.figure.axes[0].texts))

@@ -54,6 +54,26 @@ class WorkerBoundaryTests(unittest.TestCase):
 
 @unittest.skipIf(native is None,'Native KiCad saved-board reader required')
 class NativeWorkerTests(unittest.TestCase):
+    def test_duplicate_pad_numbers_keep_distinct_preview_uuids(self):
+        from extract_pins_plugin.core.data_extractor import DataExtractor
+        board = native.BOARD()
+        footprint = native.FOOTPRINT(board)
+        footprint.SetReference('J1')
+        board.Add(footprint)
+        expected = set()
+        for x in (0, 1000000):
+            pad = native.PAD(footprint)
+            pad.SetNumber('1')
+            pad.SetPosition(native.VECTOR2I(x, 0))
+            footprint.Add(pad)
+            expected.add(pad.m_Uuid.AsString())
+        extractor = DataExtractor(board)
+        pins = extractor.extract_footprint_data([footprint], include_pad_uuids=True)['J1']['pins']
+        self.assertEqual([p['Pad Name/Number'] for p in pins], ['1', '1'])
+        self.assertEqual({p['pad_uuid'] for p in pins}, expected)
+        self.assertEqual(len(expected), 2)
+        self.assertTrue(all('pad_uuid' not in p for p in extractor.extract_footprint_data([footprint])['J1']['pins']))
+
     def test_real_native_child_works_with_an_ipc_only_parent(self):
         with tempfile.TemporaryDirectory() as directory:
             source=Path(directory)/'connector.kicad_pcb';board=native.BOARD()

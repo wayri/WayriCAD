@@ -83,6 +83,37 @@ class WorkbenchTests(unittest.TestCase):
         f.focus_button.SetValue(False);f.focus_view();wx.Yield()
         self.assertFalse(f.workspace_splitter.IsSplit());self.assertTrue(f.visual_splitter.IsSplit())
 
+    def test_focus_restores_panels_within_smaller_window(self):
+        f = self.frame
+        f.SetSize((1600, 900))
+        f.Layout()
+        wx.Yield()
+        f.toggle_setup(show=True)
+        f.workspace_splitter.SetSashPosition(f.FromDIP(700))
+        f.toggle_inspector(show=True)
+        wx.Yield()
+        before = f.tabs.GetSize()
+        self.assertTrue(f.focus_button.IsShownOnScreen())
+
+        f.focus_button.SetValue(True)
+        f.focus_view()
+        wx.Yield()
+        self.assertGreater(f.tabs.GetSize().width, before.width)
+        self.assertGreater(f.tabs.GetSize().height, before.height)
+        self.assertEqual(f.focus_button.GetLabel(), 'Restore panels')
+
+        f.SetSize((980, 650))
+        f.Layout()
+        wx.Yield()
+        f.focus_button.SetValue(False)
+        f.focus_view()
+        wx.Yield()
+        self.assertTrue(f.workspace_splitter.IsSplit())
+        self.assertTrue(f.visual_splitter.IsSplit())
+        self.assertTrue(f.setup_button.GetValue())
+        self.assertGreaterEqual(f.workspace.GetSize().width, f.FromDIP(540))
+        self.assertEqual(f.focus_button.GetLabel(), 'Focus view')
+
     def test_plan_view_and_navigation_agree(self):
         f=self.frame;f.select_view('PCB enclosure');wx.Yield()
         self.assertEqual(f.current_group,'2D')

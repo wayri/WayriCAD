@@ -2,6 +2,39 @@
 from copy import deepcopy
 
 
+def rebind_series(request, previous, current):
+    """Keep every reviewed electrode bound to the same pad, footprint and net."""
+    from .series_editor import draft_from_request
+    updated=deepcopy(request)
+    before=previous.get('terminals',[])
+    by_id={}
+    for row in current.get('terminals',[]):
+        by_id.setdefault(row['id'],[]).append(row)
+
+    def bind(value):
+        old=[row for row in before if value in (row['id'],row.get('label'))]
+        if len(old)==1:
+            old=old[0]
+            matches=by_id.get(old['id'],[])
+            if len(matches)==1 and all(matches[0].get(key)==old.get(key)
+                                       for key in ('net','footprint_uuid')):
+                return old['id']
+        raise ValueError('A series pad is missing, ambiguous or moved to a different net or footprint.')
+
+    for row,roles in [(updated,(('source_terminal','source_terminals'),('sink_terminal','sink_terminals'))),
+                      *((branch,(('from_pad','from_pads'),('to_pad','to_pads')))
+                        for stage in updated['series'] for branch in (stage,*stage.get('parallel',[])))]:
+        for anchor,group in roles:
+            row[anchor]=bind(row[anchor])
+            if group in row:
+                row[group]=[bind(value) for value in row[group]]
+    for key in ('source_sha256','expected_source_sha256'):
+        if key in updated:
+            updated[key]=current.get('source_sha256')
+    draft_from_request(updated,current)
+    return updated
+
+
 def restore_endpoints(frame, request):
     rows=frame.inventory.get('terminals',[])
     chosen=[]

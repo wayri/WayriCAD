@@ -38,6 +38,12 @@ This retained preview raster comes from the actual drawing code on a disposable
 100-part fixture, with native glyphs and explicit courtyards. It is not a desktop
 screenshot or a demonstration of closure on an irregular dense board.
 
+Activate a resolved row in **Review details** to locate the label's footprint
+or board text in the originating PCB Editor. A save clears the old candidate
+and keeps the current scope and label settings ready for Preview. Selecting a
+matching label, footprint or pad in PCB Editor highlights a unique reviewed row
+when you return to the plugin.
+
 ## How placement works
 
 The default is reference-only, with acceptable existing placements preserved

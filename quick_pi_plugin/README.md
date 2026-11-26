@@ -7,10 +7,32 @@ required; unsupported newer-format features are refused without changing sources
 ## Board viewport
 
 - Use **Analyzed nets** for the solved copper, **Full board** for the saved layout, or **Selected nets → Choose nets** to show several saved nets without changing the simulation. **Dim other nets** adds surrounding copper for context.
-- Select a copper layer or the combined projection. **Board**, **Copper**, **Field**, **Front silk**, and **Back silk** are separate controls. **Fit** reframes the active view.
+- Use the **result selector above the board** to switch between voltage, drop, current density, loss and other solved fields. The **View** menu holds fit, zoom and image export. **Details** contains layer, context and scale controls.
 - The color scale shows the active result and units. Use **Manual** to retain the same limits when comparing views. Gray mesh cells have an unavailable field. A solved zero uses the color scale. Filtering older multi-net results may require rerunning the solve to recover cell ownership.
-- Hover on a physical layer for board coordinates and field values. A via shows its barrel span and solved current. Click to pin a point. Change layers or net scope to inspect elsewhere, and use **Clear pins** in the **Probe** tab to remove them.
+- Hover on solved copper for board coordinates, layer and field value. Click to create a persistent marker and callout. **Probes** opens the table. Rows and callouts resample the same board coordinates after a rerun and show **Unavailable** where solved copper has moved away. Select a physical layer for overlapping copper. **Clear pins** removes the markers.
 - **Representative routes** shows an exact saved track chain from a selected source to a load, or for a reviewed series segment when one exists. Dashed orange track outlines are independent of the solved via-barrel field. Purple links identify explicitly modeled components.
+
+**Path resistance** plots source-to-point transfer resistance against
+distance along a saved representative trace route. It uses solved voltage
+drop divided by total source current under the current load distribution.
+Unsupported portions stay blank. For branched copper the plot is a
+transfer measure, with the assumptions shown in the window.
+
+Under **PCB selection**, enable **Watch routing** and run a reviewed 2.5D DC
+scenario once. Quick PI checks for saved changes and refreshes the scenario
+when you return to it. With **Use unsaved edits**, Quick PI checks the solved
+net in the originating editor while the analysis window is active. Live
+copper checks pause when you return to PCB Editor. Series paths use explicit
+unsaved runs. Saved project and rule inputs apply.
+
+The idle window makes no editor calls by default. **Follow PCB** is optional.
+Solvers run in a lower-priority process with two numerical threads by default.
+Large solves and reports still use CPU and memory.
+
+Open **Additional sinks** and use **Choose pads…** for each independently
+loaded pad group. The **Primary sink pads…** control sets that group
+explicitly. Separate groups can occupy the same connector and net. Each
+uses its own total current or power, and each pad belongs to only one group.
 
 ## Quick start
 
@@ -33,18 +55,48 @@ and [reproducible heater constructions](../heater_designer_plugin/THERMAL_3D.md)
 [Download the latest release](https://github.com/wayri/WayriCAD/releases/latest) ·
 [Complete PI guide](USER_GUIDE.md) · [Model and solver methods](#solver-methods)
 
+### DC voltage tolerance and trace width
+
+The 2.5D DC workspace starts with a **5% voltage tolerance**. Quick PI
+computes the minimum and maximum around the nominal source voltage. For a
+3.3 V source, 5% gives a 3.135–3.465 V window. Tighter per-load limits still
+apply. The result legend, load checks, probes and HTML report show percentages
+of nominal by default. Check **Show exact voltages** to see volts and
+millivolts alongside percentages. Simulation JSON retains the solved voltages.
+
+For eligible fixed-current, single-load results near or below the minimum,
+Quick PI can suggest widths for straight, uniform traces that carry the
+solved load current. Use the result as a candidate for layout review and
+a fresh solve after widening. The recommendation leaves copper unchanged
+and does not size planes, vias or ambiguous current paths.
+
+Add `--voltage-tolerance 5` to a `wayricad-pi` 2.5D DC command.
+Add `--show-exact-voltages` when you also want absolute values in the report.
+AC, transient and full-volume studies use their own criteria.
+
 ## Board-first workspace
 
 ### PCB-driven setup and sequential paths
 
-**Follow PCB** follows one selected net from the originating PCB Editor while
-idle. Use **PCB > Source pad** or **PCB > Load pad** to assign a single selected pad to an
-explicit role. Selection order never establishes direction. Ambiguous multi-net
-or stale selections retain the current inputs; a connection error pauses
-following until enabled again. Saved-board changes require reload. Existing
-inspector commands cross-select reviewed items back in KiCad.
-Mapping uses the saved snapshot, not unsaved net/geometry edits in the editor;
-save and reload those edits before interpreting analysis results.
+Enable **Follow PCB** to highlight selected copper in the originating editor without
+replacing the simulation net, loads or probes. Clearing the editor selection
+clears its highlight. Use **PCB selection → Use PCB net**, **Source pad** or
+**Load pad** to change the reviewed setup explicitly. Inspector commands select
+reviewed objects back in KiCad.
+
+Save in KiCad and click **Run**. If Quick PI detects the save on that click,
+it waits for the fresh board before starting the same scenario. Quick PI keeps
+the same net, settings, grouped loads and return selections when their saved
+objects still match. A reviewed series path also survives ordinary routing or
+rule edits when its stage electrodes keep the same identity and net. Resolve any
+missing or reassigned pad before using the affected setup.
+
+If launched from PCB Editor, turn on **PCB selection → Use unsaved edits** for standalone
+2.5D DC. **Run** captures the editor’s current copper and saved project settings
+into a temporary copy and uses the same scenario. The result says **Editor
+copy**. Click Run again after further edits. For exported reports, simulation
+archives, current tuning, or other analysis modes, save the board and run
+from its saved revision.
 
 **Path** opens reviewed series-path extraction. Its sequential diagram
 numbers source, copper rails, in-path device banks and load, with distinct
@@ -526,8 +578,8 @@ saved-board DC electrothermal workflow described below.
 
 | Goal | In the window | Command line |
 |---|---|---|
-| Several rails | Choose a rail's source/load, then **Batch studies…**. Use **Add net case…** for each additional rail; enter its voltage, current and pads. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
-| Include ground-return voltage drop | In **Batch studies…**, select a rail and **Set up ground / return…**. One form shows the return net, supply-ground pads and every load-ground pad unit. | Existing `return_conduction` studies remain supported and editable; new groups use `shared_returns`. |
+| Several rails | Open **Batch** above the board. Use **Add net case…** for each rail and enter its voltage, current and pads, or load a study JSON. Choose **Run all cases** and select result rows for details. | `wayricad-pi board.kicad_pcb --batch cases.json --output raw-cases.json --html cases.html` |
+| Include ground-return voltage drop | In **Batch**, select a rail and **Set up ground / return…**. One form shows the return net, supply-ground pads and every load-ground pad unit. | Existing `return_conduction` studies remain supported and editable; new groups use `shared_returns`. |
 | Shared ground and multi-pad units | Check the rails in the return setup, choose their ground net and pad units, then **Apply return setup**. **Suggest matching footprint pads** proposes candidates for explicit review. | Add top-level `shared_returns`, as in [the shared-return example](studies/shared-return.example.json). |
 | Review reference planes and return vias | Open **Return path**, choose the return net and **Review return path**. Advanced sampling, multiple returns and optional pins stay collapsed. | Existing `--return-path --return-nets GND`, or the batch example. |
 | Solve temperature feedback | Check **Include Joule heating / temperature feedback**, then **Run**. Fill the explicit thermal/material settings before running the steady study. | Existing `--electrothermal study.json`; batch cases may include explicit `electrothermal` settings. |

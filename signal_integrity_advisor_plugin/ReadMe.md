@@ -2,13 +2,19 @@
 
 ## PCB-driven workspace
 
-**Use PCB selection** is available directly on the toolbar. **Follow PCB** reads
-the originating PCB Editor selection while idle and updates the selected signal
-net/pads through the same guarded selection path. Ambiguous nets keep current
-inputs; source and receiver direction are not inferred from selection order.
-A read failure pauses following, and closing the window stops its timer and
-discards queued callbacks. Existing **PCB** actions cross-select the route and
-explicit return nets. Save/reopen after changing the source board or rules.
+**Use PCB selection** changes the setup from the originating PCB Editor.
+**Follow PCB** highlights matching copper on the displayed route, preserving
+the current signal, endpoints and results. Clearing selection clears the
+highlight. Choose endpoint roles explicitly.
+Use **PCB → Use selected pad as Source** or **Use selected pad as Receiver**
+to bind one exact saved pad directly from KiCad. Route and return-net selections
+can also be sent back to the originating PCB Editor.
+
+Saving the PCB, project or custom rules refreshes the board context and clears
+the old analytical result. Unchanged endpoint identities are retained, and
+multi-case study rows are cleared for review. **PCB → Refresh saved PCB** retries
+loading if needed. Analysis uses saved inputs, so save before running. A
+connection failure pauses following. Closing the window stops polling.
 
 <img src="resources/icon-96.png" width="96" height="96" alt="WayriCAD Quick SI icon">
 
@@ -977,6 +983,16 @@ Vendor guidance informs representative screens, not certification of every speed
 protocol, device or complete channel.
 
 ## Explicit return-path evidence
+
+An unresolved via transition makes the geometry review **INCOMPLETE**. The
+results banner shows the unresolved transition count. Select **Details** for
+the signal layers, attached track sections, first sampled reference gap where
+available, nearest selected return via inside the search radius, and missing
+evidence. A nearby via can span the wrong layers or miss contact with a
+reference island. The warning and unknown counters count individual findings.
+Detour length, return-current distribution and loop impedance require further
+modeling. The HTML report retains each transition.
+
 
 1. Choose the signal, source and receiver in Quick SI.
 2. In **Return path (optional)**, choose its actual return net. A ground-like

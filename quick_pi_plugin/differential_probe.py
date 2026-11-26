@@ -101,15 +101,16 @@ def saved_probe(bundle, *, check_source=True, location_cache=None):
     return differential_probe(bundle,points['a'],points['b'],check_source=check_source,location_cache=location_cache)
 
 
-def _static_reading(reading):
+def _static_reading(reading,result,exact):
     from html import escape
+    from .voltage_tolerance import voltage_text
     if not reading:return '<p>No saved A/B point pair. Choose points in the native workspace or use the saved-result CLI.</p>'
-    static='<table><tr><th>Probe</th><th>Layer</th><th>X mm</th><th>Y mm</th><th>Potential V</th></tr>'
+    static='<table><tr><th>Probe</th><th>Layer</th><th>X mm</th><th>Y mm</th><th>Potential</th></tr>'
     for key in ('a','b'):
         point=reading[key]
-        static+='<tr>'+''.join('<td>'+escape(str(value if value is not None else 'Unknown'))+'</td>' for value in (key.upper(),point['layer'],point['x_mm'],point['y_mm'],point['potential_V']))+'</tr>'
+        static+='<tr>'+''.join('<td>'+escape(str(value if value is not None else 'Unknown'))+'</td>' for value in (key.upper(),point['layer'],point['x_mm'],point['y_mm'],voltage_text(result,point['potential_V'],exact=exact)))+'</tr>'
     value=reading['voltage_a_minus_b_V']
-    return static+'</table><p>Saved probe V(A) - V(B): '+('Unknown' if value is None else f'{value:.10g} V')+'. '+escape(reading['notice'])+'</p>'
+    return static+'</table><p>Saved probe V(A) - V(B): '+voltage_text(result,value,exact=exact,drop=True)+'. '+escape(reading['notice'])+'</p>'
 
 
 def report_html(bundle, layer):
@@ -123,10 +124,17 @@ def report_html(bundle, layer):
     names={str(row['id']):str(row.get('name',row['id'])) for row in geometry.get('layers',[])}
     layers=list(dict.fromkeys(map(str,mesh['triangle_layer'])))
     reading=saved_probe(bundle)
+    from .voltage_tolerance import nominal_voltage,show_exact
+    exact=show_exact(bundle);nominal=nominal_voltage(result)
+    potentials=result['potential_V']
+    unit='V'
+    if nominal and not exact:
+        unit='%'
+        potentials=[None if value is None else value*(100/nominal) for value in potentials]
     if len(mesh['triangles'])>20000:
-        return '<section><h2>Differential voltage probe</h2>'+_static_reading(reading)+'<p>This dense result retains differential probing in the native workspace and saved-result CLI. The extra browser probe map is omitted above 20,000 triangles to avoid duplicating a large field payload. Existing report maps and exact JSON remain available.</p></section>'
+        return '<section><h2>Differential voltage probe</h2>'+_static_reading(reading,result,exact)+'<p>This dense result retains differential probing in the native workspace and saved-result CLI. The extra browser probe map is omitted above 20,000 triangles to avoid duplicating a large field payload. Existing report maps and exact JSON remain available.</p></section>'
     payload=dict(points=[p[:2] for p in mesh['points_mm']],triangles=mesh['triangles'],
-                 layers=list(map(str,mesh['triangle_layer'])),potential=result['potential_V'],
+                 layers=list(map(str,mesh['triangle_layer'])),potential=potentials,unit=unit,
                  selected=bundle.get('differential_probes',{}))
     raw=json.dumps(payload,allow_nan=False,separators=(',',':')).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
     from wayricad_runtime.report_data import script_json
@@ -134,7 +142,7 @@ def report_html(bundle, layer):
     stored='' if compressed else '<script type="application/json" class="diff-data">'+raw+'</script>'
     expression=expression if compressed else "JSON.parse(root.querySelector('.diff-data').textContent)"
     options=''.join('<option value="'+escape(value,quote=True)+'"'+(' selected' if value==str(layer) else '')+'>'+escape(names.get(value,value))+'</option>' for value in layers)
-    static=_static_reading(reading)
+    static=_static_reading(reading,result,exact)
     return '''<section class="interactive-analysis" id="pi-differential"><h2>Differential voltage probe</h2>
 <p>Choose A, then B on solved sheet copper. Readout is V(A) - V(B) within this result's common reference. Different solved layers can be compared; independent case reports cannot. Drill holes and unknown nodes remain unknown. Coordinates are millimetres; potentials use the solved linear finite-element field.</p>
 '''+static+'''<label>Layer <select class="diff-layer">'''+options+'''</select></label>
@@ -150,6 +158,6 @@ const cross=(a,b)=>a[0]*b[1]-a[1]*b[0],sub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
 function sample(p){for(const i of byLayer.get(String(p.layer))||[]){const tri=data.triangles[i],v=tri.map(n=>data.points[n]),xs=v.map(a=>a[0]),ys=v.map(a=>a[1]);if(p.x_mm<Math.min(...xs)-1e-10||p.x_mm>Math.max(...xs)+1e-10||p.y_mm<Math.min(...ys)-1e-10||p.y_mm>Math.max(...ys)+1e-10)continue;const d=cross(sub(v[1],v[0]),sub(v[2],v[0]));if(Math.abs(d)<=1e-20)continue;const q=[p.x_mm,p.y_mm],u=cross(sub(q,v[0]),sub(v[2],v[0]))/d,w=cross(sub(v[1],v[0]),sub(q,v[0]))/d,weights=[1-u-w,u,w];if(weights.some(a=>a < -1e-10||a>1+1e-10))continue;const values=tri.map(n=>data.potential[n]);if(values.some(v=>typeof v!=='number'||!Number.isFinite(v)))return null;const value=weights.reduce((sum,w,j)=>sum+w*values[j],0);return Number.isFinite(value)?value:null;}return null;}
 function draw(){const indices=byLayer.get(layer.value)||[];let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;indices.forEach(i=>data.triangles[i].forEach(n=>{const p=data.points[n];xmin=Math.min(xmin,p[0]);xmax=Math.max(xmax,p[0]);ymin=Math.min(ymin,p[1]);ymax=Math.max(ymax,p[1]);}));bounds=[xmin,ymin,xmax,ymax];scale=Math.min((canvas.width-40)/Math.max(xmax-xmin,1e-6),(canvas.height-40)/Math.max(ymax-ymin,1e-6));ox=20-xmin*scale;oy=20-ymin*scale;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.beginPath();indices.forEach(i=>{data.triangles[i].forEach((n,j)=>{const p=data.points[n];ctx[j?'lineTo':'moveTo'](ox+p[0]*scale,oy+p[1]*scale);});ctx.closePath();});ctx.fillStyle='#c5ded9';ctx.fill();
 for(const key of ['a','b']){const p=selected[key];if(!p||String(p.layer)!==layer.value)continue;const x=ox+p.x_mm*scale,y=oy+p.y_mm*scale;ctx.beginPath();ctx.arc(x,y,7,0,2*Math.PI);ctx.strokeStyle=key==='a'?'#b44d11':'#1765b2';ctx.lineWidth=3;ctx.stroke();ctx.fillStyle=ctx.strokeStyle;ctx.font='bold 15px sans-serif';ctx.fillText(key.toUpperCase(),x+11,y-8);}
-const describe=key=>{const p=selected[key];if(!p)return key.toUpperCase()+': not selected';const value=sample(p);return key.toUpperCase()+': layer '+p.layer+'; '+p.x_mm.toPrecision(7)+', '+p.y_mm.toPrecision(7)+' mm; '+(value===null?'Unknown':value.toPrecision(8)+' V');};let text=describe('a')+' | '+describe('b');if(selected.a&&selected.b){const a=sample(selected.a),b=sample(selected.b);text+=' | V(A) - V(B): '+(a===null||b===null||!Number.isFinite(a-b)?'Unknown':(a-b).toPrecision(8)+' V');}readout.textContent=text;}
+const describe=key=>{const p=selected[key];if(!p)return key.toUpperCase()+': not selected';const value=sample(p);return key.toUpperCase()+': layer '+p.layer+'; '+p.x_mm.toPrecision(7)+', '+p.y_mm.toPrecision(7)+' mm; '+(value===null?'Unknown':value.toPrecision(8)+' '+data.unit);};let text=describe('a')+' | '+describe('b');if(selected.a&&selected.b){const a=sample(selected.a),b=sample(selected.b);text+=' | V(A) - V(B): '+(a===null||b===null||!Number.isFinite(a-b)?'Unknown':(a-b).toPrecision(8)+' '+data.unit);}readout.textContent=text;}
 canvas.addEventListener('click',event=>{const rect=canvas.getBoundingClientRect(),x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;selected[target.value]={layer:layer.value,x_mm:(x-ox)/scale,y_mm:(y-oy)/scale};target.value=target.value==='a'?'b':'a';draw();});layer.addEventListener('change',draw);root.querySelector('.diff-clear').addEventListener('click',()=>{selected={};target.value='a';draw();});draw();
 })()'''+('.catch(error=>{document.querySelector("#pi-differential .diff-readout").textContent="Interactive probe unavailable: "+error.message+". Static figures and exact JSON remain available.";})' if compressed else '')+''';</script></section>'''

@@ -34,7 +34,7 @@ def _metrics(incoming, outgoing, current, *, efficiency=True):
                 efficiency_fraction=outgoing / incoming if valid else None)
 
 
-def build_series_power_tree(bundle):
+def build_series_power_tree(bundle, *, representative_lengths=False):
     """Return an ordered, JSON-safe topology and DC budget, or None for non-series.
 
     Copper node voltages are current-weighted electrode voltages, not a claim that
@@ -114,7 +114,7 @@ def build_series_power_tree(bundle):
                       current_A=_sum(_finite(row.get('current_A')) for row in sinks)))
     copper = [node for node in nodes if node['kind'] == 'copper']
     for node in copper:
-        node['wire_lengths'] = copper_lengths(node, path_geometry)
+        node['wire_lengths'] = copper_lengths(node, path_geometry, representative=representative_lengths)
     nets = [node['net'] for node in copper if node['net'] is not None]
     repeated = len(nets) != len(set(nets))
     if repeated:

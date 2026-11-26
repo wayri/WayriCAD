@@ -8,13 +8,16 @@ class BoardWorkflow:
     def __init__(self, frame, panel, toolbar):
         self.frame = frame
         self.buttons=[]
+        self.reader=None
         self.follow = wx.CheckBox(panel, label='Follow PCB')
         from wayricad_runtime.context import LaunchContext
-        origin=LaunchContext.capture()
-        self.follow.SetValue(bool(origin.socket and origin.token))
-        self.follow.SetToolTip('Follow one selected net in the originating editor; never infer source/load direction.')
+        self.origin=LaunchContext.capture()
+        self.follow.Enable(bool(self.origin.socket and self.origin.token))
+        self.follow.SetToolTip('Opt in to highlight selection from the originating PCB Editor. Use PCB selection to assign simulation endpoints.')
         toolbar.Add(self.follow, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT | wx.BOTTOM, 8)
-        control=icon_button(panel,'PCB',wx.ART_FIND,'Use selected PCB net or explicitly assign Source pad / Load pad')
+        self.live_edits=wx.CheckBox(panel,label='Use unsaved edits')
+        self.live_edits.Hide()
+        control=icon_button(panel,'PCB selection',wx.ART_FIND,'Use selected PCB net or explicitly assign Source pad / Load pad')
         def menu(event):
             with wx.Menu() as popup:
                 for label,role in (('Use PCB net','net'),('Source pad','source'),('Load pad','sink')):
@@ -27,6 +30,17 @@ class BoardWorkflow:
                         frame._unit_ids(role),additive=False),id=item.GetId())
                 net=popup.Append(wx.ID_ANY,'Select current net in PCB')
                 popup.Bind(wx.EVT_MENU,frame._select_net_scope,id=net.GetId())
+                popup.AppendSeparator()
+                if self.origin.socket and self.origin.token:
+                    live=popup.AppendCheckItem(wx.ID_ANY,'Use unsaved edits')
+                    live.Check(self.live_edits.GetValue())
+                    popup.Bind(wx.EVT_MENU,lambda event:self.live_edits.SetValue(event.IsChecked()),id=live.GetId())
+                watch=popup.AppendCheckItem(wx.ID_ANY,'Watch routing')
+                watch.Check(frame.auto_run.GetValue())
+                def toggle_watch(event):
+                    frame.auto_run.SetValue(event.IsChecked())
+                    frame._route_watch.changed()
+                popup.Bind(wx.EVT_MENU,toggle_watch,id=watch.GetId())
                 control.PopupMenu(popup)
         control.Bind(wx.EVT_BUTTON,menu)
         toolbar.Add(control,0,wx.RIGHT|wx.BOTTOM,4);self.buttons.append(control)
@@ -36,8 +50,8 @@ class BoardWorkflow:
         self.buttons.append(path)
         from wayricad_runtime.selection_follow import SelectionFollower
         self.follower = SelectionFollower(frame, self.follow, self.read,
-            lambda ids: self.apply(ids, 'net'), self.ready,
-            lambda error: frame.status.SetLabel('PCB follow paused: ' + str(error)))
+            self.highlight, self._follow_ready, self._failed, include_empty=True, interval_ms=2200)
+        self.follow.Bind(wx.EVT_CHECKBOX,self._clear_when_disabled)
 
     def ready(self):
         f = self.frame
@@ -45,12 +59,46 @@ class BoardWorkflow:
                     and not getattr(f, '_live_running', False)
                     and f.inventory and f._saved_source_current)
 
+    def _follow_ready(self):
+        frame = self.frame
+        watch = getattr(frame, '_route_watch', None)
+        return (frame.IsShownOnScreen() and not frame.IsIconized() and self.ready()
+                and not (watch and watch.running))
+
     def refresh(self):
         for control in self.buttons:control.Enable(self.ready())
 
+    def invalidate(self):
+        self.reader=None
+        self.follower.state.reset()
+
+    def _failed(self,error):
+        from wayricad_runtime.analysis_selection import SavedSelectionChanged
+        if isinstance(error,SavedSelectionChanged):
+            self.follow.SetValue(True)
+            self.frame.editor_refresh.poll()
+            return
+        self.highlight(())
+        self.frame.status.SetLabel('PCB follow paused: '+str(error))
+
+    def _clear_when_disabled(self,event):
+        if not self.follow.GetValue():
+            self.highlight(())
+        event.Skip()
+
+    def highlight(self, identifiers):
+        values=tuple(identifiers)
+        if values!=self.frame._pcb_highlight_ids:
+            self.frame._pcb_highlight_ids=values
+            self.frame._draw(preserve=True)
+
     def read(self):
-        from .origin_selection import selected_origin_ids
-        return selected_origin_ids(self.frame.board_path, expected_sha256=self.frame._origin_sha())
+        from wayricad_runtime.analysis_selection import SavedSelectionReader
+        expected=self.frame._origin_sha()
+        if self.reader is None:
+            self.reader=SavedSelectionReader(self.frame.board_path,expected_sha256=expected,
+                                             launch_context=self.origin)
+        return self.reader.read()
 
     def use(self, role):
         if not self.ready():
@@ -73,6 +121,7 @@ class BoardWorkflow:
             if index is None:
                 raise ValueError('Selected pad no longer resolves. Reload the saved board.')
             getattr(f, role).SetSelection(index)
+            if role=='sink':f._set_primary_sink_pads(())
             getattr(f, role + '_pins').SetValue(False)
             f._invalidate()
         f._buttons()

@@ -13,6 +13,7 @@ def main():
     package=importlib.util.module_from_spec(spec);sys.modules[spec.name]=package;spec.loader.exec_module(package)
     from trace_refiner_worker.refiner import Change,Plan,snapshot,rule_hash,validate,native_rules
     request=json.loads(Path(sys.argv[1]).read_text(encoding='utf-8'));result=Path(sys.argv[2])
+    review=None
     try:
         board=api.LoadBoard(request['board'])
         manager=api.SETTINGS_MANAGER();project=str(Path(request['board']).with_suffix('.kicad_pro'))
@@ -39,7 +40,9 @@ def main():
         validate(board,api,review,evidence_dir=request.get('evidence_dir'))
         result.write_text(json.dumps(dict(validated=True,evidence=review.evidence)),encoding='utf-8')
     except Exception as exc:
-        result.write_text(json.dumps(dict(validated=False,error=str(exc))),encoding='utf-8');return 1
+        result.write_text(json.dumps(dict(validated=False,error=str(exc),
+                                         evidence=review.evidence if review is not None else {})),encoding='utf-8')
+        return 1
     return 0
 
 

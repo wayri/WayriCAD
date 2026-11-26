@@ -48,6 +48,10 @@ On Rules, enter the PnP **tip radius**, **head radius**, **head setback** above 
 
 ## Review findings without losing the board
 
+Launch from PCB Editor and choose a finding, then use **Locate in KiCad** to select its primary-board footprints by UUID. A mixed finding lists any comparison-board or enclosure objects separately. The editor must still be showing the reviewed board revision.
+
+The saved-board window follows saves to the primary and comparison PCBs and their adjacent project/rule files. A change clears the old scene, findings and export, cancels a running check, and refreshes the primary footprint inventory. Mount settings follow surviving footprint UUIDs. Run checks again to rebuild the results.
+
 The review workspace keeps board inspection and finding navigation together. [Validation and screenshot provenance](../docs/audits/MECHANICAL_REVIEW_UI.md).
 
 ![Mechanical Check findings and 3D inspection](help-review.png)

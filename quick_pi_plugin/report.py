@@ -8,6 +8,7 @@ import math
 from pathlib import Path
 from wayricad_runtime.report_ui import enhance_report, provenance, publish_report, report_paths
 from .display_ids import display_label, DisplayIDs
+from .voltage_tolerance import nominal_voltage, show_exact, voltage_text
 
 METRICS={
     'voltage':('Potential','V','viridis'),
@@ -19,6 +20,18 @@ METRICS={
     'risk':('Adiabatic pulse energy / limit','ratio','YlOrRd'),
     'melt':('Pulse / adiabatic melting action','ratio','YlOrRd'),
 }
+VOLTAGE_FIELDS=('voltage','drop','resistance','voltage_pct','drop_pct')
+UI_METRICS=tuple(METRICS)
+METRICS.update(voltage_pct=('Potential relative to nominal','%','viridis'),
+               drop_pct=('Voltage drop relative to nominal','%','magma'))
+
+
+def presentation_metric(bundle, metric):
+    if metric in ('voltage','drop') and not show_exact(bundle) and nominal_voltage(bundle.get('result',{})):
+        return metric+'_pct'
+    return metric
+
+
 FIELD_STYLES={'smooth':'Smooth gradient','cells':'Solver cells'}
 
 
@@ -38,7 +51,7 @@ def metric_name(bundle,metric):
     return METRICS[metric][0]
 
 
-def feasibility_text(result):
+def feasibility_text(result, *, exact=True):
     """Readable load/source limits without implying an attainable overloaded state."""
     feasibility=result.get('feasibility',{})
     if not feasibility:return ''
@@ -49,19 +62,25 @@ def feasibility_text(result):
     if feasibility.get('source_current_limit_exceeded'):
         text+='\nRequested-load diagnostic only: the current-limited source cannot sustain these loads at the set voltage.'
     text+='\n'+str(feasibility.get('notice',''))
-    if feasibility.get('violations'):text+='\n'+'\n'.join(str(item) for item in feasibility['violations'])
+    violations=feasibility.get('violations',[])
+    if not exact:
+        violations=[str(item) for item in violations if not str(item).startswith('Sink ')]
+        violations.extend(f"Sink {row['label']} outside voltage limits at {voltage_text(result,row.get('voltage_V'),exact=False)}."
+                          for row in result.get('sinks',[]) if row.get('within_voltage_limits') is False)
+    if violations:text+='\n'+'\n'.join(map(str,violations))
     return text.strip()
 
 
-def sink_results_text(result):
+def sink_results_text(result, *, exact=True):
     lines=[]
     for row in result.get('sinks',[]):
         limits=[]
         for key,label in [('min_voltage_V','min'),('max_voltage_V','max')]:
-            if row.get(key) is not None:limits.append(label+' '+_number(row[key],'V'))
+            if row.get(key) is not None:limits.append(label+' '+voltage_text(result,row[key],exact=exact))
         lines.append(str(row.get('label') or row.get('id','Sink'))+': '+_number(row.get('current_A'),'A')+
                      (' · constant power '+_number(row['power_W'],'W') if 'power_W' in row else '')+
-                     ' · '+_number(row.get('voltage_V'),'V')+' · drop '+_number(row.get('voltage_drop_V'),'mV',1000)+
+                     ' · '+voltage_text(result,row.get('voltage_V'),exact=exact)+
+                     ' · drop '+voltage_text(result,row.get('voltage_drop_V'),exact=exact,drop=True)+
                      (' · '+', '.join(limits) if limits else ' · no voltage bounds')+
                      (' · LIMIT VIOLATION' if row.get('within_voltage_limits') is False else ''))
     return '\n'.join(lines)
@@ -75,13 +94,8 @@ def layer_rows(bundle):
 def cell_values(mesh,result,metric):
     import numpy as np
     triangles=np.asarray(mesh['triangles'],dtype=int)
-    if metric in ('voltage','drop','resistance'):
-        values=np.asarray([float('nan') if value is None else value for value in result['potential_V']])
-        values=values[triangles].mean(axis=1)
-        if metric=='voltage':return values
-        drop=(values-float(result['source_voltage_V']) if result.get('physical_return') else float(result['source_voltage_V'])-values)*1000
-        demand=abs(float(result['sink_current_A'])) if result.get('physical_return') else float(result['sink_current_A'])
-        return drop/demand if metric=='resistance' else drop
+    if metric in VOLTAGE_FIELDS:
+        return _nodal_values(result,metric)[triangles].mean(axis=1)
     if metric in ('density','flow'):
         key='cell_J_A_mm2' if metric=='density' else 'cell_sheet_current_A_mm'
         vectors=np.asarray([v if v is not None else [float('nan'),float('nan')] for v in result[key]])
@@ -104,6 +118,10 @@ def cell_values(mesh,result,metric):
 def _nodal_values(result,metric):
     import numpy as np
     values=np.asarray([np.nan if value is None else value for value in result['potential_V']],dtype=float)
+    if metric in ('voltage_pct','drop_pct'):
+        nominal=nominal_voltage(result)
+        if nominal is None:return np.full_like(values,np.nan)
+        return 100*(values/nominal) if metric=='voltage_pct' else 100*((nominal-values)/nominal)
     if metric!='voltage':
         values=(values-float(result['source_voltage_V']) if result.get('physical_return') else float(result['source_voltage_V'])-values)*1000
         if metric=='resistance':values=values/abs(float(result['sink_current_A']))
@@ -124,7 +142,7 @@ def gradient_surface(mesh,result,metric,indices):
     indices=indices[np.isfinite(values[indices])]
     selected=triangles[indices]
     points=np.asarray(mesh['points_mm'],dtype=float)[selected,:2]
-    if metric in ('voltage','drop','resistance'):
+    if metric in VOLTAGE_FIELDS:
         colors=_nodal_values(result,metric)[selected]
     else:
         colors=np.empty(selected.shape,dtype=float)
@@ -150,7 +168,7 @@ def gradient_surface(mesh,result,metric,indices):
 
 def field_note(metric,style):
     if style=='cells':return 'Solver cell values'
-    return 'Linear nodal field' if metric in ('voltage','drop','resistance') else 'Cell values interpolated for display; probes and peaks use solver cells'
+    return 'Linear nodal field' if metric in VOLTAGE_FIELDS else 'Cell values interpolated for display; probes and peaks use solver cells'
 
 
 def via_markers(mesh,result,geometry,layer,metric):
@@ -192,7 +210,7 @@ def result_scale(bundle, metric, layer=None):
     if layer is not None:
         indices=np.flatnonzero([str(value)==str(layer) for value in mesh['triangle_layer']])
     else:indices=np.arange(len(values))
-    if metric in ('voltage','drop','resistance'):
+    if metric in VOLTAGE_FIELDS:
         selected=np.asarray(mesh['triangles'],dtype=int)[indices[np.isfinite(values[indices])]]
         values=_nodal_values(result,metric)[selected].ravel()
     else:values=values[indices]
@@ -355,7 +373,7 @@ def _board_axes(figure):
             super().apply_aspect(position)
 
     ax=figure.add_axes([.008,.008,.984,.984],axes_class=BoardAxes)
-    figure.set_facecolor('#edf1f3');ax.set_facecolor('#edf1f3')
+    figure.set_facecolor('#f3f6f5');ax.set_facecolor('#f3f6f5')
     ax.set_aspect('equal',adjustable='datalim');ax.set_axis_off()
     return ax
 
@@ -365,8 +383,10 @@ def _fit_board_view(ax):
     if not np.isfinite(ax.dataLim.extents).all():return
     ax._wayricad_bounds=tuple(ax.dataLim.extents)
     ax._wayricad_fit()
-    line,=ax.plot([],[],transform=ax.transAxes,color='#53636a',linewidth=1.,clip_on=False)
-    label=ax.text(0,0,'',transform=ax.transAxes,ha='center',va='bottom',fontsize=8,color='#53636a')
+    line,=ax.plot([],[],transform=ax.transAxes,color='#344c4b',linewidth=1.1,clip_on=False,zorder=20)
+    label=ax.text(0,0,'',transform=ax.transAxes,ha='center',va='bottom',
+                  fontsize=8,color='#344c4b',zorder=21,
+                  bbox={'facecolor':ax.get_facecolor(),'edgecolor':'none','pad':1.0,'alpha':.88})
     ax._wayricad_scale_bar=(line,label)
 
 
@@ -394,25 +414,34 @@ def _draw_board_context(ax,scene,layer,layer_name='',visible_nets=None,include_s
         if path is None:continue
         gid='board-context:'+str(role)+':'+str(row.get('uuid',''))
         groups.setdefault(role,[]).append((path,gid))
+    outlines=groups.get('outline',[])
+    if outlines:
+        # Nonzero-winding paths retain the holes from the native Edge.Cuts
+        # polygon. Draw stock behind copper without covering the solved field.
+        body=PathCollection([path for path,_ in outlines],facecolors='#e2ebe2',edgecolors='none',
+                            zorder=-2,transform=ax.transData)
+        body.set_gid('pi-board-body')
+        ax.add_collection(body)
     for role,paths in groups.items():
-        fill='none' if role=='outline' else ax.get_facecolor() if role=='drill' else '#34434d'
-        edge='#34434d' if role=='outline' else 'none'
-        width=.6 if role=='outline' else 0
+        fill='none' if role=='outline' else ax.get_facecolor() if role=='drill' else '#506967'
+        edge='#58736f' if role=='outline' else '#80938a' if role=='drill' else 'none'
+        width=.8 if role=='outline' else .24 if role=='drill' else 0
+        opacity=1. if role in ('outline','drill') else .64
         if len(paths)>128:
             artist=PathCollection([path for path,_ in paths],facecolors=fill,edgecolors=edge,
-                                  linewidths=width,alpha=.9,zorder=8,transform=ax.transData)
+                                  linewidths=width,alpha=opacity,zorder=8,transform=ax.transData)
             artist.set_gid('board-context:'+role)
             artist._wayricad_context_gids=[gid for _,gid in paths]
             ax.add_collection(artist)
         else:
             for path,gid in paths:
-                artist=PathPatch(path,facecolor=fill,edgecolor=edge,linewidth=width,alpha=.9,zorder=8)
+                artist=PathPatch(path,facecolor=fill,edgecolor=edge,linewidth=width,alpha=opacity,zorder=8)
                 artist.set_gid(gid);ax.add_patch(artist)
 
 
 def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits=None,inspection=None,
               show_context=True,show_copper=True,show_overlay=True,field_style=None,board_view=False,
-              visible_nets=None,show_silkscreen=True,net_scope=None,dim_context=False,silk_sides=None,pins=(),route_ids=()):
+              visible_nets=None,show_silkscreen=True,net_scope=None,dim_context=False,silk_sides=None,pins=(),route_ids=(),pcb_selection=()):
     """Draw actual geometry; board_view uses a native viewport without chart chrome.
 
     Native color meaning is available in ``ax._wayricad_color_scale`` for an
@@ -421,6 +450,7 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
     import numpy as np
     from matplotlib.collections import PolyCollection,PatchCollection
     from matplotlib.patches import Circle
+    metric=presentation_metric(bundle,metric)
     geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
     field_style=field_style or bundle.get('view_settings',{}).get('field_style','smooth')
     if field_style not in FIELD_STYLES:raise ValueError('Unknown field style: '+str(field_style))
@@ -479,15 +509,35 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
                 if explicit_scope or row.get('net') not in owned])
             if explicit_scope and dim_context and visible_nets is not None:
                 backdrop=dict(scene,primitives=[row for row in copper if row.get('net') not in visible_nets])
-                draw_matplotlib(ax,backdrop,visible_layers=None if combined or layer is None else [layer],
-                                alpha=.15,path_source=scene)
+                for artist in draw_matplotlib(ax,backdrop,visible_layers=None if combined or layer is None else [layer],
+                                              alpha=.32,path_source=scene):
+                    if hasattr(artist,'set_facecolor'):
+                        artist.set_facecolor('#77928c')
+                        artist.set_edgecolor('none')
         else:scene_underlay=scene
         if not show_copper:
             scene_underlay=dict(scene_underlay,primitives=[row for row in scene_underlay.get('primitives',[]) if row.get('role') not in ('track','pad','via','zone')])
-        draw_matplotlib(ax,scene_underlay,visible_layers=None if combined or layer is None else [layer],
-                        visible_nets=visible_nets,highlight_ids=(inspection or {}).get('source_ids',[]),
-                        alpha=1.0 if explicit_scope else 1.0 if board_view and not rows else .35,
-                        path_source=scene if board_view else None)
+        underlay=draw_matplotlib(ax,scene_underlay,visible_layers=None if combined or layer is None else [layer],
+                                 visible_nets=visible_nets,highlight_ids=() if board_view else (inspection or {}).get('source_ids',[]),
+                                 alpha=.76 if board_view else 1.0 if explicit_scope else .35,
+                                 path_source=scene if board_view else None)
+        if board_view:
+            for artist in underlay:
+                if hasattr(artist,'set_facecolor'):
+                    artist.set_facecolor('#85a59f')
+                    artist.set_edgecolor('none')
+    if pcb_selection and bundle.get('board_scene'):
+        from wayricad_runtime.board_render import draw_matplotlib
+        scene=bundle['board_scene'];wanted=set(pcb_selection)
+        selected_primitives=[row for row in scene.get('primitives',[])
+                             if row.get('role') in ('track','pad','via','zone') and
+                             (row.get('uuid') in wanted or row.get('parent_uuid') in wanted)]
+        marked={row['uuid'] for row in selected_primitives if row.get('uuid')}
+        for artist in draw_matplotlib(ax,dict(scene,primitives=selected_primitives),
+                                      visible_layers=None if combined or layer is None else [layer],highlight_ids=marked):
+            artist.set_zorder(10)
+            if hasattr(artist,'set_facecolor'):
+                artist.set_facecolor('none')
     if not selected:
         if not board_view:ax.set_aspect('auto')
         if not board_view or not scene.get('primitives'):
@@ -705,6 +755,10 @@ def draw_view(figure,bundle,view='Results',layer=None,metric='drop',color_limits
         ax._wayricad_color_scale={'metric':metric,'label':metric_name(bundle,metric),
                                  'unit':METRICS[metric][1],'cmap':image.cmap.name,
                                  'limits':image.get_clim(),'note':note}
+        nominal=nominal_voltage(result)
+        if nominal and metric in ('drop','voltage'):
+            factor=(.1 if metric=='drop' else 100.)/nominal
+            ax._wayricad_color_scale['relative_limits']=tuple(value*factor for value in image.get_clim())
         if board_view and view=='Results' and result.get('sink_current_A',0)>0:
             array=image.get_array()
             ax._wayricad_live_base={'current':result['sink_current_A'],'voltage':result['source_voltage_V'],
@@ -731,8 +785,9 @@ def update_current_view(ax,bundle,manual_limits=None):
     image=getattr(ax,'_wayricad_color_mappable',None)
     if not base or image is None:return None
     metric=base['metric'];ratio=bundle['result']['sink_current_A']/base['current']
+    reference=100. if metric=='voltage_pct' else base['voltage'] if metric=='voltage' else 0.
     factor=ratio**2 if metric in ('loss','risk','melt') else 1. if metric=='resistance' else ratio
-    offset=base['voltage']*(1-ratio) if metric=='voltage' else 0.
+    offset=reference*(1-ratio)
     def scale(value):return np.asarray(value)*factor+offset
     previous=image.get_clim()
     limits=manual_limits or (result_scale(bundle,metric,base['layer']) if metric in ('risk','melt') else tuple(scale(base['limits'])))
@@ -745,7 +800,7 @@ def update_current_view(ax,bundle,manual_limits=None):
     # initial draw. Fixed manual ranges and capped risk scales need a redraw.
     last=getattr(ax,'_wayricad_live_last',1.)
     old_factor=last**2 if metric in ('loss','risk','melt') else 1. if metric=='resistance' else last
-    old_offset=base['voltage']*(1-last) if metric=='voltage' else 0.
+    old_offset=reference*(1-last)
     expected=(np.asarray(previous)-old_offset)*factor/old_factor+offset
     ax._wayricad_live_last=ratio
     same=bool(np.allclose(limits,expected,rtol=1e-11,atol=1e-15))
@@ -762,7 +817,12 @@ def update_current_view(ax,bundle,manual_limits=None):
                 hole=entries[0][1][1];color=colors[0]
                 if not hole:artist.set_facecolor(color)
                 artist.set_edgecolor(color)
-    ax._wayricad_color_scale=dict(ax._wayricad_color_scale,limits=tuple(limits))
+    color_scale=dict(ax._wayricad_color_scale,limits=tuple(limits))
+    nominal=nominal_voltage(bundle['result'])
+    if nominal and metric in ('drop','voltage'):
+        percent_factor=(.1 if metric=='drop' else 100.)/nominal
+        color_scale['relative_limits']=tuple(value*percent_factor for value in limits)
+    ax._wayricad_color_scale=color_scale
     return same
 
 
@@ -802,10 +862,51 @@ def _static_report_plan(bundle):
     mesh=bundle.get('mesh',{})
     geometry=bundle.get('geometry') or mesh.get('geometry',{})
     large=len(mesh.get('triangles',[]))>100000 or len(geometry.get('vias',[]))>=250
-    primary=('drop','density','loss')
-    metrics=primary if large and not extended else primary+tuple(key for key in METRICS if key not in primary)
+    primary=tuple(presentation_metric(bundle,key) for key in ('drop','density','loss'))
+    metrics=primary if large and not extended else primary+tuple(key for key in dict.fromkeys(presentation_metric(bundle,item) for item in UI_METRICS) if key not in primary)
     style=bundle.get('view_settings',{}).get('field_style','smooth')
     return metrics,style,large
+
+
+def _snapshot_legend(figure,image,scale):
+    from matplotlib.ticker import LinearLocator, ScalarFormatter
+
+    axes=figure.add_axes([.14,.120,.72,.022])
+    bar=figure.colorbar(image,cax=axes,orientation='horizontal')
+    bar.outline.set_visible(False)
+    bar.locator=LinearLocator(5)
+    bar.formatter=ScalarFormatter(useOffset=False,useMathText=True)
+    bar.formatter.set_powerlimits((-3,4))
+    bar.update_ticks()
+    axes.tick_params(labelsize=8,length=3,width=.65,colors='#2e4746',pad=3)
+    axes.xaxis.get_offset_text().set_fontsize(8)
+    bar.set_label(f"{scale['label']} ({scale['unit']})",fontsize=9,
+                  fontweight='semibold',labelpad=5,color='#2e4746')
+
+
+def _snapshot_text(figure,bundle,layer,axis):
+    geometry=bundle.get('geometry') or bundle.get('mesh',{}).get('geometry',{})
+    result=bundle['result']
+    published_layers=geometry.get('layers',[])
+    layer_name=next((row.get('name',str(layer)) for row in published_layers if str(row['id'])==str(layer)),
+                    'All copper layers' if layer=='all' else str(layer))
+    rail=bundle.get('request',{}).get('net') or geometry.get('net') or 'Analysed copper'
+    # Wrap hierarchy names by a fixed character budget so the page width stays
+    # predictable. The report's structured tables keep the exact full net ID.
+    from textwrap import shorten
+    title=shorten(str(rail),width=82,placeholder='…') if ' ' in str(rail) else str(rail)
+    if len(title)>82:
+        title=title[:37]+'…'+title[-44:]
+    detail=[layer_name,'2.5D DC',_number(result.get('total_sink_current_A',result.get('sink_current_A')),'A')]
+    if result.get('voltage_drop_V') is not None:
+        detail.append('Drop '+voltage_text(result,result['voltage_drop_V'],exact=show_exact(bundle),drop=True))
+    feasibility=result.get('feasibility',{}).get('feasible')
+    if feasibility is False:
+        detail.append('Outside limits')
+    figure.text(.048,.942,title,fontsize=15,fontweight='semibold',va='center',color='#1b3433')
+    figure.text(.048,.889,'  ·  '.join(detail),fontsize=8.5,va='center',color='#506967')
+    if axis._wayricad_color_scale is None:
+        figure.text(.5,.115,'No solved field available on this layer.',ha='center',color='#506967',fontsize=9)
 
 
 def _report_snapshot(bundle,layer,metric,style):
@@ -813,15 +914,27 @@ def _report_snapshot(bundle,layer,metric,style):
     import gc
     from matplotlib.figure import Figure
     from matplotlib.backends.backend_agg import FigureCanvasAgg
-    figure=Figure(figsize=(8.8,5.2),dpi=110);FigureCanvasAgg(figure)
+    # Limit pixel work on dense results while retaining sharper report maps.
+    dpi=144 if len(bundle.get('mesh',{}).get('triangles',[]))>100000 else 180
+    figure=Figure(figsize=(9.2,5.6),dpi=dpi);FigureCanvasAgg(figure)
     stream=io.BytesIO()
     try:
         settings=bundle.get('view_settings',{});mode=settings.get('scale_mode',0)
         manual=settings.get('manual',{})
         limits=result_scale(bundle,metric) if mode==1 else tuple(manual['limits']) if mode==2 and manual.get('metric')==metric else None
-        draw_view(figure,bundle,'Results',layer,metric,limits,field_style=style)
+        has_outline=any(row.get('role')=='outline' for row in bundle.get('board_scene',{}).get('primitives',[]))
+        # Retain the true silhouette when the report contains saved board
+        # context. Mute unrelated copper so it cannot compete with the field.
+        axis=draw_view(figure,bundle,'Results',layer,metric,limits,field_style=style,board_view=True,
+                       net_scope='Analyzed nets' if has_outline else None,dim_context=has_outline)
+        axis.set_position([.045,.225,.910,.620])
+        if hasattr(axis,'_wayricad_bounds'):
+            axis._wayricad_fit()
+        _snapshot_text(figure,bundle,layer,axis)
+        if axis._wayricad_color_mappable is not None:
+            _snapshot_legend(figure,axis._wayricad_color_mappable,axis._wayricad_color_scale)
         from wayricad_runtime.report_images import figure_png
-        stream.write(figure_png(figure,dpi=110,facecolor='white'))
+        stream.write(figure_png(figure,dpi=dpi,facecolor=figure.get_facecolor()))
         scale_note=(' · all-layer scale' if mode==1 else ' · manual scale' if limits is not None else '')
         diagnostic=' · requested-load diagnostic (source current limit exceeded)' if bundle['result'].get('feasibility',{}).get('source_current_limit_exceeded') else ''
         return '<figure><figcaption>'+escape(metric_name(bundle,metric)+scale_note+diagnostic)+'</figcaption><p>'+escape(field_note(metric,style))+'</p><img alt="'+escape(metric_name(bundle,metric))+'" src="data:image/png;base64,'+base64.b64encode(stream.getvalue()).decode('ascii')+'"></figure>'
@@ -864,6 +977,35 @@ def _pocket_evidence(bundle):
         z_basis='front-depth' if isinstance(z,str) and 'positive Z down from the top copper surface' in z else None)
 
 
+def tolerance_html(result, exact=False):
+    compliance=result.get('voltage_tolerance')
+    guidance=result.get('trace_width_guidance', {})
+    html=''
+    if compliance:
+        window=' – '.join(voltage_text(result,compliance[key],exact=exact)
+                          for key in ('min_voltage_V','max_voltage_V'))
+        html+='<h2>Voltage tolerance</h2><p>±'+escape(_number(compliance['tolerance_pct']))+'% of nominal · '+escape(window)+'</p>'
+        labels={sink['id']:sink.get('label',sink['id']) for sink in result.get('sinks',[])}
+        html+='<table><tr><th>Load</th><th>Voltage</th><th>Drop</th><th>Headroom (percentage points)</th><th>State</th></tr>'
+        for row in compliance['loads']:
+            cells=(labels.get(row['id'],row['id']), _number(row.get('voltage_pct'),'%'),
+                   _number(row.get('drop_pct'),'%'),_number(row.get('headroom_pct_points')),row['state'])
+            html+='<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in cells)+'</tr>'
+        html+='</table>'
+    if guidance.get('status')=='unavailable' and compliance and any(row['state'] in ('Fail','Near limit') for row in compliance['loads']):
+        html+='<h2>Trace width guidance</h2><p>'+escape(guidance.get('reason') or 'No supported straight-trace estimate.')+'</p>'
+    if guidance.get('rows'):
+        html+='<h2>Trace width guidance</h2><p>'+escape(guidance.get('notice',''))+'</p>'
+        html+='<table><tr><th>Saved trace position (mm)</th><th>Existing width (mm)</th><th>Recommended width (mm)</th><th>Change (mm)</th></tr>'
+        for row in guidance['rows']:
+            locations=', '.join(_number(value) for value in row['location_mm'][:2])
+            cells=(locations, _number(row['existing_width_mm']),_number(row.get('recommended_width_mm')),
+                   _number(row.get('width_change_mm')))
+            html+='<tr>'+''.join('<td>'+escape(value)+'</td>' for value in cells)+'</tr>'
+        html+='</table>'
+    return html
+
+
 def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=False):
     """Export current-layer maps plus all numeric mesh/results as paired JSON."""
     if pocket_kivi and evidence_reference is not None:
@@ -887,11 +1029,12 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=Fa
     scope='Board + package' if result.get('package_contacts') else 'Circuit' if bundle.get('request',{}).get('series') else 'Copper'
     multisink=len(result.get('sinks',bundle.get('request',{}).get('sinks',[])))>1
     ratio_name=scope+(' apparent ΔV/I' if result.get('contains_forward_drop') else ' resistance ΔV/I')
+    exact=show_exact(bundle)
     values=[('Worst drop / total demand ΔV/I' if multisink else ratio_name,_number(result.get('drop_over_current_ohm'),'mΩ',1000)),
-            ('Worst sink voltage drop' if multisink else 'Voltage drop',_number(result.get('voltage_drop_V'),'mV',1000)),
+            ('Worst sink voltage drop' if multisink else 'Voltage drop',voltage_text(result,result.get('voltage_drop_V'),exact=exact,drop=True)),
             ('Total loss',_number(result.get('total_power_W'),'W')),
             ('Peak copper-sheet current density',_number(result.get('max_current_density_A_mm2'),'A/mm²')),
-            ('Source voltage',_number(result.get('source_voltage_V'),'V')),
+            ('Source voltage reference',voltage_text(result,result.get('source_voltage_V'),exact=exact)),
             ('Solved load current' if result.get('operating_mode')=='constant_power_loads' else 'Total requested sink current' if multisink else 'Sink current',_number(result.get('total_sink_current_A',result.get('sink_current_A')),'A')),
             ('Requested-load source V/I',_number(result.get('V_over_I_ohm'),'Ω')),
             ('Current balance error',_number(result.get('current_balance_error_A'),'A')),
@@ -917,7 +1060,8 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=Fa
     if auxiliary:
         html+='<p>Original reversed-current solver evidence: <a href="'+escape(auxiliary['json'],quote=True)+'">complete parent batch JSON</a>, JSON pointer <code>'+escape(auxiliary['json_pointer'])+'</code>.</p>'
     if result.get('feasibility'):
-        html+='<h2>Source and load feasibility</h2><pre>'+escape(feasibility_text(result))+'</pre>'
+        html+='<h2>Source and load feasibility</h2><pre>'+escape(feasibility_text(result,exact=exact))+'</pre>'
+    html+=tolerance_html(result,exact)
     from .sankey import sankey_section
     html+=sankey_section(bundle)
     html+=tree_html(series_tree,raster=pdf)
@@ -926,11 +1070,14 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=Fa
     if bundle.get('terminal_units'):
         html+='<h2>Ideal equipotential pad units</h2><pre>'+escape(json.dumps(bundle['terminal_units'],indent=2,ensure_ascii=False))+'</pre>'
     if result.get('sinks'):
-        html+='<h2>'+('Current and constant-power sinks' if result.get('operating_mode')=='constant_power_loads' else 'Constant-current sinks')+'</h2><table><tr><th>Sink</th><th>Solved current A</th><th>Declared power W</th><th>Voltage V</th><th>Drop mV</th><th>Min V</th><th>Max V</th><th>Voltage limits</th></tr>'
+        html+='<h2>'+('Current and constant-power sinks' if result.get('operating_mode')=='constant_power_loads' else 'Constant-current sinks')+'</h2><table><tr><th>Sink</th><th>Solved current A</th><th>Declared power W</th>'+(
+              '<th>Voltage V / %</th><th>Drop mV / %</th><th>Min V / %</th><th>Max V / %</th>' if exact else
+              '<th>Voltage %</th><th>Drop %</th><th>Min %</th><th>Max %</th>')+'<th>Voltage limits</th></tr>'
         for sink in result['sinks']:
-            cells=[str(sink.get('label') or sink.get('id','Sink')),_number(sink.get('current_A')),_number(sink['power_W']) if 'power_W' in sink else 'Current load',_number(sink.get('voltage_V')),
-                   _number(sink.get('voltage_drop_V'),scale=1000),_number(sink.get('min_voltage_V')) if sink.get('min_voltage_V') is not None else 'Unbounded',
-                   _number(sink.get('max_voltage_V')) if sink.get('max_voltage_V') is not None else 'Unbounded',
+            cells=[str(sink.get('label') or sink.get('id','Sink')),_number(sink.get('current_A')),_number(sink['power_W']) if 'power_W' in sink else 'Current load',voltage_text(result,sink.get('voltage_V'),exact=exact),
+                   voltage_text(result,sink.get('voltage_drop_V'),exact=exact,drop=True),
+                   voltage_text(result,sink.get('min_voltage_V'),exact=exact) if sink.get('min_voltage_V') is not None else 'Unbounded',
+                   voltage_text(result,sink.get('max_voltage_V'),exact=exact) if sink.get('max_voltage_V') is not None else 'Unbounded',
                    'Violation' if sink.get('within_voltage_limits') is False else 'Within limits']
             html+='<tr>'+''.join('<td>'+escape(cell)+'</td>' for cell in cells)+'</tr>'
         html+='</table>'
@@ -1098,7 +1245,8 @@ def interactive_fields(bundle,layer):
     polygons=points[triangles,:2].tolist()
     centers=points[triangles,:2].mean(axis=1)
     html=''
-    for metric in ('drop','density','loss'):
+    for raw_metric in ('drop','density','loss'):
+        metric=presentation_metric(bundle,raw_metric)
         values=cell_values(mesh,result,metric)
         rows=[[float(x),float(y),float(values[i]),'Layer '+str(mesh['triangle_layer'][i])+' · C'+str(i+1)] for (x,y),i in zip(centers,indices)]
         field=saved_field_surface(bundle,layer,metric)
@@ -1191,7 +1339,14 @@ def write_batch_report(path,bundle,*,pocket_kivi=False):
                     'delivered_load_voltage_V':min(v['delivered_load_voltage_V'] for v in shared_loads),
                     'total_loss_W':result.get('total_power_W'),'status':'Shared: '+shared['group']}
 
-            values=[case.get('name','Case '+str(index+1)),case.get('status','UNKNOWN'),_number(loop.get('supply_drop_V',result.get('voltage_drop_V')),'mV',1000),_number(loop.get('return_drop_V'),'mV',1000) if loop else 'Not requested',_number(loop.get('total_drop_V'),'mV',1000) if loop else 'Not requested',_number(loop.get('delivered_load_voltage_V'),'V') if loop else 'Not solved',_number(loop.get('total_loss_W',result.get('total_power_W')),'W'),loop.get('status','Not requested'),case.get('error') or ' — '.join(failures) or 'Review individual evidence']
+            exact=show_exact(case.get('electrical') or {})
+            values=[case.get('name','Case '+str(index+1)),case.get('status','UNKNOWN'),
+                    voltage_text(result,loop.get('supply_drop_V',result.get('voltage_drop_V')),exact=exact,drop=True),
+                    voltage_text(result,loop.get('return_drop_V'),exact=exact,drop=True) if loop else 'Not requested',
+                    voltage_text(result,loop.get('total_drop_V'),exact=exact,drop=True) if loop else 'Not requested',
+                    voltage_text(result,loop.get('delivered_load_voltage_V',result.get('sink_voltage_V')),exact=exact),
+                    _number(loop.get('total_loss_W',result.get('total_power_W')),'W'),loop.get('status','Not requested'),
+                    case.get('error') or ' — '.join(failures) or 'Review individual evidence']
             comparison.append('<tr>'+''.join('<td>'+escape(str(value))+'</td>' for value in values[:8])+'<td>'+(' · '.join(case_links) or 'No completed result report')+'</td><td>'+escape(str(values[8]))+'</td></tr>')
             inputs=next((v for v in bundle.get('request',{}).get('study',{}).get('cases',[]) if v.get('name')==case.get('name')),None)
             compact={key:case[key] for key in ('name','status','source_sha256','error','error_type','loop','shared_return') if key in case}
@@ -1230,10 +1385,14 @@ def write_batch_report(path,bundle,*,pocket_kivi=False):
                     portable=portable_child(candidate,physical)
                     heading+='<p><a href="'+escape(quote(portable,safe='/'))+'">Pocket KiView · complete physical return result</a></p>'
                 del physical
-            headings=('Rail','Load ID','Current (A)','Ground rise (V)','Delivered voltage (V)','Load voltage limits')
+            headings=('Rail','Load ID','Current (A)','Ground rise','Delivered voltage','Load voltage limits')
+            rails={row['name']:row.get('electrical') or {} for row in batch['cases']}
             body=[]
             for load in group.get('loads',[]):
-                values=(load['case'],load['sink'],load['current_A'],load['ground_rise_V'],load['delivered_load_voltage_V'],
+                rail=rails.get(load['case'],{});result=rail.get('result',{});exact=show_exact(rail)
+                values=(load['case'],load['sink'],load['current_A'],
+                        voltage_text(result,load['ground_rise_V'],exact=exact,drop=True),
+                        voltage_text(result,load['delivered_load_voltage_V'],exact=exact),
                         'PASS' if load['voltage_limits_met'] else 'INFEASIBLE')
                 body.append('<tr>'+''.join('<td>'+escape(str(v))+'</td>' for v in values)+'</tr>')
             heading+='<table><thead><tr>'+''.join('<th>'+v+'</th>' for v in headings)+'</tr></thead><tbody>'+''.join(body)+'</tbody></table>'

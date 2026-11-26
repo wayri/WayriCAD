@@ -15,18 +15,31 @@ def capture(frame):
                for role,control in (('source',frame.source),('sink',frame.sink))}
     returns={role:frame._return_pad_ids.get(control.GetStringSelection())
              for role,control in (('source',frame.return_source),('sink',frame.return_sink))}
+    presentation={}
+    if hasattr(frame,'voltage_tolerance'):
+        presentation['voltage_display']={'tolerance_pct':frame.voltage_tolerance.GetValue(),
+                                         'show_exact':frame.show_exact_voltages.GetValue()}
     return deepcopy(dict(controls=capture_controls(frame,**OPTIONS),net=frame.net.GetValue(),
         endpoints=endpoints,return_nets=frame._return_selected_nets(),return_pads=returns,
         extra_sinks=frame._extra_sinks,series_request=frame._series_request,
         package_conduction=frame._package_conduction,
-        series_draft=getattr(frame,'_series_draft',None)))
+        series_draft=getattr(frame,'_series_draft',None),
+        primary_sink_pads=list(getattr(frame,'_primary_sink_pads',())),**presentation))
 
 
 def validate(frame,state):
     required={'controls','net','endpoints','return_nets','return_pads','extra_sinks','series_request','package_conduction'}
-    if not isinstance(state,dict) or not required.issubset(state) or set(state)-required-{'series_draft'}:
+    if not isinstance(state,dict) or not required.issubset(state) or set(state)-required-{'series_draft','voltage_display','primary_sink_pads'}:
         raise ValueError('Incomplete Quick PI setup.')
     validate_controls(frame,state['controls'],**OPTIONS)
+    if 'voltage_display' in state:
+        display=state['voltage_display']
+        if (not isinstance(display,dict) or set(display)!={'tolerance_pct','show_exact'} or
+                not isinstance(display['tolerance_pct'],str) or type(display['show_exact']) is not bool):
+            raise ValueError('Invalid voltage presentation settings.')
+        if display['tolerance_pct'].strip():
+            from .voltage_tolerance import limits
+            limits(state['controls']['text']['voltage'],display['tolerance_pct'])
     nets=frame.inventory.get('nets',[])
     if state['net'] not in nets:raise ValueError('Saved PI net is not present in this board.')
     terminals={row['id']:row for row in frame.inventory.get('terminals',[])}
@@ -35,7 +48,9 @@ def validate(frame,state):
         if not isinstance(values,dict) or set(values)!={'source','sink'}:raise ValueError('Invalid saved endpoint mappings.')
         for identifier in values.values():
             if identifier is not None and identifier not in terminals:raise ValueError('Saved pad no longer exists: '+str(identifier))
-    if not isinstance(state['return_nets'],list) or any(name not in nets for name in state['return_nets']):
+    return_choices=set(nets)|{row['net'] for row in getattr(frame,'_board_scene',{}).get('primitives',[])
+                               if row.get('net') and row.get('role') in ('track','pad','via','zone')}
+    if not isinstance(state['return_nets'],list) or any(name not in return_choices for name in state['return_nets']):
         raise ValueError('Saved return nets no longer exist.')
     for identifier in state['endpoints'].values():
         if state['series_request'] is None and identifier is not None and terminals[identifier].get('net')!=state['net']:
@@ -57,6 +72,15 @@ def validate(frame,state):
         for identifier in pad_names(row):
             if identifier not in terminals or terminals[identifier].get('net')!=state['net']:
                 raise ValueError('An additional sink pad is missing or changed net.')
+    primary=state.get('primary_sink_pads',[])
+    if not isinstance(primary,list) or (primary and primary[0]!=state['endpoints']['sink']):
+        raise ValueError('Primary sink pad group does not match the selected sink anchor.')
+    if primary:
+        if any(not isinstance(key,str) or key not in terminals or terminals[key].get('net')!=state['net'] for key in primary):
+            raise ValueError('A primary sink pad is missing or changed net.')
+        reserved={state['endpoints']['source']}|{key for row in state['extra_sinks'] for key in pad_names(row)}
+        if len(set(primary))!=len(primary) or reserved.intersection(primary) or state['series_request'] is not None:
+            raise ValueError('The primary sink pad group overlaps another endpoint or series path.')
     if state['series_request'] is not None:
         request=state['series_request']
         if not isinstance(request,dict) or not isinstance(request.get('series'),list):
@@ -98,6 +122,11 @@ def restore(frame,state):
     frame.net.Set(frame.inventory.get('nets',[]));frame.net.SetValue(state['net'])
     frame._set_terminals()
     restore_controls(frame,state['controls'])
+    if hasattr(frame,'voltage_tolerance'):
+        display=state.get('voltage_display',{})
+        frame.voltage_tolerance.ChangeValue(display.get('tolerance_pct',''))
+        frame.show_exact_voltages.SetValue(display.get('show_exact',True))
+        frame._update_voltage_window()
     for role,identifier in state['endpoints'].items():
         getattr(frame,role).SetSelection(next((i for i,row in enumerate(frame._terminals) if row['id']==identifier),-1))
     for i in range(frame.return_nets.GetCount()):
@@ -108,6 +137,10 @@ def restore(frame,state):
         getattr(frame,'return_'+role).SetStringSelection(label)
     frame._extra_sinks=deepcopy(state['extra_sinks']);frame._series_request=deepcopy(state['series_request'])
     frame._series_draft=deepcopy(state.get('series_draft'))
+    frame._series_needs_review=False
+    frame._return_needs_review=False
+    if hasattr(frame,'_set_primary_sink_pads') and state.get('primary_sink_pads'):
+        frame._set_primary_sink_pads(state['primary_sink_pads'])
     frame._package_conduction=deepcopy(state['package_conduction'])
     if frame._series_request:
         frame._series_request['board_path']=frame.board_path

@@ -118,6 +118,30 @@ def result_message(value):
     if value.get('schema') == 'wayricad.assistant-capabilities/v1':
         tools = sorted({row['tool'] for row in value.get('actions', []) if row.get('tool') != 'assistant'})
         return 'Registered tools: ' + ', '.join(tools) + '. Ask about a tool for available actions.'
+    batch = value.get('batch')
+    if isinstance(batch, dict) and isinstance(batch.get('cases'), list):
+        rows = [row for row in batch['cases'] if isinstance(row, dict)]
+        lines = [f'{sum(row.get("status") == "COMPLETED" for row in rows)}/{len(rows)} rail cases completed']
+        for row in rows[:6]:
+            result = row.get('electrical', {}).get('result', {})
+            line = result_message(result) or str(row.get('status', 'Unknown'))
+            lines.append(f"{row.get('name', 'Rail')} · {line}")
+        if len(rows) > 6:
+            lines.append('Open the study report for the remaining rails.')
+        return '\n'.join(lines)
+    transient = value.get('transient')
+    if isinstance(transient, dict) and isinstance(transient.get('loads'), list):
+        lines = ['Load-step transient']
+        limits = transient.get('limits', {}).get('within_all_specified_limits')
+        if limits is False:
+            lines.append('Voltage or current limit violation')
+        for row in transient['loads'][:6]:
+            if not isinstance(row, dict):
+                continue
+            low, high = row.get('min_voltage_V'), row.get('max_voltage_V')
+            if all(isinstance(x, (float, int)) and math.isfinite(x) for x in (low, high)):
+                lines.append(f"{row.get('label', row.get('id', 'Load'))} · {low:.5g}–{high:.5g} V")
+        return '\n'.join(lines)
     fields = (('voltage_drop_V', 'Voltage drop', 'mV', 1000),
               ('sink_voltage_V', 'Sink voltage', 'V', 1),
               ('total_power_W', 'Power loss', 'W', 1),

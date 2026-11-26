@@ -194,6 +194,7 @@ def create_bulk_frame(parent):
     import wx
     from .bulk import available_nets, normalize_bundles
     from .measurement import PathMeasurement
+    from .origin_selection import saved_pick
     from .trace_impedance_plugin import RoutePreview
     from .preview_kit import add_zoom_toolbar
 
@@ -217,6 +218,10 @@ def create_bulk_frame(parent):
             self.cancel = wx.Button(panel, label='Cancel'); self.cancel.Disable(); self.cancel.Bind(wx.EVT_BUTTON, self.on_cancel); settings.Add(self.cancel, 0, wx.ALL, 4)
             layout.Add(settings, 0, wx.EXPAND)
             top = wx.BoxSizer(wx.HORIZONTAL)
+            self.pcb_pick = wx.Button(panel, label='Use PCB selection')
+            self.pcb_pick.SetToolTip('Check the saved nets of the selected pads, tracks, vias or zones in PCB Editor.')
+            self.pcb_pick.Bind(wx.EVT_BUTTON, self.use_pcb_selection)
+            layout.Add(self.pcb_pick, 0, wx.LEFT | wx.BOTTOM, 4)
             self.available = available_nets(parent.engine)
             self.nets = wx.CheckListBox(panel, choices=[net or '(unassigned copper)' for net in self.available], size=(280, 110)); top.Add(self.nets, 1, wx.EXPAND | wx.ALL, 4)
             bundle_box = wx.BoxSizer(wx.VERTICAL)
@@ -259,8 +264,41 @@ def create_bulk_frame(parent):
             for control in (self.scope, self.frequency, self.budget, self.infer, self.nets, self.bundles): control.Enable(not busy)
             for button in self.bundle_buttons: button.Enable(not busy)
             self.run.Enable(not busy); self.cancel.Enable(busy)
+            self.pcb_pick.Enable(not busy and (not parent.saved_board or parent.origin_selection.available))
             self.cross.Enable(bool(self.document) and not busy)
             for button in self.exports: button.Enable(bool(self.document) and not busy)
+
+        def use_pcb_selection(self, _event=None):
+            if self.controller.busy:
+                return
+
+            def finish(identifiers, error=None):
+                if error:
+                    self.summary.SetLabel(error)
+                    self._buttons()
+                    return
+                try:
+                    if parent.saved_board:
+                        parent.origin_selection.check_source()
+                    assert_current(parent.board)
+                    wanted = set(saved_pick(parent.board, identifiers))
+                    if wanted.difference(self.available):
+                        raise ValueError('Some selected nets are absent from this saved RLC inventory.')
+                    self.scope.SetSelection(1)
+                    self.nets.SetCheckedItems([i for i, name in enumerate(self.available) if name in wanted])
+                    self.invalidate()
+                    self.summary.SetLabel(f'{len(wanted)} saved nets checked from PCB selection. Ready to extract.')
+                except Exception as exc:
+                    self.summary.SetLabel(str(exc))
+                    self._buttons()
+
+            if parent.saved_board:
+                self.controller.start(lambda _cancel, _progress: parent.origin_selection.read(), finish, wx.CallAfter)
+                self.summary.SetLabel('Reading selection from the originating PCB Editor…')
+                self._buttons()
+                self.cancel.Disable()
+            else:
+                finish([item.m_Uuid.AsString() for item in parent._selected_board_items()])
 
         def invalidate(self, _event=None):
             self.document = None; self.snapshot_board = None; self.net_results.DeleteAllItems(); self.sections.DeleteAllItems(); self._table_sections = []

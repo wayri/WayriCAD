@@ -161,12 +161,19 @@ def propose(board, api, references, solve=None, **options):
     selected = [by_ref[r] for r in sorted(set(references))]
     board.BuildConnectivity()
     models, fixed = [], []
+    connectivity = board.GetConnectivity()
     for fp in selected:
-        connected = any(any(not isinstance(item, api.PAD) or item.GetParent() != fp
-                            for item in board.GetConnectivity().GetConnectedItems(pad)) for pad in fp.Pads())
-        models.append(model(fp, api, locked=connected))
-        if connected:
-            fixed.append(fp.GetReference())
+        contacts = []
+        for pad in fp.Pads():
+            contact = next((item for item in connectivity.GetConnectedItems(pad)
+                            if not isinstance(item, api.PAD) or item.GetParent() != fp), None)
+            if contact is not None:
+                contacts.append(f"{pad.GetNumber()} ({pad.GetNetname()}, {uid(contact)})")
+                if len(contacts) == 3:
+                    break
+        models.append(model(fp, api, locked=bool(contacts)))
+        if contacts:
+            fixed.append(f"{fp.GetReference()}: "+", ".join(contacts))
     from . import attraction, grouping
     wire_mm=options.pop('schematic_wire_mm',25.0)
     strength=options.get('attraction_strength',1.0)
@@ -211,11 +218,12 @@ def propose(board, api, references, solve=None, **options):
             continue
         outlines = courtyard(fp, api) or (_box_polygon(fp.GetBoundingBox(False, False), api),)
         sides = ('top', 'bottom') if fp.HasThroughHolePads() else (('bottom',) if fp.IsFlipped() else ('top',))
-        obstacles.extend(engine.Obstacle(poly, sides) for poly in outlines)
+        obstacles.extend(engine.Obstacle(poly, sides, f"{fp.GetReference()} ({uid(fp)})") for poly in outlines)
     for zone in board.Zones():
         if zone.GetIsRuleArea() and zone.GetDoNotAllowFootprints():
             sides = tuple(s for s, layer in [('top', api.F_Cu), ('bottom', api.B_Cu)] if zone.IsOnLayer(layer))
-            obstacles.extend(engine.Obstacle(poly, sides) for poly in polygons(zone.Outline(), api))
+            label = f"footprint keepout {zone.GetZoneName() or uid(zone)}"
+            obstacles.extend(engine.Obstacle(poly, sides, label) for poly in polygons(zone.Outline(), api))
     outline = api.SHAPE_POLY_SET()
     if not board.GetBoardPolygonOutlines(outline, False):
         raise ValueError('A valid closed Edge.Cuts outline is required.')

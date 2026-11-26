@@ -32,9 +32,14 @@ class Workspace:
                                          tip='Read the exact selected net and pads from the originating editor')
         self.follow = wx.CheckBox(header,label='Follow PCB')
         from wayricad_runtime.context import LaunchContext
-        origin=LaunchContext.capture()
-        self.follow.SetValue(bool(origin.socket and origin.token))
-        self.follow.SetToolTip('Follow selected copper while idle; ambiguous nets retain current inputs.')
+        self.origin=LaunchContext.capture()
+        self.can_navigate=bool(self.origin.socket and self.origin.token)
+        self.follow.Enable(self.can_navigate and panel.saved_board)
+        self.follow.SetValue(self.follow.IsEnabled())
+        self.use_selection.Enable(self.can_navigate)
+        if not self.can_navigate:
+            self.use_selection.SetToolTip('Launch Quick SI from the originating PCB Editor to use its selection.')
+        self.follow.SetToolTip('Highlight exact selected copper on the displayed route. Use PCB selection to change the setup.')
         row.Add(self.follow,0,wx.ALIGN_CENTER_VERTICAL|wx.RIGHT|wx.BOTTOM,5)
         self.files = self._button(header, row, 'Files', self.show_files,
                                   tip='Save/load setup or results; export reports, Blender or a KiCad circuit')
@@ -58,21 +63,52 @@ class Workspace:
         panel.workspace_splitter.Bind(wx.EVT_SIZE,self.resized)
         self.refresh_summary()
         from wayricad_runtime.selection_follow import SelectionFollower
-        origin_path=str(panel.board.GetFileName())
-        origin_fingerprints=dict(panel._source_fingerprints or {})
-        def read_selection():
-            from wayricad_runtime.analysis_selection import selected_origin_ids
-            from .service import source_fingerprints
-            from pathlib import Path
-            if source_fingerprints(origin_path)!=origin_fingerprints:
-                raise ValueError('Saved sources changed. Reopen Quick SI before following PCB selection.')
-            return selected_origin_ids(origin_path,
-                expected_sha256=origin_fingerprints.get(str(Path(origin_path).resolve())))
-        self.selection_follower=SelectionFollower(panel,self.follow,read_selection,
-            panel._apply_pcb_selection,
-            lambda: not panel._closed and not panel._busy and not panel._navigation_busy
-                    and not panel._circuit_busy and panel.saved_board,
-            lambda error: panel.status.SetLabel('PCB follow paused: '+str(error)))
+        self._selection_reader=None
+        self._follow_ids=()
+        self.selection_follower=SelectionFollower(panel,self.follow,lambda:self._selection_reader.read(),
+            self.highlight_pcb_selection,
+            lambda: not (panel._closed or panel._busy or panel._navigation_busy
+                         or panel._circuit_busy or panel._source_dirty)
+                    and bool(self._selection_reader and self._selection_reader.available),
+            self._follow_failed,include_empty=True)
+        self.follow.Bind(wx.EVT_CHECKBOX,self._clear_when_disabled)
+        self.reset_selection_source()
+
+    def highlight_pcb_selection(self, identifiers):
+        self._follow_ids=tuple(identifiers)
+        show=getattr(self.panel.preview,'set_editor_selection',None)
+        if show is not None:show(self._follow_ids)
+
+    def _clear_when_disabled(self,event):
+        if not self.follow.GetValue():self.highlight_pcb_selection(())
+        event.Skip()
+
+    def reset_selection_source(self):
+        from pathlib import Path
+        from wayricad_runtime.analysis_selection import SavedSelectionReader
+        board_path=self.panel.board.GetFileName()
+        if self.panel.saved_board and self.can_navigate and board_path:
+            path=Path(board_path).resolve()
+            fingerprint=self.panel._source_fingerprints.get(str(path))
+            self._selection_reader=SavedSelectionReader(path,expected_sha256=fingerprint,
+                expected_fingerprints=self.panel._source_fingerprints,launch_context=self.origin)
+        else:
+            self._selection_reader=None
+        self.selection_follower.state.reset()
+        self.highlight_pcb_selection(())
+
+    def _follow_failed(self,error):
+        from wayricad_runtime.analysis_selection import SavedSelectionChanged
+        from wayricad_runtime.context import redact_error
+        if isinstance(error,SavedSelectionChanged):
+            self.follow.SetValue(True)
+            self.panel._saved_source_changed()
+            refresh=getattr(self.panel,'_source_refresh',None)
+            if refresh is not None:
+                refresh.state.pending=True
+        else:
+            self.highlight_pcb_selection(())
+            self.panel.status.SetLabel('PCB follow paused: '+redact_error(error))
 
     @staticmethod
     def _button(parent, row, label, callback, *, toggle=False, tip=''):
@@ -175,6 +211,8 @@ class Workspace:
         panel=self.panel
         with wx.Menu() as menu:
             choices=[('Use PCB selection',panel.use_pcb_selection,panel.read_selection_button),
+                     ('Use selected pad as Source',lambda event:panel._navigate('read:start'),panel.read_selection_button),
+                     ('Use selected pad as Receiver',lambda event:panel._navigate('read:end'),panel.read_selection_button),
                      ('Choose net on board…',panel.select_board_net,None),
                      ('Select route in PCB',panel.select_route_in_pcb,panel.select_route_button),
                      ('Select return nets in PCB',panel.select_returns_in_pcb,panel.select_returns_button)]
@@ -182,4 +220,8 @@ class Workspace:
                 item=menu.Append(wx.ID_ANY,label)
                 if control is not None:item.Enable(control.IsEnabled())
                 menu.Bind(wx.EVT_MENU,callback,id=item.GetId())
+            if panel.saved_board:
+                item=menu.Append(wx.ID_ANY,'Refresh saved PCB')
+                item.Enable(not (panel._busy or panel._reloading))
+                menu.Bind(wx.EVT_MENU,panel.reload_saved_pcb,id=item.GetId())
             self.pcb.PopupMenu(menu)

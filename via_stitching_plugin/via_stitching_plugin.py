@@ -14,6 +14,12 @@ from .help_utils import open_help
 from .selection_utils import select_items
 from .geometry_preview import GeometryPreview
 try:
+    from .wayricad_runtime.editor_refresh import SavedBoardRefresh
+    from .wayricad_runtime.context import LaunchContext
+except ImportError:
+    from wayricad_runtime.editor_refresh import SavedBoardRefresh
+    from wayricad_runtime.context import LaunchContext
+try:
     from .wayricad_runtime.routing_ui import build_stitching
 except ImportError:
     from wayricad_runtime.routing_ui import build_stitching
@@ -22,10 +28,10 @@ try:
 except ImportError:
     from wayricad_runtime.operations import add_group, remove_group
 try:
-    from .wayricad_runtime.geometry import board_fingerprint
+    from .wayricad_runtime.geometry import board_fingerprint, item_id
     from .wayricad_runtime.ipc import read_snapshot
 except ImportError:
-    from wayricad_runtime.geometry import board_fingerprint
+    from wayricad_runtime.geometry import board_fingerprint, item_id
     from wayricad_runtime.ipc import read_snapshot
 
 
@@ -66,6 +72,7 @@ class ViaFrame(wx.Frame):
         super().__init__(parent, title="WayriCAD Via Stitching", size=(1180, 780), style=wx.DEFAULT_FRAME_STYLE | wx.RESIZE_BORDER)
         self.SetMinSize((960, 680))
         self.board = board
+        self._launch_context = LaunchContext.capture() if hasattr(board,'raw') else None
         self.preview_plan: List[Any] = []
         self.preview_items: List[Any] = []
         self.undo_stack: List[Any] = []
@@ -87,12 +94,18 @@ class ViaFrame(wx.Frame):
         self.undo_stack = self._persistent_groups()
         self.undo_button.Enable(bool(self.undo_stack))
         self.selection_timer.Start(500)
+        self.saved_refresh=SavedBoardRefresh(self,board.GetFileName(),self._saved_source_changed,
+                                             self._refresh_saved,lambda:self._routing_job is None)
         self.Bind(wx.EVT_CLOSE, self.on_close)
         self.Centre()
         wx.CallAfter(self._load_context)
 
     def _build_ui(self):
         build_stitching(self, pcbnew, lambda: open_help(self))
+        locate=wx.Button(self.guard_panel,label='Locate guard routes in PCB')
+        locate.Bind(wx.EVT_BUTTON,self.locate_guard_routes)
+        self.guard_panel.GetSizer().Add(locate,0,wx.EXPAND|wx.BOTTOM,7)
+        self.settings_pane.FitInside()
 
     def _load_nets(self) -> None:
         names: Set[str] = set()
@@ -120,10 +133,6 @@ class ViaFrame(wx.Frame):
     def capture_guard_tracks(self, _event=None):
         self.clear_preview(None)
         try:
-            try:
-                from .wayricad_runtime.geometry import item_id
-            except ImportError:
-                from wayricad_runtime.geometry import item_id
             selected = [track for track in self._selected_items() if track.GetClass() in ('PCB_TRACK','PCB_ARC')]
             self._guard_track_ids = [item_id(track) for track in selected]
             if not selected:
@@ -133,6 +142,34 @@ class ViaFrame(wx.Frame):
             self._show_guard_targets()
         except Exception as exc:
             self.status.SetLabel(str(exc))
+
+    def locate_guard_routes(self, _event=None):
+        try:
+            ipc=hasattr(self.board,'raw')
+            if not ipc:
+                editor=pcbnew.GetBoard()
+                if editor is None or editor.this!=self.board.this:
+                    raise ValueError('Open Via Stitching from this PCB Editor to locate a guard route.')
+            nets=set(self.guard_nets.GetValue())
+            captured=set(self._guard_track_ids)
+            tracks=[item for item in self.board.GetTracks()
+                    if item.GetClass() in ('PCB_TRACK','PCB_ARC')]
+            matches=[item for item in tracks if item_id(item) in captured or item.GetNetname() in nets]
+            found=[item_id(item) for item in matches]
+            if not matches or captured-set(found) or len(found)!=len(set(found)):
+                raise ValueError('Guard routes no longer resolve uniquely. Capture the routes again.')
+            if ipc:
+                try:
+                    from .wayricad_runtime.analysis_selection import select_origin
+                except ImportError:
+                    from wayricad_runtime.analysis_selection import select_origin
+                select_origin(self.board.GetFileName(),found,focus=True,launch_context=self._launch_context)
+                self.status.SetLabel(f'Selected {len(matches)} guard route segments in the originating PCB Editor.')
+            else:
+                pcbnew.FocusOnItem(matches[0])
+                self.status.SetLabel(f'Located the first of {len(matches)} guard route segments in PCB Editor.')
+        except Exception as error:
+            self.status.SetLabel(str(error))
 
     def _show_guard_targets(self):
         if self.mode.GetValue() == 'Guard selected routes':
@@ -493,12 +530,24 @@ class ViaFrame(wx.Frame):
             )
         return result
 
-    def _selection_signature(self) -> Tuple[Any, ...]:
+    def _saved_source_changed(self):
+        self.clear_preview(None)
+        self._context_ready=False
+        self._context_token=None
+        self.status.SetLabel('Saved PCB or rules changed. Previous via candidates are unavailable.')
+
+    def _refresh_saved(self):
+        if self.auto_refresh.GetValue():
+            self.preview(None,silent=True)
+        else:
+            self._load_context()
+
+    def _selection_signature(self, selected=None) -> Tuple[Any, ...]:
         signature = []
-        for item in self._selected_items():
+        for item in self._selected_items() if selected is None else selected:
             net_name = str(getattr(item, "GetNetname", lambda: "")())
             box = getattr(item, "GetBoundingBox", lambda: None)()
-            signature.append((id(item), net_name, box.GetLeft() if box else 0, box.GetTop() if box else 0))
+            signature.append((item_id(item), net_name, box.GetLeft() if box else 0, box.GetTop() if box else 0))
         return tuple(sorted(signature))
 
     def on_selection_timer(self, _event: Any) -> None:
@@ -507,14 +556,17 @@ class ViaFrame(wx.Frame):
         if not self.auto_refresh.GetValue() or self._routing_job is not None:
             return
         try:
-            signature = self._selection_signature()
+            selected = self._selected_items()
+            signature = self._selection_signature(selected)
             if signature == self.last_selection_signature:
                 return
             self.last_selection_signature = signature
-            selected = self._selected_items()
-            selected_net = next((str(getattr(item, "GetNetname", lambda: "")()) for item in selected if str(getattr(item, "GetNetname", lambda: "")())), "")
-            if self.mode.GetValue() == 'Grid' and selected_net and self.net_choice.FindString(selected_net) != wx.NOT_FOUND:
-                self.net_choice.SetValue(selected_net)
+            selected_nets = {str(getattr(item,'GetNetname',lambda:'')()) for item in selected} - {''}
+            if self.mode.GetValue() == 'Grid' and len(selected_nets)==1:
+                selected_net=next(iter(selected_nets))
+                if self.net_choice.FindString(selected_net)!=wx.NOT_FOUND and self.net_choice.GetValue()!=selected_net:
+                    self.clear_preview(None)
+                    self.net_choice.SetValue(selected_net)
             if selected and not self.universal.GetValue():
                 self.use_selection_bounds(None, silent=True)
             if self.auto_refresh.GetValue() and not self.preview_items:
@@ -532,6 +584,7 @@ class ViaFrame(wx.Frame):
 
     def on_close(self, event: Any) -> None:
         self.selection_timer.Stop()
+        self.saved_refresh.stop()
         if self._routing_job is not None:self.cancel_planning()
         self.preview_timer.Stop()
         self.clear_preview(None)

@@ -1,5 +1,19 @@
 # Quick EMerge validation evidence
 
+## Rule-area selection and saved-study refresh
+
+On 25 November 2026, the native Quick EMerge workbench connected to an isolated
+KiCad 10.0.6 PCB Editor on Windows with a copy of the public region coupon.
+**Show in PCB** selected one enclosure. Editor readback returned its exact zone
+UUID. **Use PCB selection** restored the enclosure choice and highlighted that
+same contour. Clearing the editor selection retained the study inputs and
+prompted for one enclosure. The saved board SHA-256 matched after both actions.
+
+The board-sync, region-view and setup-file suites passed all 22 tests using the
+desktop wx runtime and KiCad extraction worker. Changing the coupon's saved
+rules cleared the result and disabled Run. The refreshed form recovered the
+enclosure, both nets and the sweep input, and required renewed material review.
+
 ## Coupled FEM AESA and dual radiation view: 2026-11-11
 
 Source development after 4.8.0 adds 2–16 finite passive patch ports, fixed-phase

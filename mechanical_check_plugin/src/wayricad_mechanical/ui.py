@@ -18,7 +18,9 @@ from .viewer import Scene
 from .measurement_service import MeasurementSession
 from .inspection_state import measurement_text
 from .part_inspector import PartInspector
-from .extract import is_mounting
+from .editor_link import finding_footprints, locate_report, board_inventory
+from wayricad_runtime.context import LaunchContext
+from wayricad_runtime.editor_refresh import RevisionState, source_stamp
 from .review import filtered_findings, finding_details, review_summary
 from wayricad_runtime.layout import install_accessibility, relayout, fit_to_display
 
@@ -135,7 +137,7 @@ class SectionProfile(wx.Panel):
 
 
 class Window(wx.Frame):
-    def __init__(self, board_path=None, rules_path=None, live_board=None, snapshot_of=None):
+    def __init__(self, board_path=None, rules_path=None, live_board=None, snapshot_of=None, historical=False):
         global INK, MUTED, BG, TEAL
         INK, MUTED, BG, TEAL = theme_palette(wx.SystemSettings.GetAppearance().IsDark())
         super().__init__(None, title='WayriCAD Mechanical Check — Board validation', size=(1160, 820))
@@ -145,6 +147,13 @@ class Window(wx.Frame):
         if icon.exists():self.SetIcon(wx.Icon(str(icon),wx.BITMAP_TYPE_PNG))
         self.config = load(rules_path)
         self.rules_path = rules_path
+        self.origin = LaunchContext.capture()
+        self.locating = False
+        self.source_state = None
+        self.reading_inventory = False
+        self.inventory_error = False
+        self.run_stamp = None
+        self.mount_ids = {}
         self.live_board = live_board
         self.snapshot_of = snapshot_of
         self.board_path = str(board_path or (live_board.GetFileName() if live_board else ''))
@@ -207,6 +216,11 @@ class Window(wx.Frame):
         root.SetSizer(layout)
         self.Bind(wx.EVT_CLOSE,self.close)
         self.load_board()
+        if live_board is None and not snapshot_of and not historical:
+            self.source_state = RevisionState(self.input_stamp())
+            self.source_timer = wx.Timer(self)
+            self.Bind(wx.EVT_TIMER, self.poll_inputs, self.source_timer)
+            self.source_timer.Start(600)
         if snapshot_of:
             self.file.Disable()
             self.status.SetLabel('IPC snapshot captured at launch — reopen WayriCAD Mechanical Check after editing the PCB')
@@ -424,6 +438,7 @@ class Window(wx.Frame):
         self.finding_actions=[]
         for title,action in [('Locate in KiCad',self.locate),('Waiver…',self.waive),('Coverage…',self.coverage)]:
             control=button(findings,title,action);actions.Add(control,0,wx.RIGHT|wx.BOTTOM,4)
+            if title=='Locate in KiCad':self.locate_button=control
             if title!='Coverage…':self.finding_actions.append(control)
         fs.Add(actions,0,wx.EXPAND);findings.SetSizer(fs);tabs.AddPage(findings,'Findings')
         measure=wx.ScrolledWindow(tabs);measure.SetBackgroundColour(BG);measure.SetScrollRate(8,12)
@@ -509,6 +524,9 @@ class Window(wx.Frame):
     def update_finding_actions(self):
         present=self.selected() is not None
         for control in [self.focus_button,self.isolate_button,*self.finding_actions]:control.Enable(present)
+        can_locate = self.live_board is not None or (self.origin.socket and self.origin.token
+                     and self.result and self.result.get('board_sha256') and not self.result.get('source_kind'))
+        self.locate_button.Enable(bool(present and can_locate and not self.locating))
         for control in (self.previous_finding,self.next_finding):control.Enable(len(self.filtered)>1)
         if not present:self.isolate_button.SetValue(False);self.scene.isolate=False
 
@@ -549,10 +567,29 @@ class Window(wx.Frame):
         self.export_button.SetMinSize((270,45));s.Add(self.export_button,0,wx.BOTTOM,20)
         p.SetSizer(s)
 
-    def load_board(self):
+    def input_stamp(self):
+        path = self.file.GetPath()
+        comparison = self.comparison_file.GetPath()
+        paths = [path] if path else []
+        if path and comparison:
+            paths.append(Path(path).parent / comparison)
+        return tuple(source_stamp(p) for p in paths)
+
+    def poll_inputs(self, event=None):
+        stamp = self.input_stamp()
+        action = self.source_state.observe(stamp, ready=not self.running and not self.reading_inventory,
+                                          available=bool(stamp and stamp[0][0][1]))
+        if action == 'invalidate':
+            if self.running:
+                self.cancel.set()
+            else:
+                self.clear_report()
+            self.status.SetLabel('Saved board inputs changed. Previous findings are out of date.')
+        elif action == 'reload':
+            self.refresh_inventory(stamp)
+
+    def clear_report(self):
         self.reset_measurement_session()
-        path=self.file.GetPath()
-        self.board_path=path
         self.result=None
         self.export_button.Disable()
         self.list.DeleteAllItems()
@@ -564,27 +601,72 @@ class Window(wx.Frame):
         self.scene.set_report({'bodies': []})
         self.geometry_mode.SetLabel('No geometry loaded');self.view_3d.SetLabel('Load 3D models')
         self.measure_mode.SetSelection(0);self.change_measure_mode(None)
-        self.fill_mounts([])
         self.part_a.Clear();self.part_b.Clear()
-        if not path and not self.live_board:return
+
+    def load_board(self):
+        self.clear_report()
+        self.board_path = self.file.GetPath()
+        if self.source_state:
+            self.source_state.reset(self.input_stamp())
+        self.inventory_error = False
+        self.mount_ids = {}
+        self.fill_mounts([])
+        if not self.board_path and self.live_board is None:
+            return
         try:
-            import pcbnew as pcb
-            board=self.live_board or pcb.LoadBoard(path)
-            footprints=list(board.GetFootprints())
-            count=sum(bool(list(f.Models())) for f in footprints)
-            self.board_stats.SetLabel(f'{len(footprints):,} footprints    ·    {count:,} with model assignments    ·    {pcb.ToMM(board.GetDesignSettings().GetBoardThickness()):.2f} mm board')
-            if not self.project.GetValue():self.project.SetValue(Path(path).stem)
-            rows=[]
-            for fp in footprints:
-                if is_mounting(fp,self.config['mounts']):
-                    for pad in fp.Pads():
-                        if max(pad.GetDrillSize().x,pad.GetDrillSize().y):
-                            rows.append((fp.GetReference(),'NPTH' if pad.GetAttribute()==pcb.PAD_ATTRIB_NPTH else 'PTH'))
-                            break
-            self.fill_mounts(sorted(rows))
-            self.result=None
-        except Exception as exc:
-            self.board_stats.SetLabel('Could not read board: '+str(exc))
+            data = board_inventory(self.board_path, self.config['mounts'], self.live_board)
+            self.show_inventory(data)
+        except Exception as error:
+            self.board_stats.SetLabel('Could not read board: ' + str(error))
+
+    def show_inventory(self, data, *, preserve_mounts=False):
+        if self.mount_grid.IsCellEditControlEnabled():
+            self.mount_grid.SaveEditControlValue()
+            self.mount_grid.DisableCellEditControl()
+        saved = {}
+        if preserve_mounts:
+            for row,(ref,_plating) in enumerate(self.mount_rows):
+                if self.mount_ids.get(ref):
+                    saved[self.mount_ids[ref]] = [self.mount_grid.GetCellValue(row,i) for i in range(2,9)]
+        stats, rows, self.mount_ids = data
+        self.board_stats.SetLabel(stats)
+        if not self.project.GetValue():
+            self.project.SetValue(Path(self.board_path).stem)
+        self.fill_mounts(rows)
+        if preserve_mounts:
+            for row,(ref,_plating) in enumerate(self.mount_rows):
+                cells = saved.get(self.mount_ids.get(ref))
+                if cells is None:
+                    self.mount_grid.SetCellValue(row,2,'Unconfirmed')
+                else:
+                    for column,value in enumerate(cells,2):
+                        self.mount_grid.SetCellValue(row,column,value)
+
+    def refresh_inventory(self, stamp):
+        self.reading_inventory = True
+        path, mounts = self.board_path, tuple(self.config['mounts'])
+        def work():
+            data = error = None
+            try:
+                data = board_inventory(path, mounts)
+            except Exception as exc:
+                error = str(exc)
+            self.dispatch(finished,data,error)
+
+        def finished(data,error):
+            self.reading_inventory = False
+            if stamp != self.input_stamp():
+                return
+            if error:
+                self.board_stats.SetLabel('Could not read board: ' + error)
+                self.status.SetLabel('Board inventory could not refresh. Check the saved PCB.')
+                # Retain the previous mounting settings while the source is unreadable.
+                self.inventory_error = True
+                return
+            self.inventory_error = False
+            self.show_inventory(data,preserve_mounts=True)
+            self.status.SetLabel('Board inventory refreshed. Run the checks to update findings.')
+        threading.Thread(target=work,daemon=True,name='Mechanical Check board inventory').start()
 
     def fill_mounts(self,rows):
         self.mount_rows=rows
@@ -641,6 +723,14 @@ class Window(wx.Frame):
     def start(self,event):
         if self.running:return
         try:
+            if self.source_state:
+                self.poll_inputs()
+                if self.inventory_error and not self.reading_inventory and not self.source_state.pending:
+                    self.refresh_inventory(self.input_stamp())
+                if self.source_state.pending or self.reading_inventory:
+                    self.status.SetLabel('Wait for the saved board inventory to refresh.')
+                    return
+                self.run_stamp = self.input_stamp()
             config=self.get_config()
             if not self.board_path and not self.live_board:raise ValueError('Choose a board first.')
             self.config=config
@@ -680,6 +770,10 @@ class Window(wx.Frame):
     def completed(self,result,error):
         self.running=False;self.run_button.Enable();self.cancel_button.Disable()
         self.pages[0].Enable();self.pages[1].Enable()
+        if self.source_state and (self.run_stamp != self.input_stamp() or self.source_state.pending):
+            self.clear_report()
+            self.status.SetLabel('Board inputs changed during validation. Run the checks again.')
+            return
         if error:
             self.reset_measurement_session()
             self.progress_text.SetLabel('Cancelled.' if isinstance(error,Cancelled) else 'Validation could not finish.')
@@ -946,16 +1040,49 @@ class Window(wx.Frame):
     def locate(self,event):
         f=self.selected()
         if not f:return
+        if self.locating or not self.result:
+            return
+        if self.source_state:
+            self.poll_inputs()
+            if self.result is None or self.source_state.pending:
+                return
+        report = self.result
         try:
-            import pcbnew
-            board=pcbnew.GetBoard()
-            if not board or (self.board_path and Path(board.GetFileName()).resolve()!=Path(self.board_path).resolve()):
-                raise ValueError('Open this board in PCB Editor and launch WayriCAD Mechanical Check from its toolbar to locate parts.')
-            for fp in board.GetFootprints():
-                if fp.GetReference() in f['refs']:fp.SetSelected()
-                else:fp.ClearSelected()
-            pcbnew.Refresh()
-        except Exception as exc:wx.MessageBox(str(exc),'Locate parts',wx.OK,self)
+            ids, skipped = finding_footprints(report, f)
+            if self.live_board is not None:
+                import pcbnew
+                footprints = list(self.live_board.GetFootprints())
+                wanted = set(ids)
+                matches = [fp for fp in footprints if fp.m_Uuid.AsString() in wanted]
+                if len(matches) != len(wanted) or {fp.m_Uuid.AsString() for fp in matches} != wanted:
+                    raise ValueError('A reviewed footprint no longer resolves uniquely. Run the check again.')
+                for fp in footprints:
+                    fp.SetSelected() if fp.m_Uuid.AsString() in wanted else fp.ClearSelected()
+                pcbnew.Refresh()
+                self.status.SetLabel(f'Selected {len(matches)} primary-board footprints.')
+                return
+            if not self.origin.socket or not self.origin.token:
+                raise ValueError('Open Mechanical Check from the originating PCB Editor to locate footprints.')
+            self.locating = True
+            self.update_finding_actions()
+            self.status.SetLabel('Locating reviewed footprints in PCB Editor…')
+            def completed(message):
+                self.locating = False
+                self.update_finding_actions()
+                if self.result is report:
+                    self.status.SetLabel(message)
+            def locate():
+                try:
+                    result = locate_report(report, ids, self.origin)
+                    message = f"Selected {result['count']} primary-board footprints. Zoom: {result['focus']}."
+                    if skipped:
+                        message += ' Other finding objects: ' + ', '.join(skipped)
+                except Exception as error:
+                    message = str(error)
+                self.dispatch(completed,message)
+            threading.Thread(target=locate,daemon=True,name='Mechanical Check PCB navigation').start()
+        except ValueError as error:
+            self.status.SetLabel(str(error))
 
     def waive(self,event):
         f=self.selected()
@@ -1019,6 +1146,10 @@ class Window(wx.Frame):
         with wx.DirDialog(self,'Choose a reports folder') as dlg:
             if dlg.ShowModal()!=wx.ID_OK:return
             try:
+                if self.source_state:
+                    self.poll_inputs()
+                if not self.result:
+                    raise ValueError('Saved board inputs changed. Run the checks before exporting.')
                 paths=export(self.result,dlg.GetPath(),pocket_kivi=True)
                 self.status.SetLabel(('Report and Pocket KiVi scene saved: ' if paths.get('pocket_kivi_json') else 'Report saved: ')+str(Path(paths['html']).parent)
                     +(' · '+paths['pocket_kivi_unavailable'] if paths.get('pocket_kivi_unavailable') else ''))
@@ -1041,7 +1172,9 @@ class Window(wx.Frame):
     def close(self,event):
         if self.running:
             self.cancel.set();self.status.SetLabel('Cancelling geometry worker — close again after it stops');event.Veto();return
-        self._closing=True;self.reset_measurement_session();self.Destroy()
+        self._closing=True
+        if self.source_state:self.source_timer.Stop()
+        self.reset_measurement_session();self.Destroy()
 
 
 def launch(board_path=None,rules_path=None,snapshot_of=None,review_path=None):
@@ -1050,7 +1183,7 @@ def launch(board_path=None,rules_path=None,snapshot_of=None,review_path=None):
     if review_path:
         result=json.loads(Path(review_path).read_text(encoding='utf-8'))
         board_path=result['board_path']
-    window=Window(board_path,rules_path,snapshot_of=snapshot_of)
+    window=Window(board_path,rules_path,snapshot_of=snapshot_of,historical=bool(review_path))
     if result:
         window.result=result;window.config=result['rules'];window.scene.set_report(result)
         window.refresh_result();window.show_step(3)

@@ -190,3 +190,16 @@ bank against its exact single-branch equivalent (C sums; identical parallel
 ESR/ESL divide by45). This analytical equivalence is used only as a test; unlike
 parts are never reduced that way in the actual bank solver. The 129th branch
 is rejected, and the scalar trace budget remains active at lower branch counts.
+
+## Live editor copper replay
+
+Windows, KiCad 10.0.6, native Quick PI window and an isolated PCB Editor.
+On a disposable copy of the [public example](../../docs/examples/pocket-kivi/example.kicad_pcb),
+assign J1.1 as source and U1.1 as load on `/Front outputs/SLOT1`. Set 3.3 V,
+0.25 A and a manual 1 mm mesh edge. Enable **Use unsaved edits**. Change the
+1 mm route width in PCB Editor to 1.5 mm and run. Change it to 2 mm and run
+again without saving. The solved drop changed from 1.477714 to 1.108286 mV.
+The scenario request and saved PCB SHA-256 were identical before and after.
+Exact track highlighting and outgoing source-pad UUID readback passed.
+Captured PCB copies were removed after solving. The project and rule model
+uses saved project inputs. Further in-memory edits enter the next Run.

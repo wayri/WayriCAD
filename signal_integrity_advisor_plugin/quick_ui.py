@@ -36,11 +36,32 @@ def reverse_selection_plan(current_net,net_pads,source,receiver):
     return {'net':net,'roles':roles,'pads':pads},('Pad direction is unresolved; choose Source and Receiver explicitly.' if pads and not roles else 'PCB selection mapped to the analysis view.')
 
 
+def _board_terminals(board):
+    rows = []
+    for footprint in board.GetFootprints():
+        reference = str(footprint.GetReference())
+        owner = str(footprint.m_Uuid.AsString())
+        for pad in footprint.Pads():
+            net = str(pad.GetNetname())
+            if net:
+                rows.append(dict(label=reference+'.'+str(pad.GetNumber()), net=net,
+                                 reference=reference, id=str(pad.m_Uuid.AsString()), footprint_uuid=owner))
+    return rows
+
+
+def _terminal_lists(rows, key):
+    pads = {}
+    for row in rows:
+        pads.setdefault(row['net'], []).append(row['label'])
+    return {net: sorted(labels, key=key) for net, labels in pads.items()}
+
+
 class QuickSIPanel(wx.Panel):
     def __init__(self,parent,board,preview_class,saved_board=False):
         super().__init__(parent);self.board=board;self.saved_board=saved_board;self.report=None;self.path=None
         self._closed=False;self._busy=False;self._generation=0;self._job_serial=0;self._cancel=threading.Event();self._result_fingerprints=None
         self._navigation_busy=False;self._navigation_serial=0
+        self._source_dirty=False;self._reloading=False;self._selection_index=None
         self._source_fingerprints=None;self.study_cases=[];self.study_report=None;self.crosstalk_pairs=[]
         self._circuit_generation=0;self._circuit_busy=False
         if saved_board:
@@ -61,16 +82,9 @@ class QuickSIPanel(wx.Panel):
             return control
         with read_snapshot(board):
             self.engine=TraceMeasurementEngine(board)
-            return_terminals=[];selected=[]
-            for footprint in board.GetFootprints():
-                reference=str(footprint.GetReference());owner=str(footprint.m_Uuid.AsString())
-                for pad in footprint.Pads():
-                    net=str(pad.GetNetname())
-                    if not net:continue
-                    label=reference+'.'+str(pad.GetNumber())
-                    return_terminals.append({'label':label,'net':net,'reference':reference,
-                        'id':str(pad.m_Uuid.AsString()),'footprint_uuid':owner})
-                    if pad.IsSelected():selected.append((net,label))
+            return_terminals=_board_terminals(board)
+            selected_ids={str(pad.m_Uuid.AsString()) for fp in board.GetFootprints() for pad in fp.Pads() if pad.IsSelected()}
+            selected=[(row['net'],row['label']) for row in return_terminals if row['id'] in selected_ids]
             nets=sorted({terminal['net'] for terminal in return_terminals},key=self.engine._natural_key)
         self.setup_button=wx.Button(left,label='Set up path and response…')
         self.setup_button.SetToolTip('Review source/receiver, same-part pads, line assumptions and board RLC eye inputs together. No board changes.')
@@ -82,9 +96,7 @@ class QuickSIPanel(wx.Panel):
         with read_snapshot(board):
             layers=self.engine.available_layers()
         self._setup_terminals=return_terminals
-        self._setup_pads={}
-        for terminal in return_terminals:self._setup_pads.setdefault(terminal['net'],[]).append(terminal['label'])
-        for pads in self._setup_pads.values():pads.sort(key=self.engine._natural_key)
+        self._setup_pads=_terminal_lists(return_terminals,self.engine._natural_key)
         from .return_setup_ui import ReturnSetupPanel
         self.return_setup=ReturnSetupPanel(left,nets,return_terminals,layers,
             lambda:self.changed(None),lambda:(left.FitInside(),self.Layout()))
@@ -206,9 +218,114 @@ class QuickSIPanel(wx.Panel):
         self.fields['net'].SetValue(selected[0][0] if selected else selected_tracks[0] if selected_tracks else candidate);self.net_changed(None)
         if selected:self.set_launch_selection({'net':selected[0][0],'pads':[label for net,label in selected if net==selected[0][0]]})
         left.FitInside()
+        if saved_board:
+            from wayricad_runtime.editor_refresh import SavedBoardRefresh
+            self._source_refresh=SavedBoardRefresh(self,lambda:self.board.GetFileName(),
+                self._saved_source_changed,self.reload_saved_pcb,
+                lambda:not (self._closed or self._busy or self._circuit_busy or self._navigation_busy or self._reloading))
+
+    def _saved_source_changed(self):
+        self._source_dirty=True
+        self._selection_index=None
+        self.workspace.selection_follower.state.reset()
+        self.workspace.highlight_pcb_selection(())
+        self.changed(None)
+        self.run_button.Disable()
+        self.status.SetLabel('Saved PCB or rules changed. Refreshing the board context…')
+
+    def reload_saved_pcb(self,event=None):
+        if not self.saved_board or self._closed or self._reloading:
+            return
+        if self._busy or self._navigation_busy or self._circuit_busy:
+            self.status.SetLabel('Wait for the current operation before refreshing.')
+            return
+        if not self._source_dirty:
+            self._saved_source_changed()
+        from wayricad_runtime.editor_refresh import source_stamp
+        path=str(self.board.GetFileName())
+        stamp=source_stamp(path)
+        self._reloading=True
+        self.status.SetLabel('Refreshing saved PCB and rule settings…')
+
+        def work():
+            payload=error=None
+            try:
+                from .service import source_fingerprints
+                from wayricad_runtime.saved_board import assert_current,load_board
+                fingerprints=source_fingerprints(path)
+                board=load_board(path)
+                if board is None:
+                    raise ValueError('KiCad could not load the saved PCB.')
+                engine=TraceMeasurementEngine(board)
+                rows=_board_terminals(board)
+                layers=engine.available_layers()
+                assert_current(board)
+                if source_fingerprints(path)!=fingerprints or source_stamp(path)!=stamp:
+                    raise ValueError('The saved inputs changed during refresh.')
+                payload=(board,engine,rows,layers,fingerprints)
+            except Exception as caught:
+                error=caught
+            if not self._closed:
+                try:wx.CallAfter(self._saved_reload_finished,stamp,payload,error)
+                except RuntimeError:pass
+
+        threading.Thread(target=work,daemon=True,name='Quick SI saved-board refresh').start()
+
+    def _saved_reload_finished(self,stamp,payload,error):
+        if self._closed:
+            return
+        self._reloading=False
+        from wayricad_runtime.editor_refresh import source_stamp
+        if source_stamp(self.board.GetFileName())!=stamp:
+            return  # The watcher queues the newer stable revision.
+        if error is not None:
+            from wayricad_runtime.context import redact_error
+            self.status.SetLabel('Refresh failed: '+redact_error(error))
+            return
+        board,engine,rows,layers,fingerprints=payload
+        old_net=self.fields['net'].GetValue()
+        old_values={role:self.fields[role].GetValue() for role in ('start','end')}
+        pads=_terminal_lists(rows,engine._natural_key)
+
+        def exact_pad_id(terminals, label):
+            matches=[row['id'] for row in terminals if row['net']==old_net and row['label']==label]
+            return matches[0] if len(matches)==1 else None
+
+        before={role:exact_pad_id(self._setup_terminals,label) for role,label in old_values.items()}
+        removed_cases=bool(self.study_cases)
+        self.Freeze()
+        try:
+            self.board,self.engine=board,engine
+            self._setup_terminals,self._setup_pads=rows,pads
+            self._net_names=sorted(pads,key=engine._natural_key)
+            self._selection_index=None
+            self._source_fingerprints=fingerprints
+            self.study_cases=[];self.crosstalk_pairs=[]
+            self.study_nets.Set(self._net_names)
+            self.net_search.ChangeValue('')
+            self.fields['net'].Set(self._net_names)
+            if old_net in pads:self.fields['net'].SetValue(old_net)
+            for role,label in old_values.items():
+                control=self.fields[role]
+                control.Set(pads.get(old_net,[]))
+                if before[role] and before[role]==exact_pad_id(rows,label):
+                    control.SetValue(label)
+                else:
+                    control.SetSelection(wx.NOT_FOUND)
+            self.return_setup.set_inventory(self._net_names,rows,layers,
+                self.fields['net'].GetValue(),self.fields['start'].GetValue(),self.fields['end'].GetValue())
+            self._source_dirty=False
+            self.workspace.reset_selection_source()
+            self.changed(None)
+            self.run_button.Enable()
+            message='Saved PCB refreshed. Review endpoints and run a fresh screen.'
+            if removed_cases:message+=' Rebuild reviewed study cases for the new revision.'
+            self.status.SetLabel(message)
+        finally:
+            self.Thaw()
 
     def setup_path(self,event=None):
-        if self._closed:return
+        if self._closed or self._source_dirty:return
         from .setup_guide import setup_dialog
         selection=setup_dialog(self,self._setup_pads,self._setup_terminals,
             {key:self.fields[key].GetValue() for key in ('net','start','end')},
@@ -367,7 +484,7 @@ class QuickSIPanel(wx.Panel):
         dialog.ShowModal();dialog.Destroy()
 
     def run_study(self,event=None):
-        if self._busy or self._closed or self._circuit_busy:return
+        if self._busy or self._closed or self._circuit_busy or self._source_dirty:return
         self.changed(None)
         try:
             import copy
@@ -380,7 +497,7 @@ class QuickSIPanel(wx.Panel):
             fingerprints=source_fingerprints(self.board.GetFileName())
             from wayricad_runtime.saved_board import assert_current
             assert_current(self.board)
-            if fingerprints!=self._source_fingerprints:raise ValueError('Saved PCB or rules changed. Reopen Quick SI before running.')
+            if fingerprints!=self._source_fingerprints:raise ValueError('Saved PCB or rules changed. Wait for the saved PCB to refresh before running.')
             request={'mode':'study','board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'study':config}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
             self._busy=True;self.run_button.Disable();self.cancel_button.Enable();self._update_circuit_buttons();self.status.SetLabel('Screening routes, explicit returns and requested local coupling in one saved snapshot…')
@@ -499,20 +616,24 @@ class QuickSIPanel(wx.Panel):
         elif selected and self.fields['end'].GetValue()==selected[0]:self.fields['end'].SetValue(next((p for p in pads if p!=selected[0]),selected[0]))
 
     def _navigation_buttons(self):
-        ready=not self._closed and not self._navigation_busy
+        ready=not self._closed and not self._navigation_busy and not self._source_dirty
+        ready=ready and (not hasattr(self,'workspace') or self.workspace.can_navigate)
         self.select_route_button.Enable(ready and self.path is not None and self.report is not None)
         self.select_returns_button.Enable(ready and bool(self._review_return_nets()))
         self.read_selection_button.Enable(ready)
+        if hasattr(self,'workspace'):
+            self.workspace.use_selection.Enable(ready and self.workspace.can_navigate)
 
     def _navigation_context(self):
         path=str(self.board.GetFileName())
         if not path:raise ValueError('Save the originating PCB before using cross-selection.')
+        if self._source_dirty:raise ValueError('Wait for the saved PCB to refresh before using cross-selection.')
         expected=None
         if self.saved_board:
             from .service import source_fingerprints
             current=source_fingerprints(path)
             if current!=self._source_fingerprints:
-                self.changed(None);raise ValueError('Saved sources changed. Reopen Quick SI before cross-selection.')
+                self.changed(None);raise ValueError('Saved sources changed. Wait for Quick SI to refresh before cross-selection.')
             expected=current[str(Path(path).resolve())]
         return path,expected
 
@@ -522,14 +643,15 @@ class QuickSIPanel(wx.Panel):
         except Exception as error:self.status.SetLabel(str(error));return
         # Everything captured here is plain data; only IPC runs in this thread.
         identifiers=tuple(str(value) for value in identifiers);nets=tuple(str(value) for value in nets)
+        origin=self.workspace.origin if hasattr(self,'workspace') else None
         self._navigation_busy=True;self._navigation_serial+=1;serial=self._navigation_serial;generation=self._generation
-        self._navigation_buttons();self.status.SetLabel('Reading PCB selection…' if action=='read' else 'Selecting reviewed items in the originating PCB Editor…')
+        self._navigation_buttons();self.status.SetLabel('Reading PCB selection…' if action.startswith('read') else 'Selecting reviewed items in the originating PCB Editor…')
         def work():
             payload=error=None
             try:
                 from wayricad_runtime.analysis_selection import select_origin,selected_origin_ids
-                if action=='read':payload=selected_origin_ids(path,expected_sha256=expected)
-                else:payload=select_origin(path,identifiers,nets=nets,expected_sha256=expected,focus=True,return_details=True)
+                if action.startswith('read'):payload=selected_origin_ids(path,expected_sha256=expected,launch_context=origin)
+                else:payload=select_origin(path,identifiers,nets=nets,expected_sha256=expected,focus=True,return_details=True,launch_context=origin)
             except Exception as caught:error=caught
             if not self._closed:
                 try:wx.CallAfter(self._navigation_finished,serial,generation,action,payload,error)
@@ -549,6 +671,7 @@ class QuickSIPanel(wx.Panel):
         try:
             self._navigation_context()
             if action=='read':self._apply_pcb_selection(payload)
+            elif action.startswith('read:'):self._apply_pcb_selection(payload,role=action.split(':',1)[1])
             else:self.status.SetLabel(f"Selected {payload['count']} reviewed PCB items; focus {payload['focus']}.")
         except Exception as caught:self.status.SetLabel(str(caught))
 
@@ -569,27 +692,45 @@ class QuickSIPanel(wx.Panel):
         if not isinstance(data,tuple) or len(data)!=2 or data[1] is None:return
         self._navigate('select',identifiers=[str(data[1].m_Uuid.AsString())])
 
-    def _apply_pcb_selection(self,identifiers):
+    def _apply_pcb_selection(self,identifiers,*,role=None):
         wanted={str(value).casefold() for value in identifiers}
         if not wanted:self.status.SetLabel('No PCB items are selected; inputs retained.');return
-        index={};footprint_pads={};pad_labels={}
-        def add(item):
-            key=str(item.m_Uuid.AsString()).casefold();index.setdefault(key,[]).append(item);return key
-        with read_snapshot(self.board):
-            for footprint in self.board.GetFootprints():
-                fp_key=add(footprint);children=[]
-                for pad in footprint.Pads():
-                    key=add(pad);children.append(key);pad_labels[key]=str(footprint.GetReference())+'.'+str(pad.GetNumber())
-                footprint_pads[fp_key]=children
-            for item in [*self.board.GetTracks(),*self.board.Zones()]:add(item)
-            if any(len(index.get(key,[]))!=1 for key in wanted):
-                raise ValueError('PCB selection no longer resolves uniquely in this saved snapshot. Save and reopen Quick SI; inputs retained.')
-            expanded=wanted|{child for key in wanted for child in footprint_pads.get(key,[])}
-            if any(len(index.get(key,[]))!=1 for key in expanded):raise ValueError('Selected footprint pads have ambiguous UUIDs in this snapshot; inputs retained.')
-            net_pads={}
-            for key in expanded:
-                item=index[key][0];net=str(getattr(item,'GetNetname',lambda:'')())
-                if net:net_pads.setdefault(net,[]).extend([pad_labels[key]] if key in pad_labels else [])
+        snapshot=self._selection_index if self.saved_board else None
+        if snapshot is None:
+            index={};footprint_pads={}
+            def add(item,net='',label=None):
+                key=str(item.m_Uuid.AsString()).casefold()
+                index.setdefault(key,[]).append((net,label))
+                return key
+            with read_snapshot(self.board):
+                for footprint in self.board.GetFootprints():
+                    owner=add(footprint)
+                    footprint_pads[owner]=[add(pad,str(pad.GetNetname()),str(footprint.GetReference())+'.'+str(pad.GetNumber()))
+                                           for pad in footprint.Pads()]
+                for collection in (self.board.GetTracks(),self.board.Zones()):
+                    for item in collection:add(item,str(item.GetNetname()))
+            snapshot=(index,footprint_pads)
+            if self.saved_board:self._selection_index=snapshot
+        index,footprint_pads=snapshot
+        if any(len(index.get(key,[]))!=1 for key in wanted):
+            raise ValueError('PCB selection does not resolve uniquely in this saved snapshot. Save and refresh Quick SI; inputs retained.')
+        if role:
+            if len(wanted)!=1:
+                self.status.SetLabel('Select exactly one connected pad in the PCB Editor for this endpoint.')
+                return
+            net,label=index[next(iter(wanted))][0]
+            if not net or not label or self._setup_pads.get(net,[]).count(label)!=1:
+                self.status.SetLabel('The selected item is not a uniquely identified saved pad.')
+                return
+            self._use_selected_endpoint(net,label,role)
+            return
+        expanded=wanted|{child for key in wanted for child in footprint_pads.get(key,[])}
+        if any(len(index.get(key,[]))!=1 for key in expanded):
+            raise ValueError('Selected footprint pads have ambiguous UUIDs in this snapshot; inputs retained.')
+        net_pads={}
+        for key in expanded:
+            net,label=index[key][0]
+            if net:net_pads.setdefault(net,[]).extend([label] if label is not None else [])
         previous=self.fields['net'].GetValue();source=self.fields['start'].GetValue();receiver=self.fields['end'].GetValue()
         plan,message=reverse_selection_plan(previous,net_pads,source,receiver)
         if plan is None:self.status.SetLabel(message);return
@@ -602,10 +743,27 @@ class QuickSIPanel(wx.Panel):
         for name,value in plan['roles'].items():self.fields[name].SetValue(value)
         self.status.SetLabel(message+(' Selected pads: '+', '.join(plan['pads']) if plan['pads'] else ' No terminal direction was inferred from copper.'))
 
+    def _use_selected_endpoint(self,net,label,role):
+        previous=self.fields['net'].GetValue()
+        other='end' if role=='start' else 'start'
+        self.net_search.ChangeValue('')
+        self.fields['net'].Set(self._net_names)
+        self.fields['net'].SetValue(net)
+        if net!=previous:
+            self.net_changed(None)
+            self.fields[other].SetSelection(wx.NOT_FOUND)
+        if self.fields[other].GetValue()==label:
+            self.fields[other].SetSelection(wx.NOT_FOUND)
+        self.fields[role].SetValue(label)
+        self.changed(None)
+        self.status.SetLabel(('Source' if role=='start' else 'Receiver')+' selected from PCB: '+label+'.')
+
     def _destroyed(self,event):
         if event.GetEventObject() is self:
             follower=getattr(getattr(self,'workspace',None),'selection_follower',None)
             if follower is not None:follower.stop()
+            refresh=getattr(self,'_source_refresh',None)
+            if refresh is not None:refresh.stop()
             self._closed=True;self._cancel.set();self._circuit_generation+=1
         event.Skip()
 
@@ -625,7 +783,7 @@ class QuickSIPanel(wx.Panel):
         return values
 
     def run(self,event=None):
-        if self._busy or self._closed or self._circuit_busy:return
+        if self._busy or self._closed or self._circuit_busy or self._source_dirty:return
         self.changed(None)
         try:
             values=self._inputs()
@@ -640,7 +798,7 @@ class QuickSIPanel(wx.Panel):
             fingerprints=source_fingerprints(self.board.GetFileName())
             from wayricad_runtime.saved_board import assert_current
             assert_current(self.board)
-            if fingerprints!=self._source_fingerprints:raise ValueError('The saved PCB or project rules changed. Reopen Quick SI before running.')
+            if fingerprints!=self._source_fingerprints:raise ValueError('The saved PCB or project rules changed. Wait for the saved PCB to refresh before running.')
             request={'board_path':self.board.GetFileName(),'source_fingerprints':fingerprints,'net':self.fields['net'].GetValue(),
                      'start':self.fields['start'].GetValue(),'end':self.fields['end'].GetValue(),'reference':self.fields['reference'].GetValue(),'inputs':values}
             self._cancel=threading.Event();cancel=self._cancel;generation=self._generation;self._job_serial+=1;serial=self._job_serial
@@ -680,6 +838,7 @@ class QuickSIPanel(wx.Panel):
             if section.get('kind')=='zone' and 'start_mm' in section and 'end_mm' in section:
                 self.preview.tracks.append((*section['start_mm'],*section['end_mm'],section['layer'],0,None))
         self.preview.fit();self.preview.Refresh()
+        self.workspace.highlight_pcb_selection(self.workspace._follow_ids)
         rows=[('Line model','User assumptions' if values.get('z0_ohm') is not None or values.get('epsilon_eff') is not None else 'Board geometry / unresolved terms retained'),('Route',f'{path.net_name}: {path.start_pad} → {path.end_pad}'),('Length / geometry',f'{path.length_mm:.3f} mm; {path.track_count} tracks, {path.via_count} vias, {path.zone_count} zones')]
         from .setup_guide import readiness_rows
         rows += readiness_rows(report)
@@ -821,7 +980,7 @@ class QuickSIPanel(wx.Panel):
             board_path=self.board.GetFileName()
             fingerprints=source_fingerprints(board_path)
             if self._result_fingerprints is None or fingerprints!=self._result_fingerprints or fingerprints!=self._source_fingerprints:
-                raise ValueError('Saved PCB or rules changed since the route result. Reopen Quick SI and rerun before circuit export.')
+                raise ValueError('Saved PCB or rules changed since the route result. Refresh the saved PCB and rerun before circuit export.')
             cases=self._circuit_cases()
             if not cases:return
             records=[];missing=[]
@@ -847,7 +1006,7 @@ class QuickSIPanel(wx.Panel):
                 parent=Path(dialog.GetPath())
             destination=parent/('SI-circuit-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid4().hex[:8])
             if source_fingerprints(board_path)!=fingerprints:
-                raise ValueError('Saved PCB or rules changed while configuring export. Reopen Quick SI and rerun.')
+                raise ValueError('Saved PCB or rules changed while configuring export. Refresh the saved PCB and rerun.')
             model_stamps=_model_source_stamps(record[role]['path'] for record in records for role in ('source','sink'))
             generation=self._circuit_generation
             self._circuit_busy=True;self._update_circuit_buttons()

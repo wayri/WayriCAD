@@ -9,6 +9,10 @@ import wx
 import wx.lib.scrolledpanel
 
 from . import engine, grouping, native
+try:
+    from .wayricad_runtime.editor_refresh import SavedBoardRefresh
+except ImportError:
+    from wayricad_runtime.editor_refresh import SavedBoardRefresh
 
 
 class PlacementCanvas(wx.Panel):
@@ -113,7 +117,9 @@ class ArrangerFrame(wx.Frame):
         super().__init__(parent,title='WayriCAD Component Arranger',size=(1360,900))
         self.board=board;self.board_guard=board_guard or (lambda: True)
         self.plan=None;self.transaction=None;self.clusters=[];self.loading=False;self.busy=False
-        self.models={};self.refs=sorted(fp.GetReference() for fp in board.GetFootprints())
+        self._missing_capacitor_override=None
+        self._footprint_ids={fp.GetReference():native.uid(fp) for fp in board.GetFootprints()}
+        self.refs=sorted(self._footprint_ids)
         panel=wx.Panel(self);layout=wx.BoxSizer(wx.VERTICAL)
         self.settings_splitter=wx.SplitterWindow(panel,style=wx.SP_LIVE_UPDATE|wx.SP_3D)
         right_panel=wx.Panel(self.settings_splitter)
@@ -132,6 +138,8 @@ class ArrangerFrame(wx.Frame):
         self.parts=wx.CheckListBox(left,choices=self.refs,size=(-1,140),style=wx.LB_HSCROLL);controls.Add(self.parts,0,wx.EXPAND|wx.TOP,4);self.checked=set()
         self.anchor=choice('2. Confirm anchor (kept fixed)',self.refs or ['No footprints'])
         self.infer=wx.Button(left,label='Infer anchor and area');controls.Add(self.infer,0,wx.EXPAND)
+        locate=wx.Button(left,label='Locate anchor in PCB');controls.Add(locate,0,wx.EXPAND)
+        locate.Bind(wx.EVT_BUTTON,self.locate_anchor)
         self.sides=choice('3. Allowed placement sides',['Top','Bottom','Top and bottom'])
         label('Allowed absolute rotations (degrees)');self.angles=wx.TextCtrl(left,value='0,90');controls.Add(self.angles,0,wx.EXPAND)
         self.angles.SetToolTip('Default 0,90. Example: 0,45,90,135,180,225,270,315. Locked parts and the anchor keep their original pose.')
@@ -186,6 +194,100 @@ class ArrangerFrame(wx.Frame):
         area=wx.Display(self).GetClientArea()
         self.SetSize((min(self.GetSize().width,area.width-24),min(self.GetSize().height,area.height-32)))
         self.CentreOnScreen()
+        self.saved_refresh=SavedBoardRefresh(self,board.GetFileName(),self._invalidate_saved,
+                                             self._refresh_saved,lambda:not self.busy)
+        self.Bind(wx.EVT_ACTIVATE,self._check_live_board)
+
+    def _editor_board(self):
+        if not self.board_guard():
+            return None
+        current=api.GetBoard()
+        return current if current is not None and native.identity(current)==native.identity(self.board) else None
+
+    def locate_anchor(self,event=None):
+        try:
+            current=self._editor_board()
+            if current is None:
+                raise ValueError('Open Component Arranger from this PCB Editor to locate the anchor.')
+            anchor=self.anchor.GetStringSelection()
+            identifier=self._footprint_ids.get(anchor)
+            matches=[fp for fp in current.GetFootprints() if native.uid(fp)==identifier]
+            if anchor not in self.checked or len(matches)!=1:
+                raise ValueError('The selected anchor no longer resolves. Refresh and check the components.')
+            api.FocusOnItem(matches[0])
+            self.summary.AppendText('\nLocated anchor '+matches[0].GetReference()+' in PCB Editor.')
+        except Exception as error:
+            self.summary.SetValue(str(error))
+
+    def _invalidate_saved(self):
+        self.invalidate()
+        self.summary.SetValue('Saved PCB or rules changed. Previous placement is unavailable.')
+
+    def _refresh_saved(self):
+        if not self.board_guard():
+            return
+        previous=self._footprint_ids
+        anchor_id=previous.get(self.anchor.GetStringSelection())
+        checked_ids={previous[ref] for ref in self.checked if ref in previous}
+        by_id={native.uid(fp):fp.GetReference() for fp in self.board.GetFootprints()}
+        overrides=self.caps.GetValue()
+        rows=[];missing=False;changed=False
+        for row in overrides.replace('\n',',').split(',') if overrides!=self._missing_capacitor_override else ():
+            reference,separator,value=row.strip().partition('=')
+            identifier=previous.get(reference.strip()) if separator else None
+            if identifier is not None:
+                if identifier in by_id and by_id[identifier]!=reference.strip():
+                    row=by_id[identifier]+'='+value
+                    changed=True
+                elif identifier not in by_id:
+                    missing=True
+            rows.append(row)
+        if changed:
+            self.caps.ChangeValue(','.join(rows))
+        if missing:
+            self._missing_capacitor_override=self.caps.GetValue()
+        self._footprint_ids={ref:identifier for identifier,ref in by_id.items()}
+        self.refs=sorted(self._footprint_ids)
+        self.checked={by_id[identifier] for identifier in checked_ids & by_id.keys()}
+        self.anchor.Set(self.refs or ['No footprints'])
+        self.anchor.SetSelection(wx.NOT_FOUND)
+        if anchor_id in by_id and by_id[anchor_id] in self.checked:
+            self.anchor.SetStringSelection(by_id[anchor_id])
+        # Group definitions also came from a particular revision. Keep checked
+        # members and the anchor by UUID, while discarding old group labels.
+        self.clusters=[]
+        self.cluster.Set(['Refresh groups to inspect current membership'])
+        self.canvas.groups={}
+        self.filter_parts()
+        self.show_selection()
+        self.canvas.focus=self.anchor.GetStringSelection()
+        self.invalidate()
+        removed=len(checked_ids-by_id.keys())
+        self.summary.SetValue('Saved board context refreshed. Preview with the retained settings.'
+                              +(f' {removed} checked footprint(s) are gone.' if removed else '')
+                              +(' Review capacitor overrides for removed components.' if missing else ''))
+
+    def _check_live_board(self,event):
+        event.Skip()
+        current=self._editor_board() if event.GetActive() and not self.busy else None
+        if current is None:
+            return
+        if self.plan is not None:
+            try:
+                native.check_schematic_sources(self.plan.schematic_sources)
+                stale=native.fingerprint(self.board,api)!=self.plan.source
+            except (OSError,ValueError):
+                stale=True
+            if stale:
+                self._invalidate_saved()
+                self._refresh_saved()
+        selected={native.uid(item) for item in api.GetCurrentSelection()}
+        if selected:
+            matches=[fp.GetReference() for fp in current.GetFootprints() if fp.GetReference() in self.checked
+                     and (native.uid(fp) in selected or any(native.uid(pad) in selected for pad in fp.Pads()))]
+            if len(matches)==1:
+                self.canvas.focus=matches[0]
+                self.canvas.Refresh()
 
     def close(self,event):
         if self.busy: event.Veto();return
@@ -293,6 +395,8 @@ class ArrangerFrame(wx.Frame):
         if fp is None or anchor not in self.checked:raise ValueError('Choose an anchor from the checked components.')
         x,y,_,_=native.pose(fp,api);w,h=float(self.area_w.GetValue()),float(self.area_h.GetValue())
         if not 0<w<=1000 or not 0<h<=1000:raise ValueError('Area dimensions must be in (0,1000] mm.')
+        if self.caps.GetValue()==self._missing_capacitor_override:
+            raise ValueError('Review capacitor overrides for removed footprints before previewing.')
         targets={}
         for row in self.caps.GetValue().replace('\n',',').split(','):
             if row.strip():
@@ -334,8 +438,11 @@ class ArrangerFrame(wx.Frame):
         try:
             self.guard();self.busy=True;self.update_buttons()
             dialog=wx.ProgressDialog('Native validation','Checking detached project and before/after DRC…',parent=self,style=wx.PD_APP_MODAL|wx.PD_CAN_ABORT|wx.PD_ELAPSED_TIME)
-            native.validate(self.board,api,self.plan,lambda:dialog.Pulse()[0])
-            self.summary.AppendText('\nNative validation passed: '+str(self.plan.evidence))
+            candidate=self.plan
+            native.validate(self.board,api,candidate,lambda:dialog.Pulse()[0])
+            if self.plan is not candidate:
+                raise ValueError('The old placement was invalidated. Preview again.')
+            self.summary.AppendText('\nNative validation passed: '+str(candidate.evidence))
         except Exception as error:self.error(error)
         finally:
             if dialog:dialog.Destroy()

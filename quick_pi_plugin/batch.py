@@ -10,7 +10,8 @@ from pathlib import Path
 SCHEMA = 'wayricad.pi-batch/v1'
 MAX_CASES = 32
 _ELECTRICAL = {'net','source_terminal','source_terminals','source_voltage','sinks','sink_terminal','sink_terminals','sink_current','series',
-    'source_current_limit','sink_min_voltage','sink_max_voltage','edge_mm','plating_mm',
+    'source_current_limit','sink_min_voltage','sink_max_voltage','voltage_tolerance_pct','show_exact_voltages',
+    'edge_mm','plating_mm',
     'mesh_backend','mesh_sizing','max_cells','model_dimension','max_tetrahedra','options','stackup_override',
     'package_conduction','load_resistance_ohm','load_power_W'}
 _RETURN = {'return_nets','sample_pitch_mm','return_via_radius_mm','return_terminal_ids','return_terminal_roles'}
@@ -90,6 +91,12 @@ def validate_study(study):
         sizing_mode(electrical)
         if not all(key in electrical for key in ('net','source_voltage')):
             raise ValueError('Every case needs explicit net, source pad unit and source_voltage.')
+        from .voltage_tolerance import request_limits
+        request_limits(electrical)
+        if 'show_exact_voltages' in electrical and not isinstance(electrical['show_exact_voltages'],bool):
+            raise ValueError('Batch exact-voltage display must be true or false.')
+        if electrical.get('model_dimension','2.5d')!='2.5d' and electrical.get('voltage_tolerance_pct') is not None:
+            raise ValueError('Batch percentage voltage tolerance requires a 2.5D DC solve.')
         if 'series' in electrical:
             _validate_series(electrical,case,study)
         else:
@@ -127,11 +134,14 @@ def validate_study(study):
     return study
 
 
-def parse_study(data):
+def parse_study(data, *, allow_empty=False):
     """Reuse bounded, duplicate-key and nonfinite-number rejecting JSON intake."""
     from .electrothermal_cli import parse_envelope
     envelope=parse_envelope(b'{"mode":"steady","study":'+data+b'}')
-    return validate_study(envelope['study'])
+    study=envelope['study']
+    if allow_empty and study==initial_study(None):
+        return study
+    return validate_study(study)
 
 
 def load_study(path):
@@ -144,6 +154,8 @@ def load_study(path):
 
 def initial_study(electrical):
     """Seed one case from current explicit GUI selections, without guessing other rails."""
+    if electrical is None:
+        return {'schema':SCHEMA,'cases':[]}
     selected={key:copy.deepcopy(value) for key,value in electrical.items() if key in _ELECTRICAL}
     return {'schema':SCHEMA,'cases':[{'name':selected.get('net') or 'Selected rail','electrical':selected}]}
 
@@ -207,7 +219,7 @@ def execute(request, execute_case):
                                       'signal_net':electrical['net'],**case['return_path']})
                 row['return_path']=returns
                 diagnostic=returns.get('return_path',{})
-                if not diagnostic or diagnostic.get('unknown_count',0):
+                if not diagnostic or diagnostic.get('status')=='INCOMPLETE' or diagnostic.get('unknown_count',0) or diagnostic.get('unresolved_transition_count',0):
                     review_status='INCOMPLETE'
                 elif diagnostic.get('warning_count',0):
                     review_status='REVIEW_REQUIRED'

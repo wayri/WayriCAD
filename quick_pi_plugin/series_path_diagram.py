@@ -13,7 +13,7 @@ import math
 import textwrap
 
 
-def saved_path_geometry(board):
+def saved_path_geometry(board, net=None):
     """Capture optional native display evidence without requiring it for a solve.
 
     Portable analysis adapters may supply electrical geometry without native pad
@@ -33,16 +33,18 @@ def saved_path_geometry(board):
     copper = list(board.GetEnabledLayers().CuStack())
     pads = {pad.m_Uuid.AsString(): dict(position_mm=point(pad.GetPosition()),
             layers=[int(layer) for layer in copper if pad.IsOnLayer(layer)], net=str(pad.GetNetname()))
-            for fp in board.GetFootprints() for pad in fp.Pads() if pad.GetNetCode() > 0}
+            for fp in board.GetFootprints() for pad in fp.Pads() if pad.GetNetCode() > 0 and (net is None or pad.GetNetname() == net)}
     tracks = []
     for item in board.GetTracks():
-        if isinstance(item, pcbnew.PCB_VIA) or item.GetNetCode() <= 0:
+        if isinstance(item, pcbnew.PCB_VIA) or item.GetNetCode() <= 0 or (net is not None and item.GetNetname() != net):
             continue
         length = float(pcbnew.ToMM(item.GetLength()))
         if math.isfinite(length) and length > 0:
             tracks.append(dict(id=item.m_Uuid.AsString(), net=str(item.GetNetname()),
                 layer=int(item.GetLayer()), start_mm=point(item.GetStart()),
                 end_mm=point(item.GetEnd()), length_mm=length))
+            if callable(getattr(item, "GetMid", None)):
+                tracks[-1].update(kind="arc", mid_mm=point(item.GetMid()))
     return dict(schema=1, status='captured', pads=pads, tracks=tracks,
                 notice='Planar saved track/arc centerlines only; via barrels and zone travel are not assigned a wire length.')
 
@@ -54,7 +56,7 @@ def _point(value):
     return None
 
 
-def copper_lengths(node, evidence):
+def copper_lengths(node, evidence, *, representative=False):
     """Describe each reviewed pad pair, distinguishing routed and estimated lengths."""
     pads = evidence.get('pads', {}) if isinstance(evidence, dict) else {}
     graph = defaultdict(list)
@@ -71,27 +73,35 @@ def copper_lengths(node, evidence):
         a, b = (layer, start), (layer, end)
         graph[a].append((b, length, row.get('id'))); graph[b].append((a, length, row.get('id')))
 
-    def measured(left, right):
-        a, b = _point(left.get('position_mm')), _point(right.get('position_mm'))
-        if a is None or b is None:
-            return None
-        targets = {(layer, b) for layer in right.get('layers', [])}
+    def endpoints(pins):
+        result = {}
+        for pin in sorted(pins, key=lambda p: p['id']):
+            row = pads.get(pin['id'], {})
+            position = _point(row.get('position_mm'))
+            if position is not None and row.get('net') == node.get('net'):
+                for layer in row.get('layers', []):
+                    result.setdefault((layer,position),pin['id'])
+        return result
+
+    def measured(starts, ends):
+        targets = endpoints(ends)
+        roots = endpoints(starts)
         queue, distance, predecessors = [], {}, {}
-        for layer in left.get('layers', []):
-            key = (layer, a)
+        for key in roots:
             distance[key] = 0.
             heappush(queue, (0., key))
-        while queue:
+        while queue and targets:
             value, key = heappop(queue)
             if value != distance[key]:
                 continue
             if key in targets and value > 0:
+                target = targets[key]
                 route = []
                 while key in predecessors:
                     key, track = predecessors[key]
                     if track:
                         route.append(track)
-                return value, list(reversed(route))
+                return value, list(reversed(route)), roots[key], target
             for other, length, track in graph.get(key, []):
                 total = value + length
                 if total < distance.get(other, math.inf):
@@ -102,13 +112,20 @@ def copper_lengths(node, evidence):
 
     result = []
     incoming, outgoing = node.get('incoming_pins', []), node.get('outgoing_pins', [])
+    if representative:
+        # Multi-source Dijkstra finds the shortest physical pad pair in one pass.
+        match = measured(incoming,outgoing)
+        if match:
+            length, route, start, end = match
+            return [dict(from_pad=start,to_pad=end,length_mm=length,status='saved_track_chain',track_ids=route)]
+        return []
     for start in incoming:
         for end in outgoing:
             if len(result) >= 2048:
                 return result + [dict(status='unavailable', label='Additional pair lengths unavailable: display limit reached.', length_mm=None)]
             left, right = pads.get(start['id'], {}), pads.get(end['id'], {})
-            measurement = measured(left, right) if left.get('net') == right.get('net') == node.get('net') else None
-            length, route = measurement if measurement is not None else (None, [])
+            measurement = measured([start], [end])
+            length, route = measurement[:2] if measurement is not None else (None, [])
             label = start['label'] + ' → ' + end['label']
             if length is not None:
                 status = 'saved_track_chain'
@@ -125,7 +142,7 @@ def copper_lengths(node, evidence):
     return result
 
 
-def load_track_chains(request, evidence):
+def load_track_chains(request, evidence, *, representative=False):
     '''Exact saved-track candidates for each load unit of a single-net solve.'''
     from .service import sink_requests
 
@@ -139,7 +156,7 @@ def load_track_chains(request, evidence):
         return [dict(id=identity, label=identity) for identity in ids if identity is not None]
 
     return [copper_lengths(dict(net=request.get('net'), incoming_pins=pins(sources),
-                                outgoing_pins=pins(load.get('terminals') or [load.get('terminal')])), evidence)
+                                outgoing_pins=pins(load.get('terminals') or [load.get('terminal')])), evidence, representative=representative)
             for load in loads]
 
 

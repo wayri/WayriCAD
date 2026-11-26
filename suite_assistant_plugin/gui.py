@@ -1,13 +1,17 @@
 """Resizable native interface for bounded local language plans and report results."""
 from pathlib import Path
+from io import BytesIO
 import hashlib
 import threading
 import wx
+import wx.html
 import wx.lib.scrolledpanel as scrolled
 
 EXAMPLES = (
     'List available tools',
     'Quick PI voltage drop at 3.3 V from J1.1 to U1.1 with 250 mA',
+    'Run Quick PI batch on multiple nets',
+    'Set up a Quick PI transient',
     'Thermal board heat map with U1 at 0.5 W and ambient 25 C',
     'Preview component fanout',
     'Calculate microstrip impedance',
@@ -53,6 +57,7 @@ class AssistantFrame(wx.Frame):
             self.SetIcon(wx.Icon(str(icon), wx.BITMAP_TYPE_PNG))
         self.SetMinSize((720, 540))
         self.engine = engine
+        self.emerge_python = None
         self.output_root = Path(output_root) if output_root else (
             Path(wx.StandardPaths.Get().GetDocumentsDir()) / 'WayriCAD' / 'Assistant' / 'results')
         self.context = {}
@@ -131,6 +136,10 @@ class AssistantFrame(wx.Frame):
         help_button.Bind(wx.EVT_BUTTON, self._help)
         action_icon(help_button, wx.ART_HELP)
         example_row.Add(help_button, 0, wx.LEFT, 8)
+        self.emerge_runtime = wx.Button(self.chat_panel, label='EMerge runtime…')
+        self.emerge_runtime.SetToolTip('Choose the prepared solver Python for EMerge actions in this window.')
+        self.emerge_runtime.Bind(wx.EVT_BUTTON, self._choose_emerge_runtime)
+        example_row.Add(self.emerge_runtime, 0, wx.LEFT, 8)
         chat.Add(example_row, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
         self.chat_panel.SetSizer(chat)
         lower = wx.Panel(self.splitter)
@@ -193,6 +202,14 @@ class AssistantFrame(wx.Frame):
         result_box.Add(self.result_summary, 0, wx.ALL, 8)
         self.results = wx.TextCtrl(result_page, style=wx.TE_MULTILINE | wx.TE_READONLY)
         result_box.Add(self.results, 1, wx.EXPAND | wx.ALL, 8)
+        self.report_preview = wx.html.HtmlWindow(result_page)
+        self.report_preview.SetBorders(8)
+        self.report_preview.Bind(wx.html.EVT_HTML_LINK_CLICKED, lambda event: None)
+        self.report_image = wx.StaticBitmap(result_page)
+        self.report_image.Hide()
+        self.report_preview.Hide()
+        result_box.Add(self.report_image, 0, wx.ALIGN_CENTER | wx.ALL, 4)
+        result_box.Add(self.report_preview, 1, wx.EXPAND | wx.ALL, 8)
         self.report_list = wx.ListBox(result_page, size=(-1, 50))
         self.report_list.SetMinSize((-1, 35))
         self.report_list.SetToolTip('Select a generated report, then open it. Reports are retained in this run’s results folder.')
@@ -201,6 +218,10 @@ class AssistantFrame(wx.Frame):
         open_report = wx.Button(result_page, label='Open selected report')
         open_report.Bind(wx.EVT_BUTTON, self._open_report)
         action_icon(open_report, wx.ART_GO_FORWARD)
+        self.preview_result = wx.ToggleButton(result_page, label='Preview selected report')
+        self.preview_result.Bind(wx.EVT_TOGGLEBUTTON, self._preview_selected_report)
+        self.preview_result.Disable()
+        report_actions.Add(self.preview_result, 0, wx.RIGHT, 8)
         report_actions.Add(open_report, 0, wx.RIGHT, 8)
         self.choose_output = wx.Button(result_page, label='Results folder…')
         self.choose_output.SetToolTip(str(self.output_root))
@@ -212,6 +233,7 @@ class AssistantFrame(wx.Frame):
         action_icon(self.open_output, wx.ART_FOLDER)
         report_actions.Add(self.open_output)
         result_box.Add(report_actions, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 8)
+        self.report_list.Bind(wx.EVT_LISTBOX, self._preview_selected_report)
         self.report_list.Bind(wx.EVT_LISTBOX_DCLICK, self._open_report)
         result_page.SetSizer(result_box)
         self.tabs.AddPage(result_page, 'Results && reports', imageId=1)
@@ -301,6 +323,7 @@ class AssistantFrame(wx.Frame):
         self.busy = busy
         self.ask.Enable(not busy)
         self.choose.Enable(not busy)
+        self.emerge_runtime.Enable(not busy)
         self.query.Enable(not busy)
         if busy:
             self._hide_suggestions()
@@ -680,6 +703,17 @@ class AssistantFrame(wx.Frame):
                 answers[key] = value
         self._ask(answers=answers)
 
+    def _choose_emerge_runtime(self, event=None):
+        if self.busy:
+            return
+        with wx.FileDialog(self, 'Choose prepared Quick EMerge Python',
+                           wildcard='All files (*.*)|*.*',
+                           style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST) as chooser:
+            if chooser.ShowModal() == wx.ID_OK:
+                self.emerge_python = Path(chooser.GetPath()).resolve()
+                self.emerge_runtime.SetToolTip(str(self.emerge_python))
+                self.status.SetLabel('Quick EMerge solver Python selected for this window.')
+
     def _run(self, event=None):
         if self.busy or self.editing or not self.plan or self.plan.get('status') != 'ready':
             return
@@ -689,13 +723,18 @@ class AssistantFrame(wx.Frame):
         self._chat('Assistant', 'Running the reviewed plan…')
         self.results.ChangeValue('Running…\n')
         self.report_list.Clear(); self.artifacts = []
+        self.preview_result.SetValue(False)
+        self.preview_result.Disable()
+        self._preview_selected_report()
         self.result_summary.SetLabel('Running · results and reports will appear here')
         self.tabs.SetSelection(1)
         plan = self.plan
+        runtime_options = {'emerge_python': self.emerge_python} if self.emerge_python else {}
         def work():
             try:
                 result = self._engine().run_plan(plan, self.output_root, cancel=self.cancel_event,
-                                                progress=lambda text: self._deliver(self._progress, text))
+                                                progress=lambda text: self._deliver(self._progress, text),
+                                                **runtime_options)
                 self._deliver(self._show_result, result)
             except Exception as exc:
                 self._deliver(self._error, str(exc))
@@ -738,10 +777,28 @@ class AssistantFrame(wx.Frame):
         self._state(str(result.get('status', 'complete')).replace('_', ' ').upper(),
                     '#087f7c' if result.get('status') in {'completed', 'complete'} else '#9b2c2c')
         self._chat('Assistant', (summary if isinstance(summary, str) and summary else self.result_summary.GetLabel()) +
-                   (' Open Results & reports for the files.' if self.artifacts else ''))
-        self.report_list.Set([str(item.get('label', Path(item['path']).name)) for item in self.artifacts])
+                   (' Preview or open the files in Results & reports.' if self.artifacts else ''))
+        titles = {item['path']: step.get('title', step.get('action', 'Check'))
+                  for step in steps for item in step.get('artifacts', [])}
+        labels = []
+        for item in self.artifacts:
+            label = str(item.get('label', Path(item['path']).name))
+            title = titles.get(item['path'])
+            labels.append(f'{title} · {label}' if title else label)
+        self.report_list.Set(labels)
+        self.preview_result.Enable(bool(self.artifacts))
         if self.artifacts:
-            self.report_list.SetSelection(0)
+            def preview_rank(item):
+                path = Path(item['path'])
+                if path.name == 'preview.svg':
+                    return 0
+                if path.suffix.lower() in {'.html', '.htm'} and path.name != 'index.html':
+                    return 1
+                if path.suffix.lower() in {'.png', '.svg', '.csv', '.json'}:
+                    return 2
+                return 3
+            self.report_list.SetSelection(min(range(len(self.artifacts)),
+                                              key=lambda index: preview_rank(self.artifacts[index])))
         # Most scientific workers write structured results rather than stdout.
         # Show their actual values in the window instead of only a success count.
         for artifact in self.artifacts:
@@ -762,6 +819,49 @@ class AssistantFrame(wx.Frame):
                 break
             except (OSError, ValueError, KeyError):
                 continue
+
+    def _preview_selected_report(self, event=None):
+        from html import escape
+        from xml.etree.ElementTree import ParseError
+        from .result_preview import preview_content
+
+        index = self.report_list.GetSelection()
+        active = self.preview_result.GetValue() and index != wx.NOT_FOUND
+        self.report_image.Hide()
+        self.report_preview.Show(active)
+        self.results.Show(not active)
+        if active:
+            try:
+                path = report_path(self.artifacts[index], self.result_root)
+                content, png, svg = preview_content(path)
+                bitmap = None
+                width = max(160, min(self.report_preview.GetParent().GetClientSize().width - 24, 760))
+                height = max(80, min(self.report_preview.GetParent().GetClientSize().height // 2, 260))
+                if png:
+                    image = wx.Image(BytesIO(png), wx.BITMAP_TYPE_PNG)
+                    if not image.IsOk():
+                        raise ValueError('The PNG could not be read.')
+                    factor = min(1, width / image.GetWidth(), height / image.GetHeight())
+                    bitmap = wx.Bitmap(image.Scale(max(1, round(image.GetWidth() * factor)),
+                                                   max(1, round(image.GetHeight() * factor)), wx.IMAGE_QUALITY_HIGH))
+                elif svg:
+                    if not hasattr(wx.BitmapBundle, 'FromSVG'):
+                        raise ValueError('Open the SVG to view the full drawing.')
+                    size = wx.Size(width, height)
+                    bundle = wx.BitmapBundle.FromSVG(svg, size)
+                    if not bundle.IsOk():
+                        raise ValueError('Open the SVG to view the full drawing.')
+                    bitmap = bundle.GetBitmap(size)
+                if bitmap is not None and bitmap.IsOk():
+                    self.report_image.SetBitmap(bitmap)
+                    self.report_image.Show()
+                self.report_preview.SetPage('<body>' + (content or '<p>' + escape(path.name) + '</p>') + '</body>')
+            except (OSError, ValueError, KeyError, ParseError) as exc:
+                self.report_preview.SetPage('<body><p>' + escape(str(exc)) + '</p></body>')
+        else:
+            self.report_preview.SetPage('')
+            self.report_image.SetBitmap(wx.NullBitmap)
+        self.report_preview.GetParent().Layout()
 
     def _open_report(self, event):
         index = self.report_list.GetSelection()

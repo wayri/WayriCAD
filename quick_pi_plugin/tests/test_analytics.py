@@ -26,6 +26,31 @@ class AnalyticsTests(unittest.TestCase):
         self.assertEqual(analysis['layers'][0]['planar_power_W'], sum(densities))
         self.assertEqual(analysis['layers'][0]['peak_location_mm'], result['cell_centroid_mm'][32])
 
+    def test_equal_sheet_ties_and_late_via_survive_layer_reductions(self):
+        samples = [5.] * 12 + [8., None]
+        mesh = {'points_mm': [[0., 0., 0.], [2., 0., 0.], [0., 1., 0.]],
+                'triangles': [[0, 1, 2]] * len(samples),
+                'triangle_thickness_mm': [1.] * len(samples)}
+        result = {'cell_layer': [0, '0'] * 7, 'cell_power_W': samples,
+                  'cell_J_A_mm2': [[value, 0.] if value is not None else None
+                                    for value in samples],
+                  'cell_centroid_mm': [[i, 0., 0.] for i in range(len(samples))],
+                  'cell_thermal': [{} for _ in samples],
+                  'vias': [{'id': 'barrel', 'power_W': 2., 'volume_mm3': 1.,
+                            'current_density_A_mm2': 11.}],
+                  'total_power_W': 70.}
+        analysis = summarize(mesh, result)
+        layer, = analysis['layers']
+        self.assertEqual(layer['layer'], 0)
+        self.assertEqual(layer['triangle_count'], 14)
+        self.assertEqual(layer['connected_area_mm2'], 13.)
+        self.assertEqual(layer['floating_triangles'], 1)
+        self.assertEqual(layer['peak_location_mm'], result['cell_centroid_mm'][12])
+        self.assertEqual([row['id'] for row in analysis['hotspots_by_current_density']],
+                         ['barrel', 12, *range(11, 1, -1)])
+        self.assertEqual([row['id'] for row in analysis['hotspots_by_heating_density']],
+                         [12, *range(11, 0, -1)])
+
     def test_doubled_actual_copper_thickness_halves_r_loss_and_j(self):
         outputs=[]
         for thickness in (.035,.070):

@@ -74,6 +74,23 @@ class SeriesEditorModelTests(unittest.TestCase):
         assert any('Stage 1 Q1 incoming pads: Q1.1, Q1.2' in line for line in preview)
         assert all('Q1.5' not in line for line in preview)
 
+    def test_saved_series_rebinds_only_when_all_reviewed_electrodes_match(self):
+        from copy import deepcopy
+        from quick_pi_plugin.series_session import rebind_series
+        from quick_pi_plugin.tests.test_series_groups import inventory,request
+        before=inventory(); after=deepcopy(before); scenario=request()
+        scenario['source_sha256']='before'
+        after['source_sha256']='after'
+        after['terminals'][0]['label']='J9.1'
+        refreshed=rebind_series(scenario,before,after)
+        self.assertEqual(refreshed['source_sha256'],'after')
+        self.assertEqual(refreshed['series'],scenario['series'])
+        self.assertEqual(refreshed['source_terminals'],scenario['source_terminals'])
+        after['terminals'][1]['net']='G'
+        with self.assertRaisesRegex(ValueError,'moved to a different net'):
+            rebind_series(scenario,before,after)
+        self.assertEqual(scenario['source_sha256'],'before')
+
     def test_new_current_groups_include_same_net_peers_only_when_selected(self):
         from quick_pi_plugin.tests.test_series_groups import inventory
         rows=inventory()['terminals']

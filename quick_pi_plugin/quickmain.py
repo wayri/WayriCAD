@@ -27,6 +27,11 @@ def main(argv=None):
     parser.add_argument('--ui',action='store_true')
     args=parser.parse_args(argv);name=package()
     if args.worker:
+        if hasattr(os, 'nice'):
+            try:
+                os.nice(5)
+            except OSError:
+                pass
         request,response=map(Path,args.worker)
         if request.resolve()==response.resolve():
             print(json.dumps({'error':'Worker response must not overwrite the request file.'}));return 2
