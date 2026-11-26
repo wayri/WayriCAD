@@ -1018,9 +1018,8 @@ def write_report(path,bundle,layer=None,*,evidence_reference=None,pocket_kivi=Fa
     published_bundle=dict(bundle,display_identifiers=display_ids.metadata())
     from .series_power_tree import build_power_result_tree, tree_html
     power_tree=build_power_result_tree(bundle)
-    if power_tree is not None:
-        tree_key='series_power_tree' if power_tree['schema']=='series-power-tree-1' else 'rail_power_tree'
-        published_bundle[tree_key]=power_tree
+    if power_tree is not None and power_tree['schema']=='series-power-tree-1':
+        published_bundle['series_power_tree']=power_tree
     path,json_path=report_paths(path)
     result=bundle.get('result')
     if not result:raise ValueError('Run the analysis before exporting results.')

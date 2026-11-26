@@ -245,8 +245,10 @@ class ReportTests(unittest.TestCase):
             self.assertNotIn('Copper resistance ΔV/I',html)
             stored=json.loads(Path(paths['json']).read_text(encoding='utf-8'))
             self.assertEqual(stored['result']['sinks'],b['result']['sinks'])
-            self.assertEqual(stored['rail_power_tree']['nodes'][-2]['label'],'B.1')
-            self.assertEqual(stored['rail_power_tree']['nodes'][-1]['label'],'C.1')
+            self.assertNotIn('rail_power_tree',stored)
+            from quick_pi_plugin.series_power_tree import build_power_result_tree
+            tree=build_power_result_tree(stored)
+            self.assertEqual([node['label'] for node in tree['nodes'][-2:]],['B.1','C.1'])
             self.assertIn('Solved rail power tree',html)
             self.assertFalse(stored['result']['feasibility']['operating_point_valid'])
 

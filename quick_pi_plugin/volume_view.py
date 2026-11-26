@@ -121,8 +121,6 @@ def write_volume_report(path,bundle,*,pocket_kivi=False):
     path,_=report_paths(path)
     from .series_power_tree import build_power_result_tree, tree_html
     tree=build_power_result_tree(bundle)
-    if tree:
-        bundle=dict(bundle,rail_power_tree=tree)
     if pocket is None and not pdf:
         path.parent.mkdir(parents=True,exist_ok=True)
         path.with_suffix('.json').write_text(json.dumps(bundle,allow_nan=False),encoding='utf-8')
