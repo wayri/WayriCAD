@@ -217,7 +217,8 @@ def _analysis_mode(query, tools):
             return 'quick-pi.transient'
         if rail_batch:
             return 'quick-pi.batch' if study_file else 'quick-pi.batch-cases'
-        return 'quick-pi.solve'
+        from .assistant_grouped_pi import ACTION, wants_groups
+        return ACTION if wants_groups(query) else 'quick-pi.solve'
     return None
 
 
@@ -236,9 +237,10 @@ def _slots(query):
     if powers:
         values['powers'] = [f'{ref}={watts}' for ref, watts in powers]
     # Exact names are kept verbatim, including hierarchical net separators.
-    match = re.search(r'\bnet\s+(?:["\']([^"\']+)["\']|([^\s,;]+))', query, re.I)
-    if match:
-        values["net"] = (match.group(1) or match.group(2)).rstrip(".")
+    for match in re.finditer(r'\bnet\s+(?:["\']([^"\']+)["\']|([^\s,;]+))', query, re.I):
+        if not re.search(r'\b(?:return|reference|guard)\s*$', query[:match.start()], re.I):
+            values["net"] = (match.group(1) or match.group(2)).rstrip(".")
+            break
     pair = re.search(r"\bfrom\s+([A-Za-z]+\d+(?:\.[\w-]+)?)\s+to\s+([A-Za-z]+\d+(?:\.[\w-]+)?)", query, re.I)
     if pair:
         values.update(
@@ -258,7 +260,7 @@ def _slots(query):
     if refs:
         values["refs"] = list(dict.fromkeys(refs))
     numeric = {
-        "voltage": (r"\b(?:voltage|at|supply(?:ing)?)\s*[:=]?\s*(\d+(?:\.\d+)?|\.\d+)\s*(?:v\b|volts?\b)", 1),
+        "voltage": (r"\b(?:voltage|at|supply(?:ing)?)\s*(?:is\s+|[:=]\s*)?(\d+(?:\.\d+)?|\.\d+)\s*(?:v\b|volts?\b)", 1),
         "current": (r"(\d+(?:\.\d+)?)\s*mA\b", 0.001),
         "frequency_mhz": (r"(\d+(?:\.\d+)?)\s*MHz\b", 1),
         "rise_ns": (r"(?:rise(?:\s*time)?\s*=?\s*)(\d+(?:\.\d+)?)\s*ns\b", 1),
@@ -326,6 +328,9 @@ def _slots(query):
 
 
 def _pi_slots(identifier, clause):
+    if identifier == 'quick-pi.grouped':
+        from .assistant_grouped_pi import slots
+        return slots(clause)
     if identifier == 'quick-pi.batch-cases':
         rails = re.search(r'\b(?:net|rail)\s+(?:"[^"]+"|[^\s,]+)\s+from\b', clause, re.I)
         return {'rails': clause[rails.start():]} if rails else {}
@@ -553,10 +558,12 @@ def _resolve_circuit(params, spec, clause, inventory, assumptions):
                 errors['net'] = (matches[:40], prefix + explicit + '. Choose the exact net.')
         else:
             endpoint_keys = ('source', 'sink') if 'source' in spec['fields'] else ('start', 'end')
+            named_clause = re.sub(r'\b(?:return|reference|guard)\s+(?:net\s+)?(?:"[^"]+"|[^\s,;]+)',
+                                  '', clause, flags=re.I)
             named = {
-                match for token in re.findall(r'"[^"]+"|[^\s,;]+', clause)
+                match for token in re.findall(r'"[^"]+"|[^\s,;]+', named_clause)
                 for match in inventory.net_matches(token.strip('".?!()'))
-                if not re.fullmatch(r'[a-z]+', token, re.I) or re.search(r'\b(?:on|rail|signal)\s+'+re.escape(token)+r'\b', clause, re.I)
+                if not re.fullmatch(r'[a-z]+', token, re.I) or re.search(r'\b(?:on|rail|signal)\s+'+re.escape(token)+r'\b', named_clause, re.I)
             }
             from_pads = inventory.infer_net(tuple(params.get(key) for key in endpoint_keys))
             if len(named) == 1:
@@ -602,6 +609,15 @@ def reply_answers(plan, text):
     questions = plan.get('questions', [])
     slots = _slots(text)
     result = {}
+    steps = plan.get('steps', [])
+    if len(steps) == 1 and steps[0].get('action') == 'quick-pi.grouped':
+        from .assistant_grouped_pi import reply_slots
+        grouped = reply_slots(steps[0].get('params', {}), text)
+        if grouped.get('_confirm_groups'):
+            return {q['key']: q['choices'][0] for q in questions
+                    if q['key'] in {'0.source_unit', '0.load_units'} and q.get('choices')}
+        if grouped:
+            return {f'0.{key}': value for key, value in grouped.items()}
     for question in questions:
         index, field = question['key'].split('.', 1)
         steps = plan.get('steps', [])
@@ -690,8 +706,16 @@ def propose(query, context=None, answers=None, *, inventory=None):
             continue
         else:
             identifier = ranked[0]["action"]
-        spec = _SPECS[identifier]
         slots = _slots(clause)
+        if identifier == 'quick-pi.solve' and choice is None and inventory is not None:
+            from .assistant_grouped_pi import ACTION, wants_groups
+            selected = context.get('selected_nets', [])
+            net = slots.get('net') or (selected[0] if len(selected) == 1 else None)
+            if wants_groups(clause, inventory, net):
+                identifier = ACTION
+        spec = _SPECS[identifier]
+        if identifier == 'quick-pi.grouped':
+            slots.pop('current', None)  # '4 A total' is not 4 A per grouped sink.
         slots.update(_pi_slots(identifier, clause))
         if identifier=='via-stitching.guard' and context.get('selected_nets') and 'signal_nets' not in slots:
             slots['signal_nets']=context['selected_nets']
@@ -744,6 +768,19 @@ def propose(query, context=None, answers=None, *, inventory=None):
         circuit = {}
         if inventory is not None:
             circuit = _resolve_circuit(params, spec, clause, inventory, plan["assumptions"])
+        if identifier == 'quick-pi.grouped':
+            from .assistant_grouped_pi import common_current_needed, contact, load_units, resolve_contacts
+            for key, parse in (('source_unit', contact), ('load_units', load_units)):
+                if key in params:
+                    try:
+                        parse(params[key])
+                    except ValueError as exc:
+                        params.pop(key)
+                        circuit[key] = ([], str(exc))
+            if inventory is not None and 'net' not in circuit:
+                circuit.update(resolve_contacts(params, inventory, plan['assumptions']))
+            if 'current' not in params and common_current_needed(params):
+                circuit['current'] = ([], 'Give the current for each load, for example 4 A each. The total is never split or duplicated automatically.')
         if 'rails' in params:
             from .assistant_pi_inputs import resolved_rail_cases
             try:

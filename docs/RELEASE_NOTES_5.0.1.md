@@ -1,5 +1,9 @@
 # WayriCAD 5.0.1
 
+- WayriCAD Assistant recommends same-net pad groups, keeps prior simulation
+  settings during follow-ups, and displays local reports in an embedded
+  viewer. Its PCM package includes the providers required by isolated
+  analysis workers.
 - Quick PI transient reviews show conservation checks and half-step voltage
   and current changes beside the simulated limits.
 - Quick PI two-port results explain which port supplies current and which port

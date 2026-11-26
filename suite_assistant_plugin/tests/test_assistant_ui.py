@@ -44,6 +44,10 @@ class AssistantWindowTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.engine = Engine()
+        # Keep the window tests independent of native WebView availability.
+        local_view = patch('wayricad_runtime.local_webview.try_new_webview', return_value=(None, 'Unavailable'))
+        local_view.start()
+        self.addCleanup(local_view.stop)
         self.frame = AssistantFrame(engine=self.engine, output_root=self.root)
         self.frame.Show()
 
@@ -142,6 +146,41 @@ class AssistantWindowTests(unittest.TestCase):
                                  'artifacts': [{'path': str(path), 'label': 'report.json'}]})
         self.assertIn('49.928', self.frame.results.GetValue())
         self.assertIn('ESTIMATE', self.frame.results.GetValue())
+
+    def test_result_automatically_opens_inline_and_log_toggle_preserves_output(self):
+        report = self.root / 'field.html'
+        report.write_text('<h1>Power integrity</h1><table><tr><td>1.25 mV</td></tr></table>', encoding='utf-8')
+        self.frame.tabs.SetSelection(1)
+        self.frame._show_result({'status': 'completed', 'summary': 'Finished', 'output_dir': str(self.root),
+                                 'artifacts': [{'path': str(report), 'label': 'Field report'}]})
+        deadline = time.monotonic() + 3
+        pane = self.frame.report_view
+        while '1.25 mV' not in pane._text.ToText() and time.monotonic() < deadline:
+            wx.Yield()
+            time.sleep(.01)
+        self.assertEqual(self.frame.report_list.GetStringSelection(), 'Field report')
+        self.assertTrue(pane.IsShown())
+        self.assertIn('1.25 mV', pane._text.ToText())
+        self.assertFalse(self.frame.results.IsShown())
+        first_epoch = self.frame._report_preview_epoch
+        self.frame.log_view.SetValue(True)
+        self.frame._preview_selected_report()
+        self.frame._preview_ready(first_epoch, 'Stale', ('<h1>Old result</h1>', None, None), None)
+        self.assertTrue(self.frame.results.IsShown())
+        self.assertIn('Finished', self.frame.results.GetValue())
+        self.assertFalse(pane.IsShown())
+        self.assertNotIn('Old result', pane._text.ToText())
+
+    def test_expanded_results_restores_previous_sash_when_returning_to_plan(self):
+        self.frame.tabs.SetSelection(1); wx.Yield()
+        initial = self.frame.splitter.GetSashPosition()
+        self.frame.expand_results.SetValue(True)
+        self.frame._expand_results()
+        self.assertLess(self.frame.splitter.GetSashPosition(), initial)
+        self.assertEqual(self.frame.expand_results.GetLabel(), 'Restore chat')
+        self.frame.tabs.SetSelection(0); wx.Yield()
+        self.assertFalse(self.frame.expand_results.GetValue())
+        self.assertEqual(self.frame.splitter.GetSashPosition(), initial)
 
     def test_failed_preview_load_returns_to_actionable_state(self):
         self.frame._set_busy(True)
@@ -326,6 +365,18 @@ class AssistantWindowTests(unittest.TestCase):
         self.frame._accept_suggestion()
         self.assertEqual(self.frame.query.GetValue(), 'net "/Power stage/VDD" ')
         self.assertFalse(self.frame.suggestions.IsShown())
+
+    def test_design_guidance_keeps_a_pending_plan(self):
+        from wayricad_runtime.assistant_context import CircuitInventory
+        self.frame.inventory = CircuitInventory(['VBUS'], {'J1': 'Connector'},
+                                                 {'J1.1': {'VBUS'}, 'J1.2': {'VBUS'}})
+        self.frame.query.ChangeValue('check return path')
+        self.frame._ask(); self.settle()
+        plan = self.frame.plan
+        self.frame.query.ChangeValue('Which pins on J1 are on VBUS?')
+        self.frame._send()
+        self.assertIs(self.frame.plan, plan)
+        self.assertIn('J1.1, J1.2', self.frame.transcript.GetValue())
 
     def test_ready_plan_inputs_can_be_revised_before_run(self):
         from wayricad_runtime import assistant

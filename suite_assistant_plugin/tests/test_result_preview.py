@@ -91,5 +91,30 @@ class ResultPreviewTests(unittest.TestCase):
         self.assertNotIn('voltage_drop_V', html)
 
 
+    def test_oversized_html_keeps_leading_static_summary(self):
+        from unittest.mock import patch
+
+        html = b'<h1>Result</h1><p>Drop 12 mV.</p><script>' + b'x' * 100
+        with patch.object(result_preview, 'MAX_INPUT', 80):
+            markup, _, _ = self.preview('oversized.html', html)
+        self.assertIn('<p>Drop 12 mV.</p>', markup)
+        self.assertIn('Open the full report', markup)
+        self.assertNotIn('xxx', markup)
+
+    def test_web_document_wraps_only_static_content_and_bounds_inline_images(self):
+        markup, png, svg = self.preview('report.html', b'''
+            <h1>DC drop</h1><a href="https://external.invalid">Details</a>
+            <script>alert(1)</script><img src="file:///secret.png">
+        ''')
+        page = result_preview.web_document('<Board>', markup, png, svg)
+        self.assertIn('<title>&lt;Board&gt;</title>', page)
+        self.assertIn("default-src 'none'; style-src 'unsafe-inline'; img-src data:", page)
+        self.assertIn('<h1>DC drop</h1>', page)
+        self.assertNotIn('https://external.invalid', page)
+        self.assertNotIn('file:///secret.png', page)
+        self.assertNotIn('<script', page)
+        self.assertIsNone(result_preview.web_document('Large', '<p>Result</p>', b'x' * 1_500_000))
+
+
 if __name__ == '__main__':
     unittest.main()

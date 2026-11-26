@@ -2,7 +2,7 @@
   "$schema": "https://go.kicad.org/pcm/schemas/v2",
   "name": "WayriCAD Assistant",
   "description": "Local circuit-aware chat for reviewed KiCad checks and simulations.",
-  "description_full": "Use local fuzzy matching and saved PCB net, part and pad names to prepare registered WayriCAD actions. The native chat offers keyboard completion, typed follow-up questions, reviewed simulation execution and links to generated reports. The resizable lower pane contains plan inputs, results and board selection. Scientific tools retain their own runtime and model requirements. KiCad 10 testing package.",
+  "description_full": "Use local fuzzy matching and saved PCB net, part and pad names to prepare registered WayriCAD actions. The native chat recommends saved net and pad groups, keeps reviewed inputs during follow-up turns and embeds offline report previews. The resizable lower pane contains plan inputs, results and board selection. Scientific tools retain their own runtime and model requirements. KiCad 10 testing package.",
   "identifier": "com.github.wayri.wayricad.assistant",
   "type": "plugin",
   "author": {

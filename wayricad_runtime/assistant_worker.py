@@ -7,11 +7,9 @@ import runpy
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-# An independent Assistant PCM contains its own complete headless backend set.
-# A wheel/source checkout already has canonical packages at ROOT.
+# Source, wheel and Assistant PCM all place provider packages beside the runtime.
+# Nested isolated workers resolve this same directory from their own entry points.
 sys.path.insert(0, str(ROOT))
-if (ROOT / "_suite").is_dir():
-    sys.path.insert(0, str(ROOT / "_suite"))
 
 
 class _StudyConsole:
@@ -71,7 +69,10 @@ def main():
         module, prefix, _ = COMMANDS[compiled["tool"]]
         sys.argv = [module, *prefix, *compiled["arguments"]]
         action = plan["steps"][index]["action"]
-        if action in {'quick-pi.batch', 'quick-pi.batch-cases', 'quick-pi.transient', 'quick-pi.load-step'}:
+        if action in {
+            'quick-pi.batch', 'quick-pi.batch-cases', 'quick-pi.grouped',
+            'quick-pi.transient', 'quick-pi.load-step',
+        }:
             with redirect_stdout(_StudyConsole(sys.stdout)):
                 runpy.run_module(module, run_name="__main__", alter_sys=True)
         else:
