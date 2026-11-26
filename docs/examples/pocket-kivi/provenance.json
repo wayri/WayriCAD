@@ -11,9 +11,9 @@
     "matplotlib": "3.10.8"
   },
   "producer_versions": {
-    "Quick PI": "5.0.0",
-    "Quick SI": "5.0.0",
-    "QuickTherm": "5.0.0"
+    "Quick PI": "5.0.1",
+    "Quick SI": "5.0.1",
+    "QuickTherm": "5.0.1"
   },
   "source_files": {
     "example.kicad_pcb": "8d60e824376418fa4cad65d37c9d8c8dd5da60c5538b9bf0a11976dbb98f1e7e",
@@ -48,10 +48,10 @@
   },
   "producer_source_normalization": "CRLF to LF only",
   "files": {
-    "quick-pi.pocket-kivi.json": "fadd4883f7b92f9aeecc23f1df655e0e22184cc621f1c27bc21165d3ae838fbe",
-    "quick-si.pocket-kivi.json": "bb9f3bc01370b08fab0234d7f028f3324f6e1a294507a84327137b7e031ac2e9",
-    "quick-therm.pocket-kivi.json": "3fdcc9f77dc6f2d4a5c13fdfbcb2b5d4ecabb44623e14e7b296c82cb8b12dcef",
-    "quick-therm-transient.pocket-kivi.json": "3edcc9918c06c0e253416b5dca534b1191c9d4578474dfffa6f444e56b7924f0",
+    "quick-pi.pocket-kivi.json": "e7ec7971daf89814cf273a291704f8db443d9fa2ac0f99bcaf6941323dd2ea33",
+    "quick-si.pocket-kivi.json": "d55cb990b7cac03b0e33724a8d59f7341b47a114615c5c64b9303bb1a4cc3a45",
+    "quick-therm.pocket-kivi.json": "2a84875320e1ca4e8f43f849415c979a8a0d66d01e1c16feda78495fb136d521",
+    "quick-therm-transient.pocket-kivi.json": "bb081a9adab3fcdcb204135bd9abb990160b60e554863c6218c09a1325cbf0c2",
     "si-channel.kicad_pcb": "17dbb52487a54b9b94a0f322cabf23f1c519d3aec8a54367fb6472d77f069995",
     "example.kicad_pro": "4d8e3d77d218508d649a0103f5028a06aec19b8eece3bfa3f51eeb65051eeca4",
     "si-channel.kicad_pro": "187b74f74cdbcfee43af428d2af7ddf3c73edad7e5f539403a5adc66bb43bdfe"

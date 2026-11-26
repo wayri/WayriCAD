@@ -176,6 +176,9 @@ def create_frame(parent=None, study=None, *, result_only=None):
             self.canvas = FigureCanvasWxAgg(self.results_page, -1, self.figure)
             self.table.SetMinSize((-1,self.FromDIP(145)))
             self.table.SetMaxSize((-1,self.FromDIP(145)))
+            convention = wx.StaticText(self.results_page,
+                label='Zij is the voltage at port i per ampere at port j. The other port has zero net current.')
+            box.Add(convention, 0, wx.LEFT | wx.TOP, 6)
             box.Add(self.table, 0, wx.EXPAND | wx.ALL, 6)
             box.Add(self.canvas, 1, wx.EXPAND | wx.ALL, 6)
             from .plot_canvas import NavigationToolbar2WxAgg

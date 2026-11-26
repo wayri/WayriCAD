@@ -82,7 +82,10 @@ def draw_study(figure,bundle):
 def study_summary(bundle):
     result=bundle['transient']
     summary={key:result[key] for key in ('notice','feasibility','limits','checks','numerics','energy_balance') if key in result}
-    return json.dumps(summary,indent=2,allow_nan=False)
+    from .transient_review import numerical_evidence
+    evidence = numerical_evidence(result)
+    prefix = ''.join(f'{label} · {value}\n' for label, value in evidence)
+    return prefix + ('\n' if prefix else '') + json.dumps(summary,indent=2,allow_nan=False)
 
 
 def write_study_report(path,bundle):

@@ -1202,6 +1202,10 @@ half-step comparison, charge balance, energy accounting and voltage bounds.
 Step timestamps include before/after samples for instantaneous ESR jumps.
 Refine the integration step until the reported waveform differences are
 acceptable; stable integration alone does not establish waveform accuracy.
+Transient review shows conservation and half-step voltage/current changes.
+Compare the changes with your voltage and current margins, then refine further
+when the margins are comparable. Use reviewed path and mounting parasitics for
+board-level conclusions.
 Source current limits are **budget diagnostics**, not simulated regulator
 CV/CC, foldback or control loops. The resulting time traces are not full-board
 transient field maps or a distributed electromagnetic solve.
